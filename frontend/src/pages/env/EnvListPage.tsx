@@ -1,12 +1,13 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Search, Server, ChevronRight, ChevronDown, ExternalLink, Loader2, X } from 'lucide-react'
+import { Plus, Search, Server, ChevronRight, ChevronDown, ExternalLink, Loader2, X, Pencil, Check, Trash2 } from 'lucide-react'
 import { tenvApi, envApi, engApi, tengApi } from '@/services/api'
+import ResizeHandle, { useResizable } from '@/components/shared/ResizeHandle'
 import { useAuthStore } from '@/stores/authStore'
 import { Modal } from '@/components/shared/Modal'
 import { cn } from '@/lib/utils'
@@ -42,42 +43,130 @@ interface TenvNodeProps {
   selectedId: number | null
   onSelect: (id: number) => void
   onCreateChildType: (parentId: number) => void
+  isAdmin: boolean
+  onRename: (id: number, nom: string) => void
+  onDelete: (id: number) => void
+  deleteError: string | null
+  deletingId: number | null
 }
 
-function TenvNode({ node, depth, selectedId, onSelect, onCreateChildType }: TenvNodeProps) {
+function TenvNode({ node, depth, selectedId, onSelect, onCreateChildType, isAdmin, onRename, onDelete, deleteError, deletingId }: TenvNodeProps) {
   const hasChildren = (node.enfants ?? []).length > 0
   const [open, setOpen] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(node.nom)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const isSelected = selectedId === node.id
+  const isDeleting = deletingId === node.id
+
+  const submitRename = () => {
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== node.nom) onRename(node.id, trimmed)
+    setIsEditing(false)
+  }
+
+  // Focus input when entering edit mode
+  useEffect(() => { if (isEditing) inputRef.current?.focus() }, [isEditing])
 
   return (
     <div>
       <div className="group flex items-center pr-1">
-        <button
-          onClick={() => { onSelect(node.id); if (hasChildren) setOpen(o => !o) }}
-          className={cn(
-            'flex-1 flex items-center gap-1.5 py-1.5 rounded-md text-left text-sm transition-colors min-w-0',
-            isSelected ? 'bg-orange-100 text-orange-800 font-medium' : 'text-gray-700 hover:bg-gray-100',
-          )}
-          style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: '6px' }}
-        >
-          {hasChildren
-            ? open
-              ? <ChevronDown size={13} className="shrink-0 text-gray-400" />
-              : <ChevronRight size={13} className="shrink-0 text-gray-400" />
-            : <span className="w-3.5 shrink-0" />}
-          <span className="truncate">{node.nom}</span>
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onCreateChildType(node.id) }}
-          className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition-all"
-          title={`Créer un sous-type de ${node.nom}`}
-        >
-          <Plus size={12} />
-        </button>
+        {isEditing ? (
+          <div className="flex-1 flex items-center gap-1" style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: '2px' }}>
+            <input
+              ref={inputRef}
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); submitRename() }
+                if (e.key === 'Escape') { setIsEditing(false); setEditValue(node.nom) }
+              }}
+              onBlur={submitRename}
+              className="flex-1 min-w-0 text-sm border border-orange-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
+            />
+            <button type="button" onMouseDown={e => { e.preventDefault(); submitRename() }} className="shrink-0 p-0.5 rounded text-orange-600 hover:bg-orange-50">
+              <Check size={12} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => { onSelect(node.id); if (hasChildren) setOpen(o => !o) }}
+              className={cn(
+                'flex-1 flex items-center gap-1.5 py-1.5 rounded-md text-left text-sm transition-colors min-w-0',
+                isSelected ? 'bg-orange-100 text-orange-800 font-medium' : 'text-gray-700 hover:bg-gray-100',
+              )}
+              style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: '6px' }}
+            >
+              {hasChildren
+                ? open
+                  ? <ChevronDown size={13} className="shrink-0 text-gray-400" />
+                  : <ChevronRight size={13} className="shrink-0 text-gray-400" />
+                : <span className="w-3.5 shrink-0" />}
+              <span className="truncate">{node.nom}</span>
+            </button>
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setEditValue(node.nom); setIsEditing(true) }}
+                  className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition-all"
+                  title={`Renommer ${node.nom}`}
+                >
+                  <Pencil size={12} />
+                </button>
+                {!hasChildren && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+                    className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                    title={`Supprimer ${node.nom}`}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onCreateChildType(node.id) }}
+              className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition-all"
+              title={`Créer un sous-type de ${node.nom}`}
+            >
+              <Plus size={12} />
+            </button>
+          </>
+        )}
       </div>
+
+      {/* Confirmation inline de suppression */}
+      {confirmDelete && (
+        <div className="mx-2 mb-1 px-2 py-1.5 bg-red-50 border border-red-200 rounded-md text-xs" style={{ marginLeft: `${8 + depth * 14}px` }}>
+          <p className="text-red-700 font-medium mb-1.5">Supprimer « {node.nom} » ?</p>
+          {deleteError && deletingId === node.id && <p className="text-red-600 mb-1">{deleteError}</p>}
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(node.id) }}
+              disabled={isDeleting}
+              className="px-2 py-0.5 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
+            >
+              {isDeleting ? '…' : 'Confirmer'}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(false) }}
+              className="px-2 py-0.5 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-50"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
       {hasChildren && open && (node.enfants ?? []).map(child => (
-        <TenvNode key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onCreateChildType={onCreateChildType} />
+        <TenvNode key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onCreateChildType={onCreateChildType} isAdmin={isAdmin} onRename={onRename} onDelete={onDelete} deleteError={deleteError} deletingId={deletingId} />
       ))}
     </div>
   )
@@ -212,6 +301,9 @@ export default function EnvListPage() {
   const isEditeur = useAuthStore((s) => s.isEditeur)
 
   const isAdmin = useAuthStore((s) => s.isAdmin())
+
+  const [col1Width, onDragCol1] = useResizable(208, 120, 420, 'env-panel-col1')
+  const [col2Width, onDragCol2] = useResizable(256, 160, 520, 'env-panel-col2')
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedTenvId, setSelectedTenvId] = useState<number | null>(
     () => searchParams.get('tenv') ? Number(searchParams.get('tenv')) : null
@@ -348,11 +440,41 @@ export default function EnvListPage() {
     },
   })
 
+  const renameTenvMutation = useMutation({
+    mutationFn: ({ id, nom }: { id: number; nom: string }) => tenvApi.update(id, { nom }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenv'] }),
+  })
+
+  const handleRenameTenv = useCallback((id: number, nom: string) => {
+    renameTenvMutation.mutate({ id, nom })
+  }, [renameTenvMutation])
+
+  const [deleteTenvError, setDeleteTenvError] = useState<string | null>(null)
+  const [deletingTenvId, setDeletingTenvId] = useState<number | null>(null)
+
+  const deleteTenvMutation = useMutation({
+    mutationFn: (id: number) => tenvApi.delete(id),
+    onMutate: (id) => { setDeletingTenvId(id); setDeleteTenvError(null) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenv'] })
+      setDeletingTenvId(null)
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setDeleteTenvError(detail ?? 'Impossible de supprimer ce type.')
+      setDeletingTenvId(null)
+    },
+  })
+
+  const handleDeleteTenv = useCallback((id: number) => {
+    deleteTenvMutation.mutate(id)
+  }, [deleteTenvMutation])
+
   return (
     <div className="flex h-full">
 
       {/* ═══ Colonne 1 : arborescence TENV ═══════════════════ */}
-      <aside className="w-52 shrink-0 border-r border-gray-200 bg-white flex flex-col">
+      <aside style={{ width: col1Width }} className="shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
         <div className="px-3 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Types</h2>
           {isAdmin && (
@@ -382,18 +504,25 @@ export default function EnvListPage() {
               key={node.id} node={node} depth={0}
               selectedId={selectedTenvId} onSelect={setSelectedTenvId}
               onCreateChildType={(parentId) => { setNewTenvNom(''); setNewTenvParentId(parentId); setShowCreateTenv(true) }}
+              isAdmin={isAdmin}
+              onRename={handleRenameTenv}
+              onDelete={handleDeleteTenv}
+              deleteError={deleteTenvError}
+              deletingId={deletingTenvId}
             />
           ))}
         </div>
       </aside>
 
+      <ResizeHandle onMouseDown={onDragCol1} />
+
       {/* ═══ Colonne 2 : liste virtualisée des ENV ════════════ */}
-      <aside className="w-64 shrink-0 border-r border-gray-200 bg-white flex flex-col">
+      <aside style={{ width: col2Width }} className="shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
         <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Environnements</h2>
           {isEditeur() && (
             <button
-              onClick={() => navigate('/env/new')}
+              onClick={() => navigate(selectedTenvId ? `/env/new?tenv=${selectedTenvId}` : '/env/new')}
               title="Nouvel environnement"
               className="text-gray-400 hover:text-orange-600 transition-colors"
             >
@@ -470,8 +599,10 @@ export default function EnvListPage() {
         </div>
       </aside>
 
+      <ResizeHandle onMouseDown={onDragCol2} />
+
       {/* ═══ Colonne 3 : ENGs de l'ENV sélectionné ═══════════ */}
-      <div className="flex-1 overflow-y-auto bg-white">
+      <div className="flex-1 overflow-y-auto bg-white min-w-0">
         {selectedEnv ? (
           <div className="flex flex-col h-full">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">

@@ -21,7 +21,11 @@ Ne déduis rien au-delà de ce qui est écrit. Si une ORG ne figure pas dans "Or
 
 IMPORTANT : à la toute fin de ta réponse, ajoute obligatoirement une ligne (et une seule) de la forme exacte :
 SOURCES_USED: 1,3,5
-en indiquant uniquement les numéros des éléments du contexte que tu as effectivement utilisés pour répondre. Si aucun élément n'a été utilisé, écris : SOURCES_USED:"""
+Règles strictes pour SOURCES_USED :
+- N'inclus QUE les numéros des entités dont le contenu propre (nom, description) t'a servi à formuler ta réponse.
+- N'inclus PAS une entité qui apparaît uniquement comme relation d'une autre (ex : une ORG citée dans "Organisations liées" d'un ENG ne doit pas être listée comme source sauf si tu as aussi utilisé sa fiche propre).
+- Si tu réponds à partir d'un seul ENG, cite uniquement ce numéro.
+Si aucun élément n'a été utilisé, écris : SOURCES_USED:"""
 
 
 # ─── Sélection du LLM ────────────────────────────────────────────────────────
@@ -82,11 +86,22 @@ async def similarity_search(db: AsyncSession, query_vec: list[float], top_k: int
                 WHEN EXISTS (SELECT 1 FROM env   WHERE obj_id = e.obj_id) THEN 'env'
                 WHEN EXISTS (SELECT 1 FROM eng   WHERE obj_id = e.obj_id) THEN 'eng'
                 WHEN EXISTS (SELECT 1 FROM event WHERE obj_id = e.obj_id) THEN 'event'
-                ELSE 'unknown'
-            END AS entity_type
+            END AS entity_type,
+            COALESCE(
+                (SELECT id FROM org   WHERE obj_id = e.obj_id),
+                (SELECT id FROM env   WHERE obj_id = e.obj_id),
+                (SELECT id FROM eng   WHERE obj_id = e.obj_id),
+                (SELECT id FROM event WHERE obj_id = e.obj_id)
+            ) AS entity_id
         FROM embedding e
         JOIN obj o ON o.id = e.obj_id
         WHERE e.vecteur IS NOT NULL
+          AND (
+              EXISTS (SELECT 1 FROM org   WHERE obj_id = e.obj_id) OR
+              EXISTS (SELECT 1 FROM env   WHERE obj_id = e.obj_id) OR
+              EXISTS (SELECT 1 FROM eng   WHERE obj_id = e.obj_id) OR
+              EXISTS (SELECT 1 FROM event WHERE obj_id = e.obj_id)
+          )
         ORDER BY e.vecteur <=> CAST(:vec AS vector)
         LIMIT :k
     """)
@@ -96,6 +111,7 @@ async def similarity_search(db: AsyncSession, query_vec: list[float], top_k: int
         return [
             {
                 "obj_id": r.obj_id,
+                "entity_id": r.entity_id,
                 "nom": r.nom,
                 "description": r.description or "",
                 "score": float(r.score),
@@ -343,6 +359,7 @@ async def rag_query(
     formatted_sources = [
         {
             "obj_id": s["obj_id"],
+            "entity_id": s["entity_id"],
             "nom": s["nom"],
             "entity_type": s["entity_type"],
         }

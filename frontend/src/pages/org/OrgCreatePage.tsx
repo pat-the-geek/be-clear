@@ -8,7 +8,7 @@
  *  • Toutes les propriétés de la CLA (values via ValueField)
  */
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { orgApi, torgApi, claApi } from '@/services/api'
@@ -43,12 +43,15 @@ function findNode<T extends { id: number; enfants?: T[] }>(nodes: T[], id: numbe
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function OrgCreatePage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  // ── Pré-sélection via URL ─────────────────────────────────
+  const [searchParams] = useSearchParams()
+  const preselectedTorgId = searchParams.get('torg') ? Number(searchParams.get('torg')) : null
 
   // ── État du formulaire ────────────────────────────────────
   const [nom, setNom] = useState('')
-  const [torgId, setTorgId] = useState<number | null>(null)
+  const [torgId, setTorgId] = useState<number | null>(preselectedTorgId)
   const [description, setDescription] = useState('')
   const [drafts, setDrafts] = useState<Map<number, ValueDraft>>(new Map())
   const [claId, setClaId] = useState<number | null>(null)
@@ -85,7 +88,7 @@ export default function OrgCreatePage() {
   }, [claProps])
 
   // ── Mutation ──────────────────────────────────────────────
-  const { mutate: create, isPending, error } = useMutation({
+  const { mutateAsync: createAsync, isPending, isSuccess, error } = useMutation({
     mutationFn: () =>
       orgApi.create({
         nom: nom.trim(),
@@ -94,15 +97,18 @@ export default function OrgCreatePage() {
         description: description || undefined,
         values: Array.from(drafts.values()),
       }),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['orgs'] })
-      navigate(`/org/${res.data.id}`)
-    },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    create()
+    if (isPending || isSuccess) return
+    try {
+      const res = await createAsync()
+      queryClient.invalidateQueries({ queryKey: ['orgs'] })
+      window.location.href = `/org/${res.data.id}`
+    } catch {
+      // l'erreur est capturée par useMutation et exposée via `error`
+    }
   }
 
   const updateDraft = (updated: ValueDraft) => {
@@ -125,13 +131,13 @@ export default function OrgCreatePage() {
     <div className="p-6 max-w-2xl mx-auto">
       {/* En-tête */}
       <div className="flex items-center gap-3 mb-8">
-        <button
-          onClick={() => navigate('/org')}
+        <Link
+          to="/org"
           className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
           title="Retour"
         >
           <ArrowLeft size={18} />
-        </button>
+        </Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Nouvelle organisation</h1>
           <p className="text-sm text-gray-400">Créer une organisation</p>
@@ -230,16 +236,15 @@ export default function OrgCreatePage() {
 
         {/* ── Actions ────────────────────────────────────── */}
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => navigate('/org')}
+          <a
+            href="/org"
             className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Annuler
-          </button>
+          </a>
           <button
             type="submit"
-            disabled={isPending || !nom.trim() || !torgId}
+            disabled={isPending || isSuccess || !nom.trim() || !torgId}
             className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}

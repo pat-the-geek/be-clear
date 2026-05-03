@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Download, Edit, FileText, CalendarDays, RefreshCw, Hash } from 'lucide-react'
+import { ArrowLeft, Download, Edit, FileText, CalendarDays, RefreshCw, Hash, Trash2 } from 'lucide-react'
 import { orgApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -116,6 +117,7 @@ export default function OrgDetailPage() {
   const isEditeur = useAuthStore((s) => s.isEditeur)
 
   const orgId = Number(id)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const { data: org, isLoading, isError } = useQuery({
     queryKey: ['org', orgId],
@@ -127,6 +129,14 @@ export default function OrgDetailPage() {
     mutationFn: (description: string) =>
       orgApi.update(orgId, { description }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['org', orgId] }),
+  })
+
+  const { mutateAsync: deleteOrg, isPending: isDeleting } = useMutation({
+    mutationFn: () => orgApi.delete(orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orgs'] })
+      window.location.href = '/org'
+    },
   })
 
   if (isLoading) return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
@@ -144,6 +154,17 @@ export default function OrgDetailPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
 
+      {/* ─── Bouton retour ────────────────────────────────── */}
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+          title="Retour"
+        >
+          <ArrowLeft size={18} />
+        </button>
+      </div>
+
       {/* ─── En-tête ──────────────────────────────────────── */}
       <div className="flex items-start gap-5 mb-8">
         <EntityAvatar type="org" nom={org.obj.nom} image={imagePrincipale} size="lg" />
@@ -159,13 +180,43 @@ export default function OrgDetailPage() {
               </div>
             </div>
             {isEditeur() && (
-              <button
-                onClick={() => navigate(`/org/${orgId}/edit`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shrink-0"
-              >
-                <Edit size={14} />
-                Modifier
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {showDeleteConfirm ? (
+                  <>
+                    <span className="text-sm text-red-600 font-medium">Supprimer définitivement ?</span>
+                    <button
+                      onClick={() => deleteOrg()}
+                      disabled={isDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isDeleting ? 'Suppression…' : 'Confirmer'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => navigate(`/org/${orgId}/edit`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <Edit size={14} />
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Supprimer
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -8,7 +8,7 @@
  *  • Toutes les propriétés de la CLA (values via ValueField)
  */
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { envApi, tenvApi, claApi } from '@/services/api'
@@ -43,12 +43,15 @@ function findNode<T extends { id: number; enfants?: T[] }>(nodes: T[], id: numbe
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function EnvCreatePage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  // ── Pré-sélection via URL ─────────────────────────────────
+  const [searchParams] = useSearchParams()
+  const preselectedTenvId = searchParams.get('tenv') ? Number(searchParams.get('tenv')) : null
 
   // ── État du formulaire ────────────────────────────────────
   const [nom, setNom] = useState('')
-  const [tenvId, setTenvId] = useState<number | null>(null)
+  const [tenvId, setTenvId] = useState<number | null>(preselectedTenvId)
   const [description, setDescription] = useState('')
   const [drafts, setDrafts] = useState<Map<number, ValueDraft>>(new Map())
   const [claId, setClaId] = useState<number | null>(null)
@@ -85,7 +88,7 @@ export default function EnvCreatePage() {
   }, [claProps])
 
   // ── Mutation ──────────────────────────────────────────────
-  const { mutate: create, isPending, error } = useMutation({
+  const { mutateAsync: createAsync, isPending, isSuccess, error } = useMutation({
     mutationFn: () =>
       envApi.create({
         nom: nom.trim(),
@@ -94,15 +97,18 @@ export default function EnvCreatePage() {
         description: description || undefined,
         values: Array.from(drafts.values()),
       }),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['envs'] })
-      navigate(`/env/${res.data.id}`)
-    },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    create()
+    if (isPending || isSuccess) return
+    try {
+      const res = await createAsync()
+      queryClient.invalidateQueries({ queryKey: ['envs'] })
+      window.location.href = `/env/${res.data.id}`
+    } catch {
+      // l'erreur est capturée par useMutation et exposée via `error`
+    }
   }
 
   const updateDraft = (updated: ValueDraft) => {
@@ -125,13 +131,13 @@ export default function EnvCreatePage() {
     <div className="p-6 max-w-2xl mx-auto">
       {/* En-tête */}
       <div className="flex items-center gap-3 mb-8">
-        <button
-          onClick={() => navigate('/env')}
+        <Link
+          to="/env"
           className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
           title="Retour"
         >
           <ArrowLeft size={18} />
-        </button>
+        </Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Nouvel environnement</h1>
           <p className="text-sm text-gray-400">Créer un environnement</p>
@@ -230,16 +236,15 @@ export default function EnvCreatePage() {
 
         {/* ── Actions ────────────────────────────────────── */}
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => navigate('/env')}
+          <Link
+            to="/env"
             className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Annuler
-          </button>
+          </Link>
           <button
             type="submit"
-            disabled={isPending || !nom.trim() || !tenvId}
+            disabled={isPending || isSuccess || !nom.trim() || !tenvId}
             className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}

@@ -56,6 +56,7 @@ function entityColors(type: string) {
 
 interface MessageSource {
   obj_id: number
+  entity_id: number
   nom: string
   entity_type: string
 }
@@ -177,7 +178,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
               return (
                 <a
                   key={src.obj_id}
-                  href={`/${src.entity_type}/${src.obj_id}`}
+                  href={`/${src.entity_type}/${src.entity_id}`}
                   className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs border rounded-full transition-colors ${c.pill}`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}`} />
