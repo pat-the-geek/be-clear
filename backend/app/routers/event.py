@@ -1,0 +1,372 @@
+from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload, selectinload
+
+from app.database import get_db
+from app.auth.dependencies import get_current_user, require_editeur
+from app.models.activity import Event, Eng, User, Tevent
+from app.models.object import Obj, Value
+from app.schemas.event import EventOut, EventCreate, EventUpdate, TeventRef
+from app.schemas.org import ObjOut
+from app.services.log import write_log
+from app.services.gantt import recalculate_eng, _to_timedelta
+from app.services.search_service import index_obj, delete_obj
+
+router = APIRouter()
+
+
+# ─── Chargement complet d'un EVENT ───────────────────────────
+
+def _event_options():
+    return [
+        joinedload(Event.tevent),
+        joinedload(Event.obj).options(
+            joinedload(Obj.cla),
+            selectinload(Obj.values).joinedload(Value.prop),
+            selectinload(Obj.images),
+        ),
+    ]
+
+
+def _dt_to_str(dt) -> str | None:
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        return dt.isoformat()
+    return str(dt)
+
+
+def _event_to_out(event: Event) -> EventOut:
+    return EventOut(
+        id=event.id,
+        obj=event.obj,
+        eng_id=event.eng_id,
+        tevent=event.tevent,
+        date_heure_prevue=_dt_to_str(event.date_heure_prevue),
+        date_heure_reelle=_dt_to_str(event.date_heure_reelle),
+        est_accompli=event.est_accompli,
+    )
+
+
+# ─── GET /event/suggest ──────────────────────────────────────
+# Déclaré AVANT /{event_id} pour éviter la collision de route
+
+@router.get("/suggest")
+async def suggest_event_date(
+    eng_id: int = Query(..., description="ID de l'ENG cible"),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Calcule la date suggérée pour le prochain EVENT d'un ENG.
+    Logique : date_heure_prevue du dernier EVENT + durée de son TEVENT.
+    Si aucun EVENT existant, suggère date_debut_prevue de l'ENG (ou maintenant).
+    """
+    eng_result = await db.execute(
+        select(Eng)
+        .options(
+            selectinload(Eng.events).joinedload(Event.tevent)
+        )
+        .where(Eng.id == eng_id)
+    )
+    eng = eng_result.unique().scalar_one_or_none()
+    if eng is None:
+        raise HTTPException(status_code=404, detail="Engagement introuvable")
+
+    events = sorted(
+        [e for e in eng.events if e.date_heure_prevue is not None],
+        key=lambda e: e.date_heure_prevue,
+    )
+
+    if not events:
+        # Pas d'EVENT : suggérer la date de début prévue de l'ENG
+        suggested = eng.date_debut_prevue or eng.date_debut or datetime.now()
+        return {"date_heure_prevue_suggere": _dt_to_str(suggested)}
+
+    dernier = events[-1]
+    tevent = dernier.tevent
+
+    if (
+        tevent is not None
+        and tevent.duree_prevue_valeur is not None
+        and tevent.duree_prevue_unite is not None
+    ):
+        delta = _to_timedelta(float(tevent.duree_prevue_valeur), tevent.duree_prevue_unite)
+    else:
+        delta = timedelta(hours=1)  # fallback
+
+    suggested = dernier.date_heure_prevue + delta
+    return {"date_heure_prevue_suggere": _dt_to_str(suggested)}
+
+
+# ─── GET /event ──────────────────────────────────────────────
+
+@router.get("")
+async def list_events(
+    eng_id: int = Query(..., description="Filtre obligatoire — ID de l'ENG"),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Event)
+        .options(*_event_options())
+        .where(Event.eng_id == eng_id)
+        .order_by(Event.date_heure_prevue)
+    )
+    events = result.unique().scalars().all()
+    return [_event_to_out(e) for e in events]
+
+
+# ─── GET /event/{id} ─────────────────────────────────────────
+
+@router.get("/{event_id}", response_model=EventOut)
+async def get_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Event).options(*_event_options()).where(Event.id == event_id)
+    )
+    event = result.unique().scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Évènement introuvable")
+    return _event_to_out(event)
+
+
+# ─── POST /event ─────────────────────────────────────────────
+
+@router.post("", response_model=EventOut, status_code=status.HTTP_201_CREATED)
+async def create_event(
+    body: EventCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_editeur),
+):
+    # Vérifier que l'ENG existe
+    eng = await db.get(Eng, body.eng_id)
+    if eng is None:
+        raise HTTPException(status_code=404, detail="Engagement introuvable")
+
+    # Vérifier que le TEVENT existe
+    tevent = await db.get(Tevent, body.tevent_id)
+    if tevent is None:
+        raise HTTPException(status_code=400, detail="TEVENT introuvable")
+
+    # RF-15 : date_heure_prevue >= eng.date_debut
+    date_heure_prevue = datetime.fromisoformat(body.date_heure_prevue)
+    if eng.date_debut is not None and date_heure_prevue < eng.date_debut:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"RF-15 : date_heure_prevue ({body.date_heure_prevue}) "
+                f"ne peut pas être antérieure à date_debut de l'ENG "
+                f"({_dt_to_str(eng.date_debut)})"
+            ),
+        )
+
+    # Créer l'OBJ
+    obj = Obj(
+        nom=body.nom,
+        description=body.description,
+        cla_id=body.cla_id,
+        created_by_id=current_user.id,
+        updated_by_id=current_user.id,
+    )
+    db.add(obj)
+    await db.flush()
+
+    # Créer les VALUE
+    for v in body.values:
+        value = Value(obj_id=obj.id, **v.model_dump())
+        db.add(value)
+
+    # Créer l'EVENT
+    event = Event(
+        obj_id=obj.id,
+        eng_id=body.eng_id,
+        tevent_id=body.tevent_id,
+        date_heure_prevue=date_heure_prevue,
+        created_by_id=current_user.id,
+        updated_by_id=current_user.id,
+    )
+    db.add(event)
+    await db.flush()
+
+    await write_log(db, user_id=current_user.id, operation="INSERT",
+                    table_name="event", entite_id=event.id,
+                    apres={"nom": body.nom, "eng_id": body.eng_id,
+                           "tevent_id": body.tevent_id,
+                           "date_heure_prevue": body.date_heure_prevue})
+    await db.commit()
+
+    # Recalculer le Gantt de l'ENG
+    await recalculate_eng(db, body.eng_id)
+    await db.commit()
+
+    # Recharger avec toutes les relations
+    result = await db.execute(
+        select(Event).options(*_event_options()).where(Event.id == event.id)
+    )
+    event = result.unique().scalar_one()
+
+    try:
+        await index_obj(
+            obj_id=event.obj_id,
+            nom=event.obj.nom,
+            description=event.obj.description,
+            values_text=[v.valeur_texte for v in event.obj.values if v.valeur_texte],
+            entity_type="event",
+            cla_nom=event.obj.cla.nom,
+        )
+    except Exception:
+        pass
+
+    # ─── Embedding RAG ─────────────────────────────────────────
+    try:
+        from app.services.embedding_service import upsert_embedding, build_embed_text
+        embed_txt = build_embed_text(
+            nom=event.obj.nom,
+            description=event.obj.description,
+            values_text=[v.valeur_texte for v in event.obj.values if v.valeur_texte],
+            entity_type="event",
+        )
+        await upsert_embedding(db, event.obj_id, embed_txt)
+    except Exception:
+        pass
+
+    return _event_to_out(event)
+
+
+# ─── PUT /event/{id} ─────────────────────────────────────────
+
+@router.put("/{event_id}", response_model=EventOut)
+async def update_event(
+    event_id: int,
+    body: EventUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_editeur),
+):
+    result = await db.execute(
+        select(Event).options(*_event_options()).where(Event.id == event_id)
+    )
+    event = result.unique().scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Évènement introuvable")
+
+    avant = {
+        "date_heure_prevue": _dt_to_str(event.date_heure_prevue),
+        "date_heure_reelle": _dt_to_str(event.date_heure_reelle),
+    }
+    eng_id = event.eng_id
+
+    if body.nom is not None:
+        event.obj.nom = body.nom
+    if body.description is not None:
+        event.obj.description = body.description
+    if body.tevent_id is not None:
+        tevent = await db.get(Tevent, body.tevent_id)
+        if tevent is None:
+            raise HTTPException(status_code=400, detail="TEVENT introuvable")
+        event.tevent_id = body.tevent_id
+    if body.date_heure_prevue is not None:
+        new_date = datetime.fromisoformat(body.date_heure_prevue)
+        # RF-15 : vérifier la cohérence avec date_debut de l'ENG
+        eng = await db.get(Eng, eng_id)
+        if eng and eng.date_debut is not None and new_date < eng.date_debut:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"RF-15 : date_heure_prevue ({body.date_heure_prevue}) "
+                    f"ne peut pas être antérieure à date_debut de l'ENG "
+                    f"({_dt_to_str(eng.date_debut)})"
+                ),
+            )
+        event.date_heure_prevue = new_date
+    if body.date_heure_reelle is not None:
+        event.date_heure_reelle = datetime.fromisoformat(body.date_heure_reelle)
+
+    event.obj.updated_by_id = current_user.id
+
+    await write_log(db, user_id=current_user.id, operation="UPDATE",
+                    table_name="event", entite_id=event_id, avant=avant,
+                    apres={
+                        "date_heure_prevue": _dt_to_str(event.date_heure_prevue),
+                        "date_heure_reelle": _dt_to_str(event.date_heure_reelle),
+                    })
+    await db.commit()
+
+    # Recalculer le Gantt de l'ENG
+    await recalculate_eng(db, eng_id)
+    await db.commit()
+
+    result = await db.execute(
+        select(Event).options(*_event_options()).where(Event.id == event_id)
+    )
+    event = result.unique().scalar_one()
+
+    try:
+        await index_obj(
+            obj_id=event.obj_id,
+            nom=event.obj.nom,
+            description=event.obj.description,
+            values_text=[v.valeur_texte for v in event.obj.values if v.valeur_texte],
+            entity_type="event",
+            cla_nom=event.obj.cla.nom,
+        )
+    except Exception:
+        pass
+
+    # ─── Embedding RAG ─────────────────────────────────────────
+    try:
+        from app.services.embedding_service import upsert_embedding, build_embed_text
+        embed_txt = build_embed_text(
+            nom=event.obj.nom,
+            description=event.obj.description,
+            values_text=[v.valeur_texte for v in event.obj.values if v.valeur_texte],
+            entity_type="event",
+        )
+        await upsert_embedding(db, event.obj_id, embed_txt)
+    except Exception:
+        pass
+
+    return _event_to_out(event)
+
+
+# ─── DELETE /event/{id} ──────────────────────────────────────
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_editeur),
+):
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Évènement introuvable")
+
+    eng_id = event.eng_id
+
+    try:
+        await delete_obj(event.obj_id)
+    except Exception:
+        pass
+
+    try:
+        from app.services.embedding_service import delete_embedding
+        await delete_embedding(db, event.obj_id)
+    except Exception:
+        pass
+
+    await write_log(db, user_id=current_user.id, operation="DELETE",
+                    table_name="event", entite_id=event_id,
+                    avant={"event_id": event_id, "eng_id": eng_id})
+    await db.delete(event)
+    await db.commit()
+
+    # Recalculer le Gantt de l'ENG après suppression
+    await recalculate_eng(db, eng_id)
+    await db.commit()

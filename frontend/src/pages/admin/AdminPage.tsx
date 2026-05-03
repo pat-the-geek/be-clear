@@ -1,0 +1,1556 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Plus, Trash2, Edit, ChevronRight, ChevronDown } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
+import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, api } from '@/services/api'
+import { formatDateTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import type { Cla, Torg, Tenv, Teng, Tevent } from '@/types'
+import { Modal } from '@/components/shared/Modal'
+
+// ─── Types locaux ────────────────────────────────────────────
+
+interface UserItem {
+  id: number
+  obj: { nom: string }
+  role?: string
+  org_id?: number
+  est_actif: boolean
+  tuser: { valeur: string }
+}
+
+interface LogEntry {
+  id: number
+  table_name: string
+  operation: 'INSERT' | 'UPDATE' | 'DELETE'
+  entite_id: number | null
+  horodatage: string
+  user_nom: string | null
+}
+
+interface AppConfig {
+  obsidian_vault_path?: string
+  ollama_url?: string
+  ollama_modele?: string
+}
+
+interface LlmDistant {
+  id: number
+  nom: string
+  fournisseur: string
+  modele?: string
+  api_url?: string
+  api_key_hint?: string
+}
+
+interface PaginatedLog {
+  items: LogEntry[]
+  total: number
+  page: number
+  per_page: number
+}
+
+interface TuserItem {
+  id: number
+  valeur: string
+}
+
+
+// ─── Composants de formulaire utilitaires ─────────────────────
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="mt-1 text-xs text-red-500">{message}</p>
+}
+
+function FormField({ label, children, error, hint }: { label: string; children: React.ReactNode; error?: string; hint?: string }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {children}
+      {hint && !error && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+      <FieldError message={error} />
+    </div>
+  )
+}
+
+const inputClass = 'w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400'
+const selectClass = 'w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
+
+function SubmitRow({ pending, label = 'Enregistrer', onCancel }: { pending: boolean; label?: string; onCancel: () => void }) {
+  return (
+    <div className="flex justify-end gap-2 pt-2">
+      <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">
+        Annuler
+      </button>
+      <button
+        type="submit"
+        disabled={pending}
+        className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+      >
+        {pending ? 'Enregistrement…' : label}
+      </button>
+    </div>
+  )
+}
+
+// ─── Hook: liste des classes ──────────────────────────────────
+
+function useClaList() {
+  return useQuery<Cla[]>({
+    queryKey: ['cla', 'list'],
+    queryFn: () => claApi.list().then((r) => r.data),
+  })
+}
+
+// ─── Modal CLA ────────────────────────────────────────────────
+
+const claSchema = z.object({
+  nom: z.string().min(1, 'Le nom est requis'),
+  description: z.string().optional(),
+  super_classe_id: z.string().optional(),
+})
+type ClaFormValues = z.infer<typeof claSchema>
+
+interface ModalClaProps {
+  open: boolean
+  onClose: () => void
+  initialData?: Cla
+}
+
+function ModalCla({ open, onClose, initialData }: ModalClaProps) {
+  const qc = useQueryClient()
+  const { data: classes } = useClaList()
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<ClaFormValues>({
+    resolver: zodResolver(claSchema),
+    defaultValues: { nom: '', description: '', super_classe_id: '' },
+  })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        nom: initialData?.nom ?? '',
+        description: initialData?.comportement ?? '',
+        super_classe_id: initialData?.super_classe_id != null ? String(initialData.super_classe_id) : '',
+      })
+    }
+  }, [open, initialData, reset])
+
+  const { mutate: saveCla, isPending } = useMutation({
+    mutationFn: (values: ClaFormValues) => {
+      const payload = {
+        nom: values.nom,
+        comportement: values.description || undefined,
+        super_classe_id: values.super_classe_id ? Number(values.super_classe_id) : undefined,
+      }
+      return initialData
+        ? claApi.update(initialData.id, payload)
+        : claApi.create(payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cla'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title={initialData ? 'Modifier la classe' : 'Nouvelle classe'}>
+      <form onSubmit={handleSubmit((d) => saveCla(d))} className="space-y-4">
+        <FormField label="Nom *" error={errors.nom?.message}>
+          <input {...register('nom')} className={inputClass} />
+        </FormField>
+        <FormField label="Description (Markdown)" error={errors.description?.message}>
+          <textarea {...register('description')} rows={3} className={inputClass} />
+        </FormField>
+        <FormField label="Super-classe" error={errors.super_classe_id?.message}>
+          <select {...register('super_classe_id')} className={selectClass}>
+            <option value="">— Aucune —</option>
+            {classes?.filter((c) => c.id !== initialData?.id).map((c) => (
+              <option key={c.id} value={c.id}>{c.nom}</option>
+            ))}
+          </select>
+        </FormField>
+        <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Onglet Classes ──────────────────────────────────────────
+
+function TabClasses() {
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Cla | null>(null)
+
+  const { data: classes, isLoading, isError } = useQuery<Cla[]>({
+    queryKey: ['cla', 'list'],
+    queryFn: () => claApi.list().then((r) => r.data),
+  })
+
+  const qc = useQueryClient()
+  const { mutate: deleteCla } = useMutation({
+    mutationFn: (id: number) => claApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cla'] }),
+  })
+
+  if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
+  if (isError) return <div className="text-red-500 py-8 text-center">Erreur de chargement.</div>
+
+  // Build id→nom map for display
+  const claMap = Object.fromEntries((classes ?? []).map((c) => [c.id, c.nom]))
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-base font-semibold text-gray-800">Classes ({classes?.length ?? 0})</h3>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={14} />
+          Nouvelle classe
+        </button>
+      </div>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Nom</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Super-classe</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Propriétés</th>
+              <th className="px-4 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {classes?.map((cla) => (
+              <tr key={cla.id} className="border-t border-gray-100">
+                <td className="px-4 py-2.5 font-medium text-gray-900">{cla.nom}</td>
+                <td className="px-4 py-2.5 text-gray-500">
+                  {cla.super_classe_id ? (claMap[cla.super_classe_id] ?? `#${cla.super_classe_id}`) : '—'}
+                </td>
+                <td className="px-4 py-2.5 text-gray-500">{cla.props.length}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setEditTarget(cla)}
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                      title="Modifier"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Supprimer la classe « ${cla.nom} » ?`)) deleteCla(cla.id)
+                      }}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ModalCla open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ModalCla open={editTarget !== null} onClose={() => setEditTarget(null)} initialData={editTarget ?? undefined} />
+    </div>
+  )
+}
+
+// ─── Modal USER ───────────────────────────────────────────────
+
+const userSchema = z.object({
+  nom: z.string().min(1, 'Le nom est requis'),
+  auth_uid: z.string().min(1, 'Le login technique est requis'),
+  tuser_id: z.string().min(1, 'Le type est requis'),
+  role: z.string().optional(),
+  org_id: z.string().optional(),
+})
+type UserFormValues = z.infer<typeof userSchema>
+
+interface ModalUserProps {
+  open: boolean
+  onClose: () => void
+  initialData?: UserItem
+}
+
+function ModalUser({ open, onClose, initialData }: ModalUserProps) {
+  const qc = useQueryClient()
+
+  const { data: tusers } = useQuery<TuserItem[]>({
+    queryKey: ['tuser', 'list'],
+    queryFn: () => api.get('/tuser').then((r) => r.data),
+    enabled: open,
+  })
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UserFormValues>({
+    resolver: zodResolver(userSchema),
+    defaultValues: { nom: '', auth_uid: '', tuser_id: '', role: '', org_id: '' },
+  })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        nom: initialData?.obj.nom ?? '',
+        auth_uid: '',
+        tuser_id: initialData?.tuser ? String((initialData.tuser as unknown as TuserItem).id ?? '') : '',
+        role: initialData?.role ?? '',
+        org_id: initialData?.org_id != null ? String(initialData.org_id) : '',
+      })
+    }
+  }, [open, initialData, reset])
+
+  const { mutate: saveUser, isPending } = useMutation({
+    mutationFn: (values: UserFormValues) => {
+      const payload: Record<string, unknown> = {
+        nom: values.nom,
+        auth_uid: values.auth_uid,
+        tuser_id: Number(values.tuser_id),
+        role: values.role || undefined,
+        org_id: values.org_id ? Number(values.org_id) : undefined,
+      }
+      return initialData
+        ? userApi.update(initialData.id, payload)
+        : userApi.create(payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title={initialData ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}>
+      <form onSubmit={handleSubmit((d) => saveUser(d))} className="space-y-4">
+        <FormField label="Nom *" error={errors.nom?.message}>
+          <input {...register('nom')} className={inputClass} />
+        </FormField>
+        <FormField label="Login technique (auth_uid) *" error={errors.auth_uid?.message}>
+          <input {...register('auth_uid')} className={inputClass} placeholder="ex: jdupont@example.com" />
+        </FormField>
+        <FormField label="Type d'utilisateur *" error={errors.tuser_id?.message}>
+          <select {...register('tuser_id')} className={selectClass}>
+            <option value="">— Sélectionner —</option>
+            {tusers?.map((t) => (
+              <option key={t.id} value={t.id}>{t.valeur}</option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Rôle" error={errors.role?.message}>
+          <select {...register('role')} className={selectClass}>
+            <option value="">— Aucun (non-humain) —</option>
+            <option value="ADMIN">ADMIN</option>
+            <option value="EDITEUR">EDITEUR</option>
+            <option value="LECTEUR">LECTEUR</option>
+          </select>
+        </FormField>
+        <FormField label="Organisation (ID)" error={errors.org_id?.message}>
+          <input {...register('org_id')} type="number" className={inputClass} placeholder="optionnel" />
+        </FormField>
+        <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Onglet Utilisateurs ─────────────────────────────────────
+
+function TabUsers() {
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<UserItem | null>(null)
+
+  const { data: users, isLoading, isError } = useQuery<UserItem[]>({
+    queryKey: ['user', 'list'],
+    queryFn: () => userApi.list().then((r) => r.data),
+  })
+
+  if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
+  if (isError) return <div className="text-red-500 py-8 text-center">Erreur de chargement.</div>
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-base font-semibold text-gray-800">Utilisateurs ({users?.length ?? 0})</h3>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={14} />
+          Nouvel utilisateur
+        </button>
+      </div>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Nom</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Type</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Rôle</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-500">Statut</th>
+              <th className="px-4 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {users?.map((user) => (
+              <tr key={user.id} className="border-t border-gray-100">
+                <td className="px-4 py-2.5 font-medium text-gray-900">{user.obj.nom}</td>
+                <td className="px-4 py-2.5 text-gray-500">{user.tuser.valeur}</td>
+                <td className="px-4 py-2.5">
+                  {user.role ? (
+                    <span
+                      className={cn(
+                        'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
+                        user.role === 'ADMIN'
+                          ? 'bg-red-100 text-red-700'
+                          : user.role === 'EDITEUR'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600',
+                      )}
+                    >
+                      {user.role}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 text-xs">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5">
+                  <span
+                    className={cn(
+                      'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
+                      user.est_actif ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
+                    )}
+                  >
+                    {user.est_actif ? 'Actif' : 'Inactif'}
+                  </span>
+                </td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setEditTarget(user)}
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                      title="Modifier"
+                    >
+                      <Edit size={14} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ModalUser open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ModalUser open={editTarget !== null} onClose={() => setEditTarget(null)} initialData={editTarget ?? undefined} />
+    </div>
+  )
+}
+
+// ─── Modal TORG / TENV ────────────────────────────────────────
+
+const typeOrgEnvSchema = z.object({
+  nom: z.string().min(1, 'Le nom est requis'),
+  cla_id: z.string().optional(),
+  parent_id: z.string().optional(),
+})
+type TypeOrgEnvFormValues = z.infer<typeof typeOrgEnvSchema>
+
+type TypeApi = typeof torgApi | typeof tenvApi
+type TorgOrTenv = Torg | Tenv
+type TorgOrTenvQueryKey = ['torg', 'tree'] | ['torg', 'list'] | ['tenv', 'tree'] | ['tenv', 'list']
+
+interface ModalTypeOrgEnvProps {
+  open: boolean
+  onClose: () => void
+  typeApi: TypeApi
+  queryKeys: TorgOrTenvQueryKey[]
+  initialData?: TorgOrTenv
+  parentId?: number
+  entityLabel: string
+}
+
+function ModalTypeOrgEnv({ open, onClose, typeApi, queryKeys, initialData, parentId, entityLabel }: ModalTypeOrgEnvProps) {
+  const qc = useQueryClient()
+  const { data: classes } = useClaList()
+
+  const { data: flatList } = useQuery<TorgOrTenv[]>({
+    queryKey: queryKeys.find((k) => k[1] === 'list') ?? queryKeys[0],
+    queryFn: () => typeApi.list().then((r) => r.data),
+    enabled: open,
+  })
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<TypeOrgEnvFormValues>({
+    resolver: zodResolver(typeOrgEnvSchema),
+    defaultValues: { nom: '', cla_id: '', parent_id: '' },
+  })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        nom: initialData?.nom ?? '',
+        cla_id: initialData?.cla?.id != null ? String(initialData.cla.id) : '',
+        parent_id: initialData?.parent_id != null
+          ? String(initialData.parent_id)
+          : parentId != null
+          ? String(parentId)
+          : '',
+      })
+    }
+  }, [open, initialData, parentId, reset])
+
+  const { mutate: save, isPending } = useMutation({
+    mutationFn: (values: TypeOrgEnvFormValues) => {
+      const payload = {
+        nom: values.nom,
+        cla_id: values.cla_id ? Number(values.cla_id) : undefined,
+        parent_id: values.parent_id ? Number(values.parent_id) : undefined,
+      }
+      return initialData
+        ? typeApi.update(initialData.id, payload)
+        : typeApi.create(payload)
+    },
+    onSuccess: () => {
+      queryKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
+      onClose()
+    },
+  })
+
+  const isSubNode = parentId != null && !initialData
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isSubNode ? `Ajouter un sous-type ${entityLabel}` : initialData ? `Modifier le type ${entityLabel}` : `Nouveau type ${entityLabel}`}
+    >
+      <form onSubmit={handleSubmit((d) => save(d))} className="space-y-4">
+        <FormField label="Nom *" error={errors.nom?.message}>
+          <input {...register('nom')} className={inputClass} />
+        </FormField>
+        <FormField label="Classe" error={errors.cla_id?.message} hint="Laissez vide pour créer automatiquement une classe du même nom">
+          <select {...register('cla_id')} className={selectClass}>
+            <option value="">— Créer automatiquement —</option>
+            {classes?.map((c) => (
+              <option key={c.id} value={c.id}>{c.nom}</option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Parent" error={errors.parent_id?.message}>
+          <select {...register('parent_id')} className={selectClass}>
+            <option value="">— Aucun (racine) —</option>
+            {flatList?.filter((t) => t.id !== initialData?.id).map((t) => (
+              <option key={t.id} value={t.id}>{t.nom}</option>
+            ))}
+          </select>
+        </FormField>
+        <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Composant arbre type (TORG / TENV) ──────────────────────
+
+interface TypeTreeNodeProps {
+  node: Torg | Tenv
+  openIds: Set<number>
+  onToggle: (id: number) => void
+  onAddChild: (node: TorgOrTenv) => void
+  onEdit: (node: TorgOrTenv) => void
+  onDelete: (node: TorgOrTenv) => void
+  depth?: number
+}
+
+function TypeTreeNode({ node, openIds, onToggle, onAddChild, onEdit, onDelete, depth = 0 }: TypeTreeNodeProps) {
+  const hasChildren = node.enfants && node.enfants.length > 0
+  const isOpen = openIds.has(node.id)
+
+  return (
+    <div>
+      <div
+        className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 rounded-lg group"
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {hasChildren ? (
+            <button
+              className="shrink-0 text-gray-400 hover:text-gray-700"
+              onClick={() => onToggle(node.id)}
+            >
+              {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+          ) : (
+            <span className="w-[14px] shrink-0" />
+          )}
+          <span className="text-sm text-gray-900 truncate">{node.nom}</span>
+          <span className="text-xs text-gray-400">({node.cla.nom})</span>
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => onAddChild(node)}
+            className="p-1 text-gray-400 hover:text-gray-700 rounded"
+            title="Ajouter sous-nœud"
+          >
+            <Plus size={12} />
+          </button>
+          <button
+            onClick={() => onEdit(node)}
+            className="p-1 text-gray-400 hover:text-gray-700 rounded"
+            title="Modifier"
+          >
+            <Edit size={12} />
+          </button>
+          <button
+            onClick={() => onDelete(node)}
+            className="p-1 text-gray-400 hover:text-red-500 rounded"
+            title="Supprimer"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+      {hasChildren && isOpen && (
+        <div>
+          {node.enfants!.map((child) => (
+            <TypeTreeNode
+              key={child.id}
+              node={child as Torg | Tenv}
+              openIds={openIds}
+              onToggle={onToggle}
+              onAddChild={onAddChild}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Onglet Types ORG ────────────────────────────────────────
+
+function TabTypesOrg() {
+  const [openIds, setOpenIds] = useState<Set<number>>(new Set())
+  const [createOpen, setCreateOpen] = useState(false)
+  const [addChildTarget, setAddChildTarget] = useState<TorgOrTenv | null>(null)
+  const [editTarget, setEditTarget] = useState<TorgOrTenv | null>(null)
+
+  const qc = useQueryClient()
+  const { data: tree, isLoading, isError } = useQuery<Torg[]>({
+    queryKey: ['torg', 'tree'],
+    queryFn: () => torgApi.tree().then((r) => r.data),
+  })
+
+  const { mutate: deleteNode } = useMutation({
+    mutationFn: (id: number) => torgApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['torg', 'tree'] })
+      qc.invalidateQueries({ queryKey: ['torg', 'list'] })
+    },
+  })
+
+  function toggle(id: number) {
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const torgQueryKeys: TorgOrTenvQueryKey[] = [['torg', 'tree'], ['torg', 'list']]
+
+  if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
+  if (isError) return <div className="text-red-500 py-8 text-center">Erreur de chargement.</div>
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-base font-semibold text-gray-800">Types d'organisation</h3>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={14} />
+          Nouveau type
+        </button>
+      </div>
+      <div className="bg-white rounded-lg border border-gray-200 p-2">
+        {tree?.map((node) => (
+          <TypeTreeNode
+            key={node.id}
+            node={node}
+            openIds={openIds}
+            onToggle={toggle}
+            onAddChild={(n) => setAddChildTarget(n)}
+            onEdit={(n) => setEditTarget(n)}
+            onDelete={(n) => { if (confirm(`Supprimer « ${n.nom} » ?`)) deleteNode(n.id) }}
+          />
+        ))}
+        {tree?.length === 0 && (
+          <p className="text-center text-gray-400 py-6 text-sm">Aucun type défini.</p>
+        )}
+      </div>
+
+      <ModalTypeOrgEnv
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        typeApi={torgApi}
+        queryKeys={torgQueryKeys}
+        entityLabel="ORG"
+      />
+      <ModalTypeOrgEnv
+        open={addChildTarget !== null}
+        onClose={() => setAddChildTarget(null)}
+        typeApi={torgApi}
+        queryKeys={torgQueryKeys}
+        parentId={addChildTarget?.id}
+        entityLabel="ORG"
+      />
+      <ModalTypeOrgEnv
+        open={editTarget !== null}
+        onClose={() => setEditTarget(null)}
+        typeApi={torgApi}
+        queryKeys={torgQueryKeys}
+        initialData={editTarget ?? undefined}
+        entityLabel="ORG"
+      />
+    </div>
+  )
+}
+
+// ─── Onglet Types ENV ────────────────────────────────────────
+
+function TabTypesEnv() {
+  const [openIds, setOpenIds] = useState<Set<number>>(new Set())
+  const [createOpen, setCreateOpen] = useState(false)
+  const [addChildTarget, setAddChildTarget] = useState<TorgOrTenv | null>(null)
+  const [editTarget, setEditTarget] = useState<TorgOrTenv | null>(null)
+
+  const qc = useQueryClient()
+  const { data: tree, isLoading, isError } = useQuery<Tenv[]>({
+    queryKey: ['tenv', 'tree'],
+    queryFn: () => tenvApi.tree().then((r) => r.data),
+  })
+
+  const { mutate: deleteNode } = useMutation({
+    mutationFn: (id: number) => tenvApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tenv', 'tree'] })
+      qc.invalidateQueries({ queryKey: ['tenv', 'list'] })
+    },
+  })
+
+  function toggle(id: number) {
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const tenvQueryKeys: TorgOrTenvQueryKey[] = [['tenv', 'tree'], ['tenv', 'list']]
+
+  if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
+  if (isError) return <div className="text-red-500 py-8 text-center">Erreur de chargement.</div>
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-base font-semibold text-gray-800">Types d'environnement</h3>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={14} />
+          Nouveau type
+        </button>
+      </div>
+      <div className="bg-white rounded-lg border border-gray-200 p-2">
+        {tree?.map((node) => (
+          <TypeTreeNode
+            key={node.id}
+            node={node}
+            openIds={openIds}
+            onToggle={toggle}
+            onAddChild={(n) => setAddChildTarget(n)}
+            onEdit={(n) => setEditTarget(n)}
+            onDelete={(n) => { if (confirm(`Supprimer « ${n.nom} » ?`)) deleteNode(n.id) }}
+          />
+        ))}
+        {tree?.length === 0 && (
+          <p className="text-center text-gray-400 py-6 text-sm">Aucun type défini.</p>
+        )}
+      </div>
+
+      <ModalTypeOrgEnv
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        typeApi={tenvApi}
+        queryKeys={tenvQueryKeys}
+        entityLabel="ENV"
+      />
+      <ModalTypeOrgEnv
+        open={addChildTarget !== null}
+        onClose={() => setAddChildTarget(null)}
+        typeApi={tenvApi}
+        queryKeys={tenvQueryKeys}
+        parentId={addChildTarget?.id}
+        entityLabel="ENV"
+      />
+      <ModalTypeOrgEnv
+        open={editTarget !== null}
+        onClose={() => setEditTarget(null)}
+        typeApi={tenvApi}
+        queryKeys={tenvQueryKeys}
+        initialData={editTarget ?? undefined}
+        entityLabel="ENV"
+      />
+    </div>
+  )
+}
+
+// ─── Modal TENG ───────────────────────────────────────────────
+
+const tengSchema = z.object({
+  nom: z.string().min(1, 'Le nom est requis'),
+  cla_id: z.string().min(1, 'La classe est requise'),
+})
+type TengFormValues = z.infer<typeof tengSchema>
+
+interface ModalTengProps {
+  open: boolean
+  onClose: () => void
+  initialData?: Teng
+}
+
+function ModalTeng({ open, onClose, initialData }: ModalTengProps) {
+  const qc = useQueryClient()
+  const { data: classes } = useClaList()
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<TengFormValues>({
+    resolver: zodResolver(tengSchema),
+    defaultValues: { nom: '', cla_id: '' },
+  })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        nom: initialData?.nom ?? '',
+        cla_id: initialData?.cla?.id != null ? String(initialData.cla.id) : '',
+      })
+    }
+  }, [open, initialData, reset])
+
+  const { mutate: save, isPending } = useMutation({
+    mutationFn: (values: TengFormValues) => {
+      const payload = { nom: values.nom, cla_id: Number(values.cla_id) }
+      return initialData
+        ? tengApi.update(initialData.id, payload)
+        : tengApi.create(payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['teng'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title={initialData ? 'Modifier le type ENG' : 'Nouveau type ENG'}>
+      <form onSubmit={handleSubmit((d) => save(d))} className="space-y-4">
+        <FormField label="Nom *" error={errors.nom?.message}>
+          <input {...register('nom')} className={inputClass} />
+        </FormField>
+        <FormField label="Classe *" error={errors.cla_id?.message}>
+          <select {...register('cla_id')} className={selectClass}>
+            <option value="">— Sélectionner —</option>
+            {classes?.map((c) => (
+              <option key={c.id} value={c.id}>{c.nom}</option>
+            ))}
+          </select>
+        </FormField>
+        <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Modal TEVENT ─────────────────────────────────────────────
+
+const teventSchema = z.object({
+  nom: z.string().min(1, 'Le nom est requis'),
+  cla_id: z.string().min(1, 'La classe est requise'),
+  duree_prevue_valeur: z.string().optional(),
+  duree_prevue_unite: z.string().optional(),
+})
+type TeventFormValues = z.infer<typeof teventSchema>
+
+interface ModalTeventProps {
+  open: boolean
+  onClose: () => void
+  initialData?: Tevent
+}
+
+function ModalTevent({ open, onClose, initialData }: ModalTeventProps) {
+  const qc = useQueryClient()
+  const { data: classes } = useClaList()
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<TeventFormValues>({
+    resolver: zodResolver(teventSchema),
+    defaultValues: { nom: '', cla_id: '', duree_prevue_valeur: '', duree_prevue_unite: '' },
+  })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        nom: initialData?.nom ?? '',
+        cla_id: initialData?.cla?.id != null ? String(initialData.cla.id) : '',
+        duree_prevue_valeur: initialData?.duree_prevue_valeur != null ? String(initialData.duree_prevue_valeur) : '',
+        duree_prevue_unite: initialData?.duree_prevue_unite ?? '',
+      })
+    }
+  }, [open, initialData, reset])
+
+  const { mutate: save, isPending } = useMutation({
+    mutationFn: (values: TeventFormValues) => {
+      const payload: Record<string, unknown> = {
+        nom: values.nom,
+        cla_id: Number(values.cla_id),
+        duree_prevue_valeur: values.duree_prevue_valeur ? Number(values.duree_prevue_valeur) : undefined,
+        duree_prevue_unite: values.duree_prevue_unite || undefined,
+      }
+      return initialData
+        ? teventApi.update(initialData.id, payload)
+        : teventApi.create(payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tevent'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title={initialData ? 'Modifier le type EVENT' : 'Nouveau type EVENT'}>
+      <form onSubmit={handleSubmit((d) => save(d))} className="space-y-4">
+        <FormField label="Nom *" error={errors.nom?.message}>
+          <input {...register('nom')} className={inputClass} />
+        </FormField>
+        <FormField label="Classe *" error={errors.cla_id?.message}>
+          <select {...register('cla_id')} className={selectClass}>
+            <option value="">— Sélectionner —</option>
+            {classes?.map((c) => (
+              <option key={c.id} value={c.id}>{c.nom}</option>
+            ))}
+          </select>
+        </FormField>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Durée prévue (valeur)" error={errors.duree_prevue_valeur?.message}>
+            <input {...register('duree_prevue_valeur')} type="number" min={0} className={inputClass} placeholder="ex: 2" />
+          </FormField>
+          <FormField label="Unité" error={errors.duree_prevue_unite?.message}>
+            <select {...register('duree_prevue_unite')} className={selectClass}>
+              <option value="">— Aucune —</option>
+              <option value="secondes">Secondes</option>
+              <option value="minutes">Minutes</option>
+              <option value="heures">Heures</option>
+              <option value="jours">Jours</option>
+              <option value="mois">Mois</option>
+            </select>
+          </FormField>
+        </div>
+        <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Onglet Types ENG / EVENT ────────────────────────────────
+
+function TabTypesEngEvent() {
+  const [tengCreateOpen, setTengCreateOpen] = useState(false)
+  const [tengEditTarget, setTengEditTarget] = useState<Teng | null>(null)
+  const [teventCreateOpen, setTeventCreateOpen] = useState(false)
+  const [teventEditTarget, setTeventEditTarget] = useState<Tevent | null>(null)
+
+  const { data: tengs, isLoading: tengLoading } = useQuery<Teng[]>({
+    queryKey: ['teng', 'list'],
+    queryFn: () => tengApi.list().then((r) => r.data),
+  })
+
+  const qc = useQueryClient()
+  const { data: tevents, isLoading: teventLoading } = useQuery<Tevent[]>({
+    queryKey: ['tevent', 'list'],
+    queryFn: () => teventApi.list().then((r) => r.data),
+  })
+
+  const { mutate: deleteTeng } = useMutation({
+    mutationFn: (id: number) => tengApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['teng'] }),
+  })
+
+  const { mutate: deleteTevent } = useMutation({
+    mutationFn: (id: number) => teventApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tevent'] }),
+  })
+
+  return (
+    <div className="space-y-6">
+      {/* Types ENG */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-base font-semibold text-gray-800">Types d'engagement</h3>
+          <button
+            onClick={() => setTengCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={14} />
+            Nouveau type
+          </button>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {tengLoading ? (
+            <p className="text-gray-400 py-6 text-sm text-center">Chargement…</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Nom</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Classe</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {tengs?.map((t) => (
+                  <tr key={t.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5 font-medium text-gray-900">{t.nom}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{t.cla.nom}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setTengEditTarget(t)} className="text-gray-400 hover:text-gray-700"><Edit size={14} /></button>
+                        <button
+                          onClick={() => { if (confirm(`Supprimer « ${t.nom} » ?`)) deleteTeng(t.id) }}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {tengs?.length === 0 && (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400 text-sm">Aucun type défini.</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Types EVENT */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-base font-semibold text-gray-800">Types d'évènement</h3>
+          <button
+            onClick={() => setTeventCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={14} />
+            Nouveau type
+          </button>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {teventLoading ? (
+            <p className="text-gray-400 py-6 text-sm text-center">Chargement…</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Nom</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Classe</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Durée prévue</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {tevents?.map((t) => (
+                  <tr key={t.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5 font-medium text-gray-900">{t.nom}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{t.cla.nom}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">
+                      {t.duree_prevue_valeur != null
+                        ? `${t.duree_prevue_valeur} ${t.duree_prevue_unite}`
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setTeventEditTarget(t)} className="text-gray-400 hover:text-gray-700"><Edit size={14} /></button>
+                        <button
+                          onClick={() => { if (confirm(`Supprimer « ${t.nom} » ?`)) deleteTevent(t.id) }}
+                          className="text-gray-400 hover:text-red-500"
+                        ><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {tevents?.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400 text-sm">Aucun type défini.</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <ModalTeng open={tengCreateOpen} onClose={() => setTengCreateOpen(false)} />
+      <ModalTeng open={tengEditTarget !== null} onClose={() => setTengEditTarget(null)} initialData={tengEditTarget ?? undefined} />
+      <ModalTevent open={teventCreateOpen} onClose={() => setTeventCreateOpen(false)} />
+      <ModalTevent open={teventEditTarget !== null} onClose={() => setTeventEditTarget(null)} initialData={teventEditTarget ?? undefined} />
+    </div>
+  )
+}
+
+// ─── Modal LLM ────────────────────────────────────────────────
+
+const llmCreateSchema = z.object({
+  nom: z.string().min(1, 'Le nom est requis'),
+  fournisseur: z.string().min(1, 'Le fournisseur est requis'),
+  modele: z.string().min(1, 'Le modèle est requis'),
+  api_key: z.string().min(1, 'La clé API est requise'),
+  api_url: z.string().optional(),
+})
+const llmEditSchema = llmCreateSchema.extend({
+  api_key: z.string().optional(),
+})
+
+type LlmEditFormValues = z.infer<typeof llmEditSchema>
+
+interface ModalLlmProps {
+  open: boolean
+  onClose: () => void
+  initialData?: LlmDistant
+}
+
+function ModalLlm({ open, onClose, initialData }: ModalLlmProps) {
+  const qc = useQueryClient()
+  const isEdit = initialData != null
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<LlmEditFormValues>({
+    resolver: zodResolver(isEdit ? llmEditSchema : llmCreateSchema),
+    defaultValues: { nom: '', fournisseur: '', modele: '', api_key: '', api_url: '' },
+  })
+
+  useEffect(() => {
+    if (open) {
+      reset({
+        nom: initialData?.nom ?? '',
+        fournisseur: initialData?.fournisseur ?? '',
+        modele: (initialData as LlmDistant & { modele?: string })?.modele ?? '',
+        api_key: '',
+        api_url: (initialData as LlmDistant & { api_url?: string })?.api_url ?? '',
+      })
+    }
+  }, [open, initialData, reset])
+
+  const { mutate: save, isPending } = useMutation({
+    mutationFn: (values: LlmEditFormValues) => {
+      const payload: Record<string, unknown> = {
+        nom: values.nom,
+        fournisseur: values.fournisseur,
+        modele: values.modele,
+        api_url: values.api_url || undefined,
+      }
+      if (values.api_key) payload.api_key = values.api_key
+      return isEdit
+        ? configApi.updateLlm(initialData!.id, payload)
+        : configApi.createLlm(payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['config', 'llms'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Modal open={open} onClose={onClose} title={isEdit ? 'Modifier le LLM' : 'Ajouter un LLM distant'}>
+      <form onSubmit={handleSubmit((d) => save(d))} className="space-y-4">
+        <FormField label="Nom *" error={errors.nom?.message}>
+          <input {...register('nom')} className={inputClass} placeholder="ex: Claude Opus 4" />
+        </FormField>
+        <FormField label="Fournisseur *" error={errors.fournisseur?.message}>
+          <input {...register('fournisseur')} className={inputClass} placeholder="ex: Anthropic, OpenAI…" />
+        </FormField>
+        <FormField label="Modèle *" error={errors.modele?.message}>
+          <input {...register('modele')} className={inputClass} placeholder="ex: claude-opus-4-5" />
+        </FormField>
+        <FormField
+          label={isEdit ? 'Clé API (laisser vide pour ne pas modifier)' : 'Clé API *'}
+          error={errors.api_key?.message}
+        >
+          <input {...register('api_key')} type="password" className={inputClass} autoComplete="new-password" />
+        </FormField>
+        <FormField label="URL API (optionnel)" error={errors.api_url?.message}>
+          <input {...register('api_url')} className={inputClass} placeholder="ex: https://api.anthropic.com" />
+        </FormField>
+        <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Onglet Configuration ────────────────────────────────────
+
+interface ConfigFormValues {
+  obsidian_vault_path: string
+  ollama_url: string
+  ollama_modele: string
+}
+
+function TabConfig() {
+  const qc = useQueryClient()
+  const [llmCreateOpen, setLlmCreateOpen] = useState(false)
+  const [llmEditTarget, setLlmEditTarget] = useState<LlmDistant | null>(null)
+
+  const { data: config, isLoading } = useQuery<AppConfig>({
+    queryKey: ['config'],
+    queryFn: () => configApi.get().then((r) => r.data),
+  })
+
+  const { data: llms, isLoading: llmsLoading } = useQuery<LlmDistant[]>({
+    queryKey: ['config', 'llms'],
+    queryFn: () => configApi.listLlm().then((r) => r.data),
+  })
+
+  const { register, handleSubmit, reset, formState: { isDirty, isSubmitting } } = useForm<ConfigFormValues>({
+    defaultValues: { obsidian_vault_path: '', ollama_url: '', ollama_modele: '' },
+  })
+
+  useEffect(() => {
+    if (config) {
+      reset({
+        obsidian_vault_path: config.obsidian_vault_path ?? '',
+        ollama_url: config.ollama_url ?? '',
+        ollama_modele: config.ollama_modele ?? '',
+      })
+    }
+  }, [config, reset])
+
+  const { mutate: updateConfig, isPending } = useMutation({
+    mutationFn: (data: ConfigFormValues) => configApi.update(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['config'] }),
+  })
+
+  const { mutate: deleteLlm } = useMutation({
+    mutationFn: (id: number) => configApi.deleteLlm(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['config', 'llms'] }),
+  })
+
+  if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
+
+  return (
+    <div className="space-y-8 max-w-2xl">
+      {/* Formulaire config globale */}
+      <div>
+        <h3 className="text-base font-semibold text-gray-800 mb-4">Configuration globale</h3>
+        <form onSubmit={handleSubmit((d) => updateConfig(d))} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Chemin Vault Obsidian
+            </label>
+            <input
+              {...register('obsidian_vault_path')}
+              type="text"
+              placeholder="/Users/you/Documents/Obsidian/Vault"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              URL Ollama
+            </label>
+            <input
+              {...register('ollama_url')}
+              type="text"
+              placeholder="http://localhost:11434"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Modèle Ollama
+            </label>
+            <input
+              {...register('ollama_modele')}
+              type="text"
+              placeholder="llama3"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={!isDirty || isPending || isSubmitting}
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            >
+              {isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* LLM distants */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-base font-semibold text-gray-800">LLM distants</h3>
+          <button
+            onClick={() => setLlmCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={14} />
+            Ajouter
+          </button>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {llmsLoading ? (
+            <p className="text-gray-400 py-6 text-sm text-center">Chargement…</p>
+          ) : llms && llms.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Nom</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Fournisseur</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {llms.map((llm) => (
+                  <tr key={llm.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5 font-medium text-gray-900">{llm.nom}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{llm.fournisseur}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setLlmEditTarget(llm)} className="text-gray-400 hover:text-gray-700"><Edit size={14} /></button>
+                        <button
+                          onClick={() => { if (confirm(`Supprimer « ${llm.nom} » ?`)) deleteLlm(llm.id) }}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-center text-gray-400 py-6 text-sm">Aucun LLM distant configuré.</p>
+          )}
+        </div>
+      </div>
+
+      <ModalLlm open={llmCreateOpen} onClose={() => setLlmCreateOpen(false)} />
+      <ModalLlm open={llmEditTarget !== null} onClose={() => setLlmEditTarget(null)} initialData={llmEditTarget ?? undefined} />
+    </div>
+  )
+}
+
+// ─── Onglet Journal ──────────────────────────────────────────
+
+function TabLog() {
+  const [page, setPage] = useState(1)
+  const [filterTable, setFilterTable] = useState('')
+  const [filterOp, setFilterOp] = useState('')
+
+  const { data, isLoading, isError } = useQuery<PaginatedLog>({
+    queryKey: ['log', page, filterTable, filterOp],
+    queryFn: () =>
+      logApi.list({
+        table_name: filterTable || undefined,
+        operation: filterOp || undefined,
+        page,
+      }).then((r) => r.data),
+  })
+
+  const totalPages = data ? Math.ceil(data.total / data.per_page) : 1
+
+  return (
+    <div>
+      {/* Filtres */}
+      <div className="flex gap-3 mb-4">
+        <input
+          type="text"
+          value={filterTable}
+          onChange={(e) => { setFilterTable(e.target.value); setPage(1) }}
+          placeholder="Filtrer par table…"
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
+        />
+        <select
+          value={filterOp}
+          onChange={(e) => { setFilterOp(e.target.value); setPage(1) }}
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">Toutes opérations</option>
+          <option value="INSERT">INSERT</option>
+          <option value="UPDATE">UPDATE</option>
+          <option value="DELETE">DELETE</option>
+        </select>
+      </div>
+
+      {isLoading && <div className="text-gray-400 py-8 text-center">Chargement…</div>}
+      {isError && <div className="text-red-500 py-8 text-center">Erreur de chargement.</div>}
+
+      {data && (
+        <>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Date</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Table</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Opération</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">ID objet</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-500">Utilisateur</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((entry) => (
+                  <tr key={entry.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+                      {formatDateTime(entry.horodatage)}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{entry.table_name}</td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={cn(
+                          'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
+                          entry.operation === 'INSERT'
+                            ? 'bg-green-100 text-green-700'
+                            : entry.operation === 'UPDATE'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-red-100 text-red-700',
+                        )}
+                      >
+                        {entry.operation}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">{entry.entite_id ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-500 text-xs">
+                      {entry.user_nom ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+              >
+                Précédent
+              </button>
+              <span className="text-sm text-gray-500">Page {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+              >
+                Suivant
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Définition des onglets ──────────────────────────────────
+
+type TabId = 'classes' | 'users' | 'types-org' | 'types-env' | 'types-eng' | 'config' | 'log'
+
+interface TabDef {
+  id: TabId
+  label: string
+}
+
+const TABS: TabDef[] = [
+  { id: 'classes',   label: 'Classes (CLA)' },
+  { id: 'users',     label: 'Utilisateurs' },
+  { id: 'types-org', label: 'Types ORG' },
+  { id: 'types-env', label: 'Types ENV' },
+  { id: 'types-eng', label: 'Types ENG/EVENT' },
+  { id: 'config',    label: 'Configuration' },
+  { id: 'log',       label: 'Journal (LOG)' },
+]
+
+// ─── Page principale ─────────────────────────────────────────
+
+export default function AdminPage() {
+  const navigate = useNavigate()
+  const isAdmin = useAuthStore((s) => s.isAdmin)
+  const [activeTab, setActiveTab] = useState<TabId>('classes')
+
+  // Redirection si non-admin
+  useEffect(() => {
+    if (!isAdmin()) {
+      navigate('/panel', { replace: true })
+    }
+  }, [isAdmin, navigate])
+
+  if (!isAdmin()) return null
+
+  return (
+    <div className="flex h-full">
+      {/* ─── Sidebar onglets ──────────────────── */}
+      <aside className="w-52 border-r border-gray-200 bg-white shrink-0 overflow-y-auto">
+        <div className="px-4 py-4 border-b border-gray-100">
+          <h1 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            Administration
+          </h1>
+        </div>
+        <nav className="p-2 space-y-0.5">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                activeTab === tab.id
+                  ? 'bg-blue-50 text-blue-700 font-medium'
+                  : 'text-gray-700 hover:bg-gray-100',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* ─── Contenu de l'onglet actif ────────── */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {activeTab === 'classes'   && <TabClasses />}
+        {activeTab === 'users'     && <TabUsers />}
+        {activeTab === 'types-org' && <TabTypesOrg />}
+        {activeTab === 'types-env' && <TabTypesEnv />}
+        {activeTab === 'types-eng' && <TabTypesEngEvent />}
+        {activeTab === 'config'    && <TabConfig />}
+        {activeTab === 'log'       && <TabLog />}
+      </div>
+    </div>
+  )
+}
