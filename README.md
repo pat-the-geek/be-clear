@@ -1,6 +1,6 @@
 # be.CLEAR — Documentation de conception
 
-<img src="http://localhost:3000/favicon.svg" alt="be.CLEAR icon" width="80" />
+<img src="frontend/public/favicon.svg" alt="be.CLEAR icon" width="80" />
 
 ## Présentation
 
