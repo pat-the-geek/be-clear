@@ -75,6 +75,7 @@ export const eventApi = {
   create: (data: unknown) => api.post('/event', data),
   update: (id: number, data: unknown) => api.put(`/event/${id}`, data),
   delete: (id: number) => api.delete(`/event/${id}`),
+  suggest: (engId: number) => api.get('/event/suggest', { params: { eng_id: engId } }),
 }
 
 // ─── TORG / TENV ─────────────────────────────────────────

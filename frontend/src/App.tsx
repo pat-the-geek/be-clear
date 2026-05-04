@@ -15,6 +15,7 @@ import EnvDetailPage from '@/pages/env/EnvDetailPage'
 import EnvEditPage from '@/pages/env/EnvEditPage'
 import EnvCreatePage from '@/pages/env/EnvCreatePage'
 import EngDetailPage from '@/pages/eng/EngDetailPage'
+import EngEditPage from '@/pages/eng/EngEditPage'
 import EventDetailPage from '@/pages/event/EventDetailPage'
 import SearchPage from '@/pages/search/SearchPage'
 import RagPage from '@/pages/rag/RagPage'
@@ -59,6 +60,7 @@ export default function App() {
 
         {/* Engagements */}
         <Route path="/eng/:id" element={<EngDetailPage />} />
+        <Route path="/eng/:id/edit" element={<EngEditPage />} />
 
         {/* Évènements */}
         <Route path="/event/:id" element={<EventDetailPage />} />

@@ -1,14 +1,35 @@
-import { useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil } from 'lucide-react'
 import mermaid from 'mermaid'
-import { engApi } from '@/services/api'
+import { engApi, eventApi, teventApi } from '@/services/api'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
-import type { Eng, EngEventBrief } from '@/types'
+import { Modal } from '@/components/shared/Modal'
+import { useAuthStore } from '@/stores/authStore'
+import type { Eng, EngEventBrief, Tevent, Event as AppEvent } from '@/types'
 
-// ─── Composant local : grille de dates ──────────────────────
+// ─── Helpers date ────────────────────────────────────────────
+
+function isoToDatetimeLocal(iso?: string | null): string {
+  if (!iso) return ''
+  return iso.slice(0, 16)
+}
+
+function datetimeLocalToIso(val: string): string {
+  return val ? `${val}:00` : ''
+}
+
+function parseApiError(error: unknown): string | null {
+  const raw = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (!raw) return null
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) return (raw as { msg?: string }[]).map((e) => e.msg ?? JSON.stringify(e)).join(' · ')
+  return JSON.stringify(raw)
+}
+
+// ─── Composant : grille de dates ─────────────────────────────
 
 interface DateGridProps {
   dateDebut?: string
@@ -24,7 +45,6 @@ function DateGrid({ dateDebut, dateDebutPrevue, dateFin, dateFinPrevue }: DateGr
     { label: 'Fin', value: dateFin },
     { label: 'Fin prévue', value: dateFinPrevue },
   ]
-
   return (
     <div className="grid grid-cols-2 gap-3">
       {cells.map(({ label, value }) => (
@@ -37,7 +57,7 @@ function DateGrid({ dateDebut, dateDebutPrevue, dateFin, dateFinPrevue }: DateGr
   )
 }
 
-// ─── Composant local : diagramme Mermaid ────────────────────
+// ─── Composant : diagramme Mermaid ───────────────────────────
 
 interface GanttDiagramProps {
   id: number
@@ -49,76 +69,453 @@ function GanttDiagram({ id, code }: GanttDiagramProps) {
 
   useEffect(() => {
     let cancelled = false
-
     async function render() {
       if (!containerRef.current) return
-
       mermaid.initialize({ startOnLoad: false, theme: 'neutral' })
-
       try {
-        const diagramId = `gantt-${id}`
-        const { svg } = await mermaid.render(diagramId, code)
-        if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML = svg
-        }
+        const { svg } = await mermaid.render(`gantt-${id}`, code)
+        if (!cancelled && containerRef.current) containerRef.current.innerHTML = svg
       } catch {
-        if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML =
-            '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
-        }
+        if (!cancelled && containerRef.current)
+          containerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
       }
     }
-
     render()
     return () => { cancelled = true }
   }, [id, code])
 
+  return <div ref={containerRef} className="overflow-x-auto rounded-lg border border-gray-200 bg-white p-4" />
+}
+
+// ─── Composant : modal création EVENT ────────────────────────
+
+interface EventCreateModalProps {
+  open: boolean
+  onClose: () => void
+  engId: number
+  onCreated: () => void
+}
+
+function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalProps) {
+  const [nom, setNom] = useState('')
+  const [teventId, setTeventId] = useState<number | null>(null)
+  const [dateHeurePrevue, setDateHeurePrevue] = useState('')
+  const [description, setDescription] = useState('')
+  const autoNomRef = useRef('')
+
+  const { data: tevents } = useQuery({
+    queryKey: ['tevent', 'list'],
+    queryFn: () => teventApi.list().then((r) => r.data as Tevent[]),
+    enabled: open,
+  })
+
+  const { data: suggested } = useQuery({
+    queryKey: ['event', 'suggest', engId],
+    queryFn: () => eventApi.suggest(engId).then((r) => r.data as { date_heure_prevue_suggere: string }),
+    enabled: open,
+  })
+
+  useEffect(() => {
+    if (suggested?.date_heure_prevue_suggere && !dateHeurePrevue) {
+      setDateHeurePrevue(isoToDatetimeLocal(suggested.date_heure_prevue_suggere))
+    }
+  }, [suggested, dateHeurePrevue])
+
+  useEffect(() => {
+    if (!open) {
+      setNom('')
+      setTeventId(null)
+      setDateHeurePrevue('')
+      setDescription('')
+      autoNomRef.current = ''
+    }
+  }, [open])
+
+  const handleTeventChange = useCallback((id: number | null) => {
+    setTeventId(id)
+    if (id) {
+      const t = tevents?.find((x) => x.id === id)
+      if (t && (nom === '' || nom === autoNomRef.current)) {
+        setNom(t.nom)
+        autoNomRef.current = t.nom
+      }
+    }
+  }, [tevents, nom])
+
+  const { mutate: create, isPending, error, reset } = useMutation({
+    mutationFn: () => {
+      const t = tevents?.find((x) => x.id === teventId)
+      return eventApi.create({
+        eng_id: engId,
+        tevent_id: teventId!,
+        nom: nom.trim(),
+        description: description.trim() || undefined,
+        cla_id: (t as unknown as { cla: { id: number } })?.cla?.id,
+        date_heure_prevue: datetimeLocalToIso(dateHeurePrevue),
+      })
+    },
+    onSuccess: () => {
+      onCreated()
+      onClose()
+      reset()
+    },
+  })
+
+  const canSubmit = !isPending && nom.trim() && teventId && dateHeurePrevue
+  const apiError = parseApiError(error)
+
+  const inputClass =
+    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white'
+
   return (
-    <div
-      ref={containerRef}
-      className="overflow-x-auto rounded-lg border border-gray-200 bg-white p-4"
-    />
+    <Modal open={open} onClose={onClose} title="Ajouter un évènement" size="md">
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Type d'évènement <span className="text-red-500">*</span>
+          </label>
+          <select
+            className={inputClass}
+            value={teventId ?? ''}
+            onChange={(e) => handleTeventChange(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">— Choisir un type —</option>
+            {(tevents ?? []).map((t) => (
+              <option key={t.id} value={t.id}>{t.nom}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Nom <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            className={inputClass}
+            value={nom}
+            onChange={(e) => { setNom(e.target.value); autoNomRef.current = '' }}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Date et heure prévues <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="datetime-local"
+            className={inputClass}
+            value={dateHeurePrevue}
+            onChange={(e) => setDateHeurePrevue(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Description
+          </label>
+          <textarea
+            rows={3}
+            className={`${inputClass} font-mono resize-y`}
+            placeholder="Description en Markdown…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        {apiError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            {apiError}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => create()}
+            disabled={!canSubmit}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            Créer
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
-// ─── Composant local : ligne d'EVENT ────────────────────────
+// ─── Composant : modal édition EVENT ─────────────────────────
+
+interface EventEditModalProps {
+  open: boolean
+  onClose: () => void
+  eventId: number | null
+  onUpdated: () => void
+}
+
+function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalProps) {
+  const [nom, setNom] = useState('')
+  const [teventId, setTeventId] = useState<number | null>(null)
+  const [dateHeurePrevue, setDateHeurePrevue] = useState('')
+  const [dateHeureReelle, setDateHeureReelle] = useState('')
+
+  const { data: fullEvent } = useQuery({
+    queryKey: ['event', eventId],
+    queryFn: () => eventApi.get(eventId!).then((r) => r.data as AppEvent),
+    enabled: open && eventId !== null,
+  })
+
+  const { data: tevents } = useQuery({
+    queryKey: ['tevent', 'list'],
+    queryFn: () => teventApi.list().then((r) => r.data as Tevent[]),
+    enabled: open,
+  })
+
+  useEffect(() => {
+    if (fullEvent) {
+      setNom(fullEvent.obj.nom)
+      setTeventId(fullEvent.tevent.id)
+      setDateHeurePrevue(isoToDatetimeLocal(fullEvent.date_heure_prevue))
+      setDateHeureReelle(isoToDatetimeLocal(fullEvent.date_heure_reelle))
+    }
+  }, [fullEvent])
+
+  useEffect(() => {
+    if (!open) {
+      setNom('')
+      setTeventId(null)
+      setDateHeurePrevue('')
+      setDateHeureReelle('')
+    }
+  }, [open])
+
+  const { mutate: update, isPending, error, reset } = useMutation({
+    mutationFn: () =>
+      eventApi.update(eventId!, {
+        nom: nom.trim() || undefined,
+        tevent_id: teventId || undefined,
+        date_heure_prevue: dateHeurePrevue ? datetimeLocalToIso(dateHeurePrevue) : undefined,
+        date_heure_reelle: dateHeureReelle ? datetimeLocalToIso(dateHeureReelle) : undefined,
+      }),
+    onSuccess: () => {
+      onUpdated()
+      onClose()
+      reset()
+    },
+  })
+
+  const apiError = parseApiError(error)
+
+  const inputClass =
+    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white'
+
+  return (
+    <Modal open={open} onClose={onClose} title="Modifier l'évènement" size="md">
+      <div className="space-y-4">
+        {!fullEvent ? (
+          <div className="flex justify-center py-6 text-gray-400">
+            <Loader2 size={20} className="animate-spin" />
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                Nom <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className={inputClass}
+                value={nom}
+                onChange={(e) => setNom(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                Type d'évènement
+              </label>
+              <select
+                className={inputClass}
+                value={teventId ?? ''}
+                onChange={(e) => setTeventId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">— Choisir —</option>
+                {(tevents ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>{t.nom}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                Date et heure prévues
+              </label>
+              <input
+                type="datetime-local"
+                className={inputClass}
+                value={dateHeurePrevue}
+                onChange={(e) => setDateHeurePrevue(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Date et heure réelles
+                </label>
+                {!dateHeureReelle && (
+                  <button
+                    type="button"
+                    onClick={() => setDateHeureReelle(isoToDatetimeLocal(new Date().toISOString()))}
+                    className="text-xs text-green-600 hover:underline font-medium"
+                  >
+                    Maintenant
+                  </button>
+                )}
+                {dateHeureReelle && (
+                  <button
+                    type="button"
+                    onClick={() => setDateHeureReelle('')}
+                    className="text-xs text-gray-400 hover:underline"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
+              <input
+                type="datetime-local"
+                className={inputClass}
+                value={dateHeureReelle}
+                onChange={(e) => setDateHeureReelle(e.target.value)}
+              />
+            </div>
+
+            {apiError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {apiError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => update()}
+                disabled={isPending || !nom.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                Enregistrer
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Composant : ligne d'EVENT ───────────────────────────────
 
 interface EventRowProps {
   event: EngEventBrief
+  isEditeur: boolean
+  onEdit: () => void
+  onDelete: (id: number) => void
+  isDeleting: boolean
 }
 
-function EventRow({ event }: EventRowProps) {
+function EventRow({ event, isEditeur, onEdit, onDelete, isDeleting }: EventRowProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
   return (
-    <Link
-      to={`/event/${event.id}`}
-      className="flex items-center gap-3 p-3 bg-violet-50 border border-violet-100 rounded-lg hover:border-violet-300 hover:shadow-sm transition-all"
-    >
-      {event.est_accompli ? (
-        <CheckCircle2 size={18} className="text-green-500 shrink-0" />
-      ) : (
-        <Circle size={18} className="text-gray-300 shrink-0" />
-      )}
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{event.obj_nom}</p>
-        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">{event.tevent_nom}</span>
-          · Prévu : {formatDateTime(event.date_heure_prevue)}
-        </p>
-      </div>
-
-      <div className="text-right shrink-0">
-        {event.date_heure_reelle ? (
-          <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-            {formatDateTime(event.date_heure_reelle)}
-          </span>
+    <div className="group flex items-center gap-2">
+      <Link
+        to={`/event/${event.id}`}
+        className="flex-1 flex items-center gap-3 p-3 bg-violet-50 border border-violet-100 rounded-lg hover:border-violet-300 hover:shadow-sm transition-all min-w-0"
+      >
+        {event.est_accompli ? (
+          <CheckCircle2 size={18} className="text-green-500 shrink-0" />
         ) : (
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-            En attente
-          </span>
+          <Circle size={18} className="text-gray-300 shrink-0" />
         )}
-      </div>
-    </Link>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900 truncate">{event.obj_nom}</p>
+          <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
+              {event.tevent_nom}
+            </span>
+            · Prévu : {formatDateTime(event.date_heure_prevue)}
+          </p>
+        </div>
+
+        <div className="text-right shrink-0">
+          {event.date_heure_reelle ? (
+            <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+              {formatDateTime(event.date_heure_reelle)}
+            </span>
+          ) : (
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              En attente
+            </span>
+          )}
+        </div>
+      </Link>
+
+      {isEditeur && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {confirmDelete ? (
+            <>
+              <button
+                onClick={() => { onDelete(event.id); setConfirmDelete(false) }}
+                disabled={isDeleting}
+                className="px-2 py-1 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {isDeleting ? '…' : 'Confirmer'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-2 py-1 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onEdit}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
+                title="Modifier"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"
+                title="Supprimer"
+              >
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -127,8 +524,14 @@ function EventRow({ event }: EventRowProps) {
 export default function EngDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const isEditeur = useAuthStore((s) => s.isEditeur)
 
   const engId = Number(id)
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showCreateEvent, setShowCreateEvent] = useState(false)
+  const [editingEventId, setEditingEventId] = useState<number | null>(null)
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -136,23 +539,27 @@ export default function EngDetailPage() {
     enabled: !isNaN(engId),
   })
 
-  if (isLoading) {
-    return (
-      <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
-    )
-  }
+  const { mutate: deleteEng, isPending: isDeleting } = useMutation({
+    mutationFn: () => engApi.delete(engId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['engs'] })
+      navigate(-1)
+    },
+  })
 
-  if (isError || !eng) {
-    return (
-      <div className="p-6 text-center text-red-500 py-16">
-        Impossible de charger cet engagement.
-      </div>
-    )
-  }
+  const { mutate: deleteEvent, isPending: isDeletingEvent, variables: deletingEventId } = useMutation({
+    mutationFn: (eventId: number) => eventApi.delete(eventId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['eng', engId] }),
+  })
+
+  const handleEventMutated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+  }, [queryClient, engId])
+
+  if (isLoading) return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
+  if (isError || !eng) return <div className="p-6 text-center text-red-500 py-16">Impossible de charger cet engagement.</div>
 
   const pct = eng.accomplissement ?? 0
-
-  // Trier les events par date_heure_prevue
   const sortedEvents = [...(eng.events ?? [])].sort(
     (a, b) => new Date(a.date_heure_prevue).getTime() - new Date(b.date_heure_prevue).getTime(),
   )
@@ -174,55 +581,98 @@ export default function EngDetailPage() {
           <EntityAvatar
             type="eng"
             nom={eng.obj.nom}
-            image={eng.obj.images.find(i => i.est_principale)}
+            image={eng.obj.images.find((i) => i.est_principale)}
             size="md"
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight">{eng.obj.nom}</h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 shrink-0">
-                {eng.teng.nom}
-              </span>
-            </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-2 flex-wrap">
+                  <h1 className="text-2xl font-bold text-gray-900 leading-tight">{eng.obj.nom}</h1>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 shrink-0 mt-1">
+                    {eng.teng.nom}
+                  </span>
+                </div>
 
-            {/* Barre de progression */}
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500">Accomplissement</span>
-                <span className={`text-xs font-medium ${pct >= 100 ? 'text-green-700' : pct > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
-                  {pct}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all ${pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-gray-300'}`}
-                  style={{ width: `${Math.min(100, pct)}%` }}
-                />
-              </div>
-            </div>
+                {/* Barre de progression */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-500">Accomplissement</span>
+                    <span className={`text-xs font-medium ${pct >= 100 ? 'text-green-700' : pct > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
+                      {pct}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-gray-300'}`}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                </div>
 
-            {/* ORGs et ENVs associés */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {eng.orgs.map((org) => (
-                <Link key={org.id} to={`/org/${org.id}`} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
-                  {org.nom}
-                </Link>
-              ))}
-              {eng.envs.map((env) => (
-                <Link key={env.id} to={`/env/${env.id}`} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors">
-                  {env.nom}
-                </Link>
-              ))}
+                {/* ORGs et ENVs */}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {eng.orgs.map((org) => (
+                    <Link key={org.id} to={`/org/${org.id}`} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
+                      {org.nom}
+                    </Link>
+                  ))}
+                  {eng.envs.map((env) => (
+                    <Link key={env.id} to={`/env/${env.id}`} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors">
+                      {env.nom}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Boutons d'action */}
+              {isEditeur() && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {showDeleteConfirm ? (
+                    <>
+                      <span className="text-sm text-red-600 font-medium">Supprimer ?</span>
+                      <button
+                        onClick={() => deleteEng()}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        {isDeleting ? 'Suppression…' : 'Confirmer'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => navigate(`/eng/${engId}/edit`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <Edit size={14} />
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                        Supprimer
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          </div>{/* flex-1 */}
-        </div>{/* flex items-start gap-4 */}
+          </div>
+        </div>
       </div>
 
       {/* ─── Dates ────────────────────────────── */}
       <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Dates
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Dates</h2>
         <DateGrid
           dateDebut={eng.date_debut}
           dateDebutPrevue={eng.date_debut_prevue}
@@ -233,9 +683,7 @@ export default function EngDetailPage() {
 
       {/* ─── Diagramme Gantt ──────────────────── */}
       <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Diagramme Gantt
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Diagramme Gantt</h2>
         {eng.gantt_mermaid ? (
           <GanttDiagram id={engId} code={eng.gantt_mermaid} />
         ) : (
@@ -247,9 +695,21 @@ export default function EngDetailPage() {
 
       {/* ─── Évènements ───────────────────────── */}
       <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Évènements ({sortedEvents.length})
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            Évènements ({sortedEvents.length})
+          </h2>
+          {isEditeur() && (
+            <button
+              onClick={() => setShowCreateEvent(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+            >
+              <Plus size={14} />
+              Ajouter
+            </button>
+          )}
+        </div>
+
         {sortedEvents.length === 0 ? (
           <div className="text-center text-gray-400 py-8 bg-gray-50 rounded-lg border border-gray-200">
             Aucun évènement
@@ -257,11 +717,33 @@ export default function EngDetailPage() {
         ) : (
           <div className="space-y-2">
             {sortedEvents.map((event) => (
-              <EventRow key={event.id} event={event} />
+              <EventRow
+                key={event.id}
+                event={event}
+                isEditeur={isEditeur()}
+                onEdit={() => setEditingEventId(event.id)}
+                onDelete={(id) => deleteEvent(id)}
+                isDeleting={isDeletingEvent && deletingEventId === event.id}
+              />
             ))}
           </div>
         )}
       </section>
+
+      {/* ─── Modales ──────────────────────────── */}
+      <EventCreateModal
+        open={showCreateEvent}
+        onClose={() => setShowCreateEvent(false)}
+        engId={engId}
+        onCreated={handleEventMutated}
+      />
+
+      <EventEditModal
+        open={editingEventId !== null}
+        onClose={() => setEditingEventId(null)}
+        eventId={editingEventId}
+        onUpdated={handleEventMutated}
+      />
     </div>
   )
 }
