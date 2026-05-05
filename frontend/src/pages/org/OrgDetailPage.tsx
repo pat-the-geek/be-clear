@@ -3,15 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowLeft, Download, Edit, FileText, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus } from 'lucide-react'
 import { orgApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
-import { imgUrl } from '@/components/shared/ImageManager'
-import SmartImage from '@/components/shared/SmartImage'
+import ImageManager from '@/components/shared/ImageManager'
+import DocManager from '@/components/shared/DocManager'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
+import CreateEngModal from '@/components/shared/CreateEngModal'
 import type { Org, Prop, Value } from '@/types'
 
 // ─── Composant : rendu Markdown uniforme ────────────────────
@@ -120,6 +121,7 @@ export default function OrgDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showRptMenu, setShowRptMenu] = useState(false)
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
+  const [showCreateEng, setShowCreateEng] = useState(false)
 
   const { data: org, isLoading, isError } = useQuery({
     queryKey: ['org', orgId],
@@ -324,62 +326,54 @@ export default function OrgDetailPage() {
         </section>
       )}
 
-      {/* ─── Galerie d'images ─────────────────────────────── */}
-      {org.obj.images.length > 0 && (
+      {/* ─── Images ───────────────────────────────────────── */}
+      {(org.obj.images.length > 0 || isEditeur()) && (
         <section className="mb-7">
           <SectionTitle>Images ({org.obj.images.length})</SectionTitle>
-          <div className="grid grid-cols-3 gap-3">
-            {org.obj.images.map((img) => (
-              <div key={img.id} className="relative group">
-                <SmartImage
-                  src={imgUrl(img.chemin)}
-                  alt={img.nom_original ?? ''}
-                  className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                  cropWidth={300}
-                  cropHeight={128}
-                />
-                {img.est_principale && (
-                  <span className="absolute top-1.5 left-1.5 text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded font-medium">
-                    Principale
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+          <ImageManager
+            objId={org.obj.id}
+            images={org.obj.images}
+            queryKey={['org', orgId]}
+            readOnly={!isEditeur()}
+          />
         </section>
       )}
 
       {/* ─── Engagements ──────────────────────────────────── */}
       <section className="mb-7">
-        <SectionTitle>Engagements</SectionTitle>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Engagements</h2>
+          {isEditeur() && (
+            <button
+              onClick={() => setShowCreateEng(true)}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
+              title="Nouvel engagement"
+            >
+              <Plus size={14} />
+              Nouveau
+            </button>
+          )}
+        </div>
         <EngTable orgId={orgId} />
       </section>
 
+      <CreateEngModal
+        open={showCreateEng}
+        onClose={() => setShowCreateEng(false)}
+        orgId={orgId}
+        entityNom={org.obj.nom}
+      />
+
       {/* ─── Documents ────────────────────────────────────── */}
-      {org.obj.documents.length > 0 && (
+      {(org.obj.documents.length > 0 || isEditeur()) && (
         <section className="mb-7">
           <SectionTitle>Documents ({org.obj.documents.length})</SectionTitle>
-          <div className="space-y-2">
-            {org.obj.documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText size={16} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-900 truncate">{doc.nom_original}</span>
-                  <span className="text-xs text-gray-400 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded">
-                    {doc.format === 'markdown' ? 'Markdown' : 'Office'}
-                  </span>
-                </div>
-                <a
-                  href={`/api/media/files/${doc.chemin}`}
-                  download={doc.nom_original}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 shrink-0 ml-3"
-                >
-                  <Download size={14} />
-                  Télécharger
-                </a>
-              </div>
-            ))}
-          </div>
+          <DocManager
+            objId={org.obj.id}
+            documents={org.obj.documents}
+            queryKey={['org', orgId]}
+            readOnly={!isEditeur()}
+          />
         </section>
       )}
 

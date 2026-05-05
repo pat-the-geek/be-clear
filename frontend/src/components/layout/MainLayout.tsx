@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Globe,
   Search, Bot, Settings, LogOut,
@@ -71,15 +71,15 @@ export default function MainLayout() {
 
         {/* Footer utilisateur */}
         <div className="p-3 border-t border-gray-100">
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
+          <Link to="/profile" className="flex items-center gap-2 mb-2 px-1 rounded-lg hover:bg-gray-50 transition-colors py-1">
+            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium shrink-0">
               {user?.obj?.nom?.[0]?.toUpperCase() ?? '?'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-900 truncate">{user?.obj?.nom}</p>
               <p className="text-xs text-gray-400">{user?.role}</p>
             </div>
-          </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

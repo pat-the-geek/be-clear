@@ -20,6 +20,7 @@ import EventDetailPage from '@/pages/event/EventDetailPage'
 import SearchPage from '@/pages/search/SearchPage'
 import RagPage from '@/pages/rag/RagPage'
 import AdminPage from '@/pages/admin/AdminPage'
+import ProfilePage from '@/pages/profile/ProfilePage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -71,6 +72,9 @@ export default function App() {
 
         {/* Administration */}
         <Route path="/admin/*" element={<AdminPage />} />
+
+        {/* Profil utilisateur */}
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
       {/* Fallback */}

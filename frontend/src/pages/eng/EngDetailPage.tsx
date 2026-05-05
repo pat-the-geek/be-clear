@@ -2,15 +2,18 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText } from 'lucide-react'
 import mermaid from 'mermaid'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi } from '@/services/api'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
 import { Modal } from '@/components/shared/Modal'
+import SmartImage from '@/components/shared/SmartImage'
+import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
+import { imgUrl } from '@/components/shared/ImageManager'
 import { useAuthStore } from '@/stores/authStore'
-import type { Eng, EngEventBrief, Tevent, Event as AppEvent } from '@/types'
+import type { Eng, EngEventBrief, Tevent, Event as AppEvent, Prop, Value } from '@/types'
 
 // ─── Helpers date ────────────────────────────────────────────
 
@@ -521,6 +524,49 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
   )
 }
 
+// ─── Composant : carte PROP / VALUE ──────────────────────────
+
+function PropValueCard({ prop, value }: { prop: Prop; value?: Value }) {
+  const type = prop.type
+  let display: React.ReactNode = <span className="text-gray-400">—</span>
+
+  if (value) {
+    if ((type === 'DATE') && value.valeur_date) {
+      display = formatDate(value.valeur_date)
+    } else if ((type === 'DATETIME' || type === 'HEURE') && value.valeur_date) {
+      display = formatDateTime(value.valeur_date)
+    } else if (type === 'BOOLEEN') {
+      display = value.valeur_bool === true
+        ? <span className="text-green-700 font-medium">Oui</span>
+        : value.valeur_bool === false
+        ? <span className="text-red-600 font-medium">Non</span>
+        : <span className="text-gray-400">—</span>
+    } else if (type === 'MONTANT' && value.valeur_nombre != null) {
+      display = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value.valeur_nombre)
+    } else if (type === 'POURCENTAGE' && value.valeur_nombre != null) {
+      display = `${value.valeur_nombre} %`
+    } else if (value.valeur_nombre != null) {
+      display = String(value.valeur_nombre)
+    } else if (type === 'MARKDOWN' && value.valeur_texte) {
+      display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
+    } else if (type === 'URL' && value.valeur_texte) {
+      display = <UrlValueDisplay url={value.valeur_texte} />
+    } else if (type === 'EMAIL' && value.valeur_texte) {
+      display = <a href={`mailto:${value.valeur_texte}`} className="text-blue-600 hover:underline">{value.valeur_texte}</a>
+    } else if (value.valeur_texte) {
+      display = value.valeur_texte
+    }
+  }
+
+  const isWide = type === 'MARKDOWN' || type === 'TEXTE'
+  return (
+    <div className={`flex flex-col gap-1 ${isWide ? 'sm:col-span-2' : ''}`}>
+      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{prop.nom}</span>
+      <div className="text-sm text-gray-900">{display}</div>
+    </div>
+  )
+}
+
 // ─── Composant : ligne d'EVENT ───────────────────────────────
 
 interface EventRowProps {
@@ -528,10 +574,12 @@ interface EventRowProps {
   isEditeur: boolean
   onEdit: () => void
   onDelete: (id: number) => void
+  onAccomplir: (id: number) => void
   isDeleting: boolean
+  isAccomplishing: boolean
 }
 
-function EventRow({ event, isEditeur, onEdit, onDelete, isDeleting }: EventRowProps) {
+function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting, isAccomplishing }: EventRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
@@ -589,6 +637,16 @@ function EventRow({ event, isEditeur, onEdit, onDelete, isDeleting }: EventRowPr
             </>
           ) : (
             <>
+              {!event.est_accompli && (
+                <button
+                  onClick={() => onAccomplir(event.id)}
+                  disabled={isAccomplishing}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-300 hover:text-green-600 transition-colors disabled:opacity-50"
+                  title="Marquer accompli"
+                >
+                  {isAccomplishing ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                </button>
+              )}
               <button
                 onClick={onEdit}
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
@@ -643,6 +701,12 @@ export default function EngDetailPage() {
 
   const { mutate: deleteEvent, isPending: isDeletingEvent, variables: deletingEventId } = useMutation({
     mutationFn: (eventId: number) => eventApi.delete(eventId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['eng', engId] }),
+  })
+
+  const { mutate: accomplirEvent, isPending: isAccomplishing, variables: accomplishingEventId } = useMutation({
+    mutationFn: (eventId: number) =>
+      eventApi.update(eventId, { date_heure_reelle: new Date().toISOString() }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['eng', engId] }),
   })
 
@@ -841,6 +905,89 @@ export default function EngDetailPage() {
         </section>
       )}
 
+      {/* ─── Propriétés ───────────────────────── */}
+      {(() => {
+        const claProps = eng.obj.cla.props ?? []
+        const valueByPropId = new Map(eng.obj.values.map((v) => [v.prop.id, v]))
+        const claPropsIds = new Set(claProps.map((p) => p.id))
+        const inheritedValues = eng.obj.values.filter((v) => !claPropsIds.has(v.prop.id))
+        if (claProps.length === 0 && inheritedValues.length === 0) return null
+        return (
+          <section className="mb-6">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Propriétés ({claProps.length + inheritedValues.length})
+            </h2>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                {claProps.map((prop) => (
+                  <PropValueCard key={prop.id} prop={prop} value={valueByPropId.get(prop.id)} />
+                ))}
+                {inheritedValues.map((val) => (
+                  <PropValueCard key={val.id} prop={val.prop} value={val} />
+                ))}
+              </div>
+            </div>
+          </section>
+        )
+      })()}
+
+      {/* ─── Images ───────────────────────────── */}
+      {eng.obj.images.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Images ({eng.obj.images.length})
+          </h2>
+          <div className="grid grid-cols-3 gap-3">
+            {eng.obj.images.map((img) => (
+              <div key={img.id} className="relative">
+                <SmartImage
+                  src={imgUrl(img.chemin)}
+                  alt={img.nom_original ?? ''}
+                  className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                  cropWidth={300}
+                  cropHeight={128}
+                />
+                {img.est_principale && (
+                  <span className="absolute top-1.5 left-1.5 text-xs bg-amber-500 text-white px-1.5 py-0.5 rounded font-medium">
+                    Principale
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─── Documents ────────────────────────── */}
+      {eng.obj.documents.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Documents ({eng.obj.documents.length})
+          </h2>
+          <div className="space-y-2">
+            {eng.obj.documents.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText size={16} className="text-gray-400 shrink-0" />
+                  <span className="text-sm text-gray-900 truncate">{doc.nom_original}</span>
+                  <span className="text-xs text-gray-400 shrink-0 bg-gray-50 px-1.5 py-0.5 rounded">
+                    {doc.format === 'markdown' ? 'Markdown' : 'Office'}
+                  </span>
+                </div>
+                <a
+                  href={`/api/media/files/${doc.chemin}`}
+                  download={doc.nom_original}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 shrink-0 ml-3"
+                >
+                  <Download size={14} />
+                  Télécharger
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ─── Timeline ─────────────────────────── */}
       <section className="mb-6">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Timeline</h2>
@@ -883,7 +1030,9 @@ export default function EngDetailPage() {
                 isEditeur={isEditeur()}
                 onEdit={() => setEditingEventId(event.id)}
                 onDelete={(id) => deleteEvent(id)}
+                onAccomplir={(id) => accomplirEvent(id)}
                 isDeleting={isDeletingEvent && deletingEventId === event.id}
+                isAccomplishing={isAccomplishing && accomplishingEventId === event.id}
               />
             ))}
           </div>
