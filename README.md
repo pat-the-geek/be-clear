@@ -56,6 +56,7 @@ docker compose up --build
 | [Modèle de données](design/data/modele-donnees.md) | Données | ✅ Rédigé |
 | [Spécifications fonctionnelles](design/functional/specifications-fonctionnelles.md) | Fonctionnel | ✅ Rédigé |
 | [Architecture système](design/architecture/architecture-systeme.md) | Architecture | ✅ Rédigé |
+| [Terminal IA — Architecture RAG](design/architecture/terminal-ia-rag.md) | Architecture | ✅ Rédigé |
 | [UX / GUI](design/ux/ux-gui.md) | UX | ✅ Rédigé |
 
 ## Fonctionnalités transverses
