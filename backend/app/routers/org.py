@@ -151,11 +151,13 @@ async def create_org(
     try:
         await index_obj(
             obj_id=org.obj_id,
+            entity_id=org.id,
             nom=org.obj.nom,
             description=org.obj.description,
             values_text=[v.valeur_texte for v in org.obj.values if v.valeur_texte],
             entity_type="org",
             cla_nom=org.obj.cla.nom,
+            image_chemin=next((i.chemin for i in org.obj.images if i.est_principale), None),
         )
     except Exception:
         pass
@@ -241,11 +243,13 @@ async def update_org(
     try:
         await index_obj(
             obj_id=org.obj_id,
+            entity_id=org.id,
             nom=org.obj.nom,
             description=org.obj.description,
             values_text=[v.valeur_texte for v in org.obj.values if v.valeur_texte],
             entity_type="org",
             cla_nom=org.obj.cla.nom,
+            image_chemin=next((i.chemin for i in org.obj.images if i.est_principale), None),
         )
     except Exception:
         pass

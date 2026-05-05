@@ -11,22 +11,26 @@ async def get_client() -> AsyncClient:
 
 async def index_obj(
     obj_id: int,
+    entity_id: int,
     nom: str,
     description: str | None,
     values_text: list[str],
     entity_type: str,
     cla_nom: str,
+    image_chemin: str | None = None,
 ) -> None:
     """Indexe ou met à jour un OBJ dans Meilisearch. Index = 'objets'."""
     async with await get_client() as client:
         index = client.index("objets")
         document = {
             "id": obj_id,
+            "entity_id": entity_id,
             "nom": nom,
             "description": description or "",
             "values_text": " ".join(values_text),
             "entity_type": entity_type,
             "cla_nom": cla_nom,
+            "image_chemin": image_chemin or "",
         }
         await index.add_documents([document])
 

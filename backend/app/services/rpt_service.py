@@ -60,10 +60,18 @@ async def generate_org_report(db: AsyncSession, org_id: int) -> str:
             ),
             selectinload(Org.engs).options(
                 joinedload(Eng.teng),
-                joinedload(Eng.obj),
+                joinedload(Eng.obj).options(
+                    joinedload(Obj.cla),
+                    selectinload(Obj.values).joinedload(Value.prop),
+                    selectinload(Obj.images),
+                ),
                 selectinload(Eng.events).options(
                     joinedload(Event.tevent),
-                    joinedload(Event.obj).options(selectinload(Obj.images)),
+                    joinedload(Event.obj).options(
+                        joinedload(Obj.cla),
+                        selectinload(Obj.values).joinedload(Value.prop),
+                        selectinload(Obj.images),
+                    ),
                 ),
             ),
         )
@@ -89,10 +97,18 @@ async def generate_env_report(db: AsyncSession, env_id: int) -> str:
             ),
             selectinload(Env.engs).options(
                 joinedload(Eng.teng),
-                joinedload(Eng.obj),
+                joinedload(Eng.obj).options(
+                    joinedload(Obj.cla),
+                    selectinload(Obj.values).joinedload(Value.prop),
+                    selectinload(Obj.images),
+                ),
                 selectinload(Eng.events).options(
                     joinedload(Event.tevent),
-                    joinedload(Event.obj).options(selectinload(Obj.images)),
+                    joinedload(Event.obj).options(
+                        joinedload(Obj.cla),
+                        selectinload(Obj.values).joinedload(Value.prop),
+                        selectinload(Obj.images),
+                    ),
                 ),
             ),
         )

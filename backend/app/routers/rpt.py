@@ -1,5 +1,7 @@
 """Router RPT — génération de rapports Markdown pour ORG et ENV."""
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Literal
@@ -9,6 +11,10 @@ from app.auth.dependencies import get_current_user
 from app.models.activity import User
 from app.services.rpt_service import generate_org_report, generate_env_report, save_report
 from app.services.log import write_log
+
+
+def _safe_filename(nom: str) -> str:
+    return re.sub(r'[^\w\-]', '_', nom).strip('_') or "rapport"
 
 router = APIRouter()
 
@@ -56,6 +62,40 @@ async def rpt_org(
     return RptResponse(chemin=chemin, nom_fichier=chemin.split("/")[-1])
 
 
+@router.get("/org/{org_id}/download")
+async def download_org(
+    org_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne le rapport Markdown d'une ORG comme fichier téléchargeable."""
+    try:
+        content = await generate_org_report(db, org_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    from app.models.activity import Org
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    org_result = await db.execute(
+        select(Org).options(joinedload(Org.obj)).where(Org.id == org_id)
+    )
+    org = org_result.unique().scalar_one_or_none()
+    nom = org.obj.nom if org and org.obj else f"org-{org_id}"
+    filename = f"rapport_{_safe_filename(nom)}.md"
+
+    await write_log(db, user_id=current_user.id, operation="INSERT",
+                    table_name="rpt", entite_id=org_id,
+                    apres={"type": "org", "destination": "download"})
+    await db.commit()
+
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/env/{env_id}", response_model=RptResponse)
 async def rpt_env(
     env_id: int,
@@ -87,3 +127,37 @@ async def rpt_env(
     await db.commit()
 
     return RptResponse(chemin=chemin, nom_fichier=chemin.split("/")[-1])
+
+
+@router.get("/env/{env_id}/download")
+async def download_env(
+    env_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne le rapport Markdown d'un ENV comme fichier téléchargeable."""
+    try:
+        content = await generate_env_report(db, env_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    from app.models.activity import Env
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    env_result = await db.execute(
+        select(Env).options(joinedload(Env.obj)).where(Env.id == env_id)
+    )
+    env = env_result.unique().scalar_one_or_none()
+    nom = env.obj.nom if env and env.obj else f"env-{env_id}"
+    filename = f"rapport_{_safe_filename(nom)}.md"
+
+    await write_log(db, user_id=current_user.id, operation="INSERT",
+                    table_name="rpt", entite_id=env_id,
+                    apres={"type": "env", "destination": "download"})
+    await db.commit()
+
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

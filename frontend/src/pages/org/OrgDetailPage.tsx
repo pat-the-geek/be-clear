@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowLeft, Download, Edit, FileText, CalendarDays, RefreshCw, Hash, Trash2 } from 'lucide-react'
-import { orgApi } from '@/services/api'
+import { ArrowLeft, Download, Edit, FileText, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown } from 'lucide-react'
+import { orgApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
@@ -118,6 +118,8 @@ export default function OrgDetailPage() {
 
   const orgId = Number(id)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showRptMenu, setShowRptMenu] = useState(false)
+  const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
 
   const { data: org, isLoading, isError } = useQuery({
     queryKey: ['org', orgId],
@@ -129,6 +131,26 @@ export default function OrgDetailPage() {
     mutationFn: (description: string) =>
       orgApi.update(orgId, { description }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['org', orgId] }),
+  })
+
+  const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
+    mutationFn: async (destination: 'filesystem' | 'obsidian' | 'download') => {
+      if (destination === 'download') {
+        const res = await rptApi.downloadOrg(orgId)
+        const blob = new Blob([res.data], { type: 'text/markdown' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const cd = res.headers['content-disposition'] ?? ''
+        const match = cd.match(/filename="?([^"]+)"?/)
+        a.download = match ? match[1] : `rapport_org_${orgId}.md`
+        a.href = url
+        a.click()
+        URL.revokeObjectURL(url)
+        return null
+      }
+      return rptApi.org(orgId, destination).then(r => r.data)
+    },
+    onSuccess: (data) => { if (data) setRptResult(data); setShowRptMenu(false) },
   })
 
   const { mutateAsync: deleteOrg, isPending: isDeleting } = useMutation({
@@ -179,48 +201,91 @@ export default function OrgDetailPage() {
                 </span>
               </div>
             </div>
-            {isEditeur() && (
-              <div className="flex items-center gap-2 shrink-0">
-                {showDeleteConfirm ? (
-                  <>
-                    <span className="text-sm text-red-600 font-medium">Supprimer définitivement ?</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Bouton RPT */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowRptMenu((v) => !v)}
+                  disabled={isGeneratingRpt}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  title="Générer un rapport"
+                >
+                  <FileOutput size={14} />
+                  Rapport
+                  <ChevronDown size={12} />
+                </button>
+                {showRptMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
                     <button
-                      onClick={() => deleteOrg()}
-                      disabled={isDeleting}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      onClick={() => generateRpt('download')}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      {isDeleting ? 'Suppression…' : 'Confirmer'}
+                      Dossier local
                     </button>
                     <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      onClick={() => generateRpt('obsidian')}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
                     >
-                      Annuler
+                      Vault Obsidian
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => navigate(`/org/${orgId}/edit`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <Edit size={14} />
-                      Modifier
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      Supprimer
-                    </button>
-                  </>
+                  </div>
                 )}
               </div>
-            )}
+
+              {isEditeur() && (
+                <>
+                  {showDeleteConfirm ? (
+                    <>
+                      <span className="text-sm text-red-600 font-medium">Supprimer définitivement ?</span>
+                      <button
+                        onClick={() => deleteOrg()}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        {isDeleting ? 'Suppression…' : 'Confirmer'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => navigate(`/org/${orgId}/edit`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <Edit size={14} />
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                        Supprimer
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ─── Confirmation RPT ─────────────────────────────── */}
+      {rptResult && (
+        <div className="mb-6 flex items-start justify-between gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+          <div>
+            <p className="text-sm font-medium text-green-800">Rapport généré avec succès</p>
+            <p className="text-xs text-green-700 mt-0.5 font-mono break-all">{rptResult.chemin}</p>
+          </div>
+          <button onClick={() => setRptResult(null)} className="text-green-600 hover:text-green-800 text-xs shrink-0">✕</button>
+        </div>
+      )}
 
       {/* ─── Description ──────────────────────────────────── */}
       {org.obj.description && (

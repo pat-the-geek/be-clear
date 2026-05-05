@@ -18,6 +18,7 @@ import { engApi, tengApi, orgApi, envApi } from '@/services/api'
 import type { Eng, Teng, OrgBrief, EnvBrief } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import ImageManager from '@/components/shared/ImageManager'
+import DocManager from '@/components/shared/DocManager'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -381,6 +382,18 @@ export default function EngEditPage() {
           <ImageManager
             objId={eng.obj.id}
             images={eng.obj.images}
+            queryKey={['eng', engId]}
+          />
+        </section>
+
+        {/* ── Documents ──────────────────────────────────── */}
+        <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            Documents ({eng.obj.documents.length})
+          </h2>
+          <DocManager
+            objId={eng.obj.id}
+            documents={eng.obj.documents}
             queryKey={['eng', engId]}
           />
         </section>

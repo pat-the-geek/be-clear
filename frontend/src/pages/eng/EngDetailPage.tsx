@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X } from 'lucide-react'
 import mermaid from 'mermaid'
+import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi } from '@/services/api'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
@@ -66,15 +68,27 @@ interface GanttDiagramProps {
 
 function GanttDiagram({ id, code }: GanttDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const fsContainerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     async function render() {
       if (!containerRef.current) return
-      mermaid.initialize({ startOnLoad: false, theme: 'neutral' })
+      mermaid.initialize({ startOnLoad: false })
       try {
         const { svg } = await mermaid.render(`gantt-${id}`, code)
-        if (!cancelled && containerRef.current) containerRef.current.innerHTML = svg
+        if (!cancelled && containerRef.current) {
+          containerRef.current.innerHTML = svg
+          const svgEl = containerRef.current.querySelector('svg')
+          if (svgEl) {
+            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+            style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
+            svgEl.appendChild(style)
+            const h = parseFloat(svgEl.getAttribute('height') ?? '0')
+            if (h > 0) svgEl.setAttribute('height', String(h * 2))
+          }
+        }
       } catch {
         if (!cancelled && containerRef.current)
           containerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
@@ -84,7 +98,74 @@ function GanttDiagram({ id, code }: GanttDiagramProps) {
     return () => { cancelled = true }
   }, [id, code])
 
-  return <div ref={containerRef} className="overflow-x-auto rounded-lg border border-gray-200 bg-white p-4" />
+  useEffect(() => {
+    if (!isFullscreen || !fsContainerRef.current) return
+    let cancelled = false
+    async function renderFs() {
+      mermaid.initialize({ startOnLoad: false })
+      document.getElementById(`dgantt-fs-${id}`)?.remove()
+      try {
+        const { svg } = await mermaid.render(`gantt-fs-${id}`, code)
+        if (!cancelled && fsContainerRef.current) {
+          fsContainerRef.current.innerHTML = svg
+          const svgEl = fsContainerRef.current.querySelector('svg')
+          if (svgEl) {
+            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+            style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
+            svgEl.appendChild(style)
+            svgEl.removeAttribute('width')
+            svgEl.removeAttribute('height')
+            svgEl.style.width = '100%'
+            svgEl.style.height = 'auto'
+            svgEl.style.minWidth = '600px'
+          }
+        }
+      } catch {
+        if (!cancelled && fsContainerRef.current)
+          fsContainerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu.</p>'
+      }
+    }
+    renderFs()
+    return () => { cancelled = true }
+  }, [isFullscreen, id, code])
+
+  useEffect(() => {
+    if (!isFullscreen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false) }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isFullscreen])
+
+  return (
+    <>
+      <div
+        ref={containerRef}
+        className="overflow-x-auto rounded-lg border border-gray-200 bg-white p-4 cursor-zoom-in"
+        onClick={() => setIsFullscreen(true)}
+        title="Cliquer pour agrandir"
+      />
+      {isFullscreen && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setIsFullscreen(false)}
+        >
+          <div
+            className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+            <div ref={fsContainerRef} className="overflow-x-auto" />
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  )
 }
 
 // ─── Composant : modal création EVENT ────────────────────────
@@ -116,13 +197,15 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
   })
 
   useEffect(() => {
-    if (suggested?.date_heure_prevue_suggere && !dateHeurePrevue) {
+    if (suggested?.date_heure_prevue_suggere) {
       setDateHeurePrevue(isoToDatetimeLocal(suggested.date_heure_prevue_suggere))
     }
-  }, [suggested, dateHeurePrevue])
+  }, [suggested])
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setDateHeurePrevue(isoToDatetimeLocal(new Date().toISOString()))
+    } else {
       setNom('')
       setTeventId(null)
       setDateHeurePrevue('')
@@ -142,6 +225,8 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
     }
   }, [tevents, nom])
 
+  const [validationError, setValidationError] = useState<string | null>(null)
+
   const { mutate: create, isPending, error, reset } = useMutation({
     mutationFn: () => {
       const t = tevents?.find((x) => x.id === teventId)
@@ -150,7 +235,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
         tevent_id: teventId!,
         nom: nom.trim(),
         description: description.trim() || undefined,
-        cla_id: (t as unknown as { cla: { id: number } })?.cla?.id,
+        cla_id: t?.cla?.id,
         date_heure_prevue: datetimeLocalToIso(dateHeurePrevue),
       })
     },
@@ -161,8 +246,15 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
     },
   })
 
-  const canSubmit = !isPending && nom.trim() && teventId && dateHeurePrevue
   const apiError = parseApiError(error)
+
+  function handleSubmit() {
+    setValidationError(null)
+    if (!teventId) { setValidationError('Veuillez sélectionner un type d\'évènement.'); return }
+    if (!nom.trim()) { setValidationError('Le nom est obligatoire.'); return }
+    if (!dateHeurePrevue) { setValidationError('La date et heure prévues sont obligatoires.'); return }
+    create()
+  }
 
   const inputClass =
     'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white'
@@ -177,7 +269,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
           <select
             className={inputClass}
             value={teventId ?? ''}
-            onChange={(e) => handleTeventChange(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) => { setValidationError(null); handleTeventChange(e.target.value ? Number(e.target.value) : null) }}
           >
             <option value="">— Choisir un type —</option>
             {(tevents ?? []).map((t) => (
@@ -194,7 +286,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
             type="text"
             className={inputClass}
             value={nom}
-            onChange={(e) => { setNom(e.target.value); autoNomRef.current = '' }}
+            onChange={(e) => { setValidationError(null); setNom(e.target.value); autoNomRef.current = '' }}
           />
         </div>
 
@@ -206,7 +298,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
             type="datetime-local"
             className={inputClass}
             value={dateHeurePrevue}
-            onChange={(e) => setDateHeurePrevue(e.target.value)}
+            onChange={(e) => { setValidationError(null); setDateHeurePrevue(e.target.value) }}
           />
         </div>
 
@@ -223,9 +315,9 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
           />
         </div>
 
-        {apiError && (
+        {(validationError || apiError) && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {apiError}
+            {validationError ?? apiError}
           </div>
         )}
 
@@ -239,8 +331,8 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
           </button>
           <button
             type="button"
-            onClick={() => create()}
-            disabled={!canSubmit}
+            onClick={handleSubmit}
+            disabled={isPending}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
@@ -532,6 +624,8 @@ export default function EngDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [editingEventId, setEditingEventId] = useState<number | null>(null)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [descDraft, setDescDraft] = useState('')
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -555,6 +649,14 @@ export default function EngDetailPage() {
   const handleEventMutated = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['eng', engId] })
   }, [queryClient, engId])
+
+  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+    mutationFn: (description: string) => engApi.update(engId, { description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+      setEditingDesc(false)
+    },
+  })
 
   if (isLoading) return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
   if (isError || !eng) return <div className="p-6 text-center text-red-500 py-16">Impossible de charger cet engagement.</div>
@@ -681,9 +783,67 @@ export default function EngDetailPage() {
         />
       </section>
 
-      {/* ─── Diagramme Gantt ──────────────────── */}
+      {/* ─── Description ──────────────────────── */}
+      {(eng.obj.description || isEditeur()) && (
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Description</h2>
+            {isEditeur() && !editingDesc && (
+              <button
+                onClick={() => { setDescDraft(eng.obj.description ?? ''); setEditingDesc(true) }}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-violet-600 transition-colors"
+              >
+                <Pencil size={12} />
+                Modifier
+              </button>
+            )}
+          </div>
+          {editingDesc ? (
+            <div className="space-y-2">
+              <textarea
+                rows={10}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-y"
+                placeholder="Description en Markdown…"
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setEditingDesc(false)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <X size={13} />
+                  Annuler
+                </button>
+                <button
+                  onClick={() => saveDesc(descDraft)}
+                  disabled={isSavingDesc}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingDesc ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          ) : eng.obj.description ? (
+            <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
+              <MarkdownContent>{eng.obj.description}</MarkdownContent>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setDescDraft(''); setEditingDesc(true) }}
+              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-violet-300 hover:text-violet-500 transition-colors"
+            >
+              + Ajouter une description
+            </button>
+          )}
+        </section>
+      )}
+
+      {/* ─── Timeline ─────────────────────────── */}
       <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Diagramme Gantt</h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Timeline</h2>
         {eng.gantt_mermaid ? (
           <GanttDiagram id={engId} code={eng.gantt_mermaid} />
         ) : (

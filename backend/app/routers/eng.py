@@ -271,11 +271,13 @@ async def create_eng(
     try:
         await index_obj(
             obj_id=eng.obj_id,
+            entity_id=eng.id,
             nom=eng.obj.nom,
             description=eng.obj.description,
             values_text=[v.valeur_texte for v in eng.obj.values if v.valeur_texte],
             entity_type="eng",
             cla_nom=eng.obj.cla.nom,
+            image_chemin=next((i.chemin for i in eng.obj.images if i.est_principale), None),
         )
     except Exception:
         pass
@@ -351,11 +353,13 @@ async def update_eng(
     try:
         await index_obj(
             obj_id=eng.obj_id,
+            entity_id=eng.id,
             nom=eng.obj.nom,
             description=eng.obj.description,
             values_text=[v.valeur_texte for v in eng.obj.values if v.valeur_texte],
             entity_type="eng",
             cla_nom=eng.obj.cla.nom,
+            image_chemin=next((i.chemin for i in eng.obj.images if i.est_principale), None),
         )
     except Exception:
         pass

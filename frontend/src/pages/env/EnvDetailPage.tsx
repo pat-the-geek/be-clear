@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowLeft, Download, Edit, FileText, CalendarDays, RefreshCw, Hash, Trash2 } from 'lucide-react'
-import { envApi } from '@/services/api'
+import mermaid from 'mermaid'
+import { ArrowLeft, Download, Edit, FileText, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X } from 'lucide-react'
+import { envApi, engApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
@@ -12,7 +14,7 @@ import { imgUrl } from '@/components/shared/ImageManager'
 import SmartImage from '@/components/shared/SmartImage'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
-import type { Env, Prop, Value } from '@/types'
+import type { Env, Prop, Value, EngBrief, PaginatedResponse } from '@/types'
 
 // ─── Composant : rendu Markdown uniforme ────────────────────
 
@@ -98,6 +100,174 @@ function PropValueCard({ prop, value, onApplyDescription }: {
   )
 }
 
+// ─── Timeline ENGs ────────────────────────────────────────────
+
+function sanitizeLabel(s: string): string {
+  return s.replace(/:/g, ' -').replace(/\n/g, ' ').trim()
+}
+
+function buildTimelineCode(engs: EngBrief[], envNom: string): string {
+  const sorted = [...engs].sort((a, b) => {
+    const da = a.date_debut_prevue || a.date_debut || '9999'
+    const db = b.date_debut_prevue || b.date_debut || '9999'
+    return da.localeCompare(db)
+  })
+
+  const byYear = new Map<string, Map<string, EngBrief[]>>()
+  const unplanned: EngBrief[] = []
+
+  for (const eng of sorted) {
+    const dateStr = eng.date_debut_prevue || eng.date_debut
+    if (!dateStr) { unplanned.push(eng); continue }
+    const d = new Date(dateStr)
+    const year = String(d.getFullYear())
+    const month = d.toLocaleDateString('fr-FR', { month: 'long' })
+    if (!byYear.has(year)) byYear.set(year, new Map())
+    const byMonth = byYear.get(year)!
+    if (!byMonth.has(month)) byMonth.set(month, [])
+    byMonth.get(month)!.push(eng)
+  }
+
+  const lines: string[] = ['timeline', `    title Engagements — ${sanitizeLabel(envNom)}`]
+
+  for (const [year, byMonth] of byYear) {
+    lines.push(`    section ${year}`)
+    for (const [month, group] of byMonth) {
+      const label = month.charAt(0).toUpperCase() + month.slice(1)
+      let first = true
+      for (const eng of group) {
+        const pct = eng.accomplissement !== undefined ? ` (${Math.round(eng.accomplissement)}%)` : ''
+        const name = sanitizeLabel(eng.nom) + pct
+        if (first) { lines.push(`        ${label} : ${name}`); first = false }
+        else        { lines.push(`                : ${name}`) }
+      }
+    }
+  }
+
+  if (unplanned.length > 0) {
+    lines.push('    section Non planifié')
+    let first = true
+    for (const eng of unplanned) {
+      const name = sanitizeLabel(eng.nom)
+      if (first) { lines.push(`        ? : ${name}`); first = false }
+      else        { lines.push(`            : ${name}`) }
+    }
+  }
+
+  return lines.join('\n')
+}
+
+function TimelineDiagram({ envId, envNom }: { envId: number; envNom: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const fsContainerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const { data: engs } = useQuery({
+    queryKey: ['engs', 'timeline', envId],
+    queryFn: async () => {
+      const res = await engApi.list({ env_id: envId, page: 1, per_page: 500, sort_by: 'date_debut_prevue', sort_dir: 'asc' })
+      return (res.data as PaginatedResponse<EngBrief>).items
+    },
+  })
+
+  const timelineCode = useMemo(() => {
+    if (!engs || engs.length === 0) return null
+    return buildTimelineCode(engs, envNom)
+  }, [engs, envNom])
+
+  useEffect(() => {
+    if (!timelineCode || !containerRef.current) return
+    let cancelled = false
+    const id = `timeline-env-${envId}`
+    document.getElementById(`d${id}`)?.remove()
+    mermaid.initialize({ startOnLoad: false })
+    mermaid.render(id, timelineCode)
+      .then(({ svg }) => {
+        if (!cancelled && containerRef.current) {
+          containerRef.current.innerHTML = svg
+          const svgEl = containerRef.current.querySelector('svg')
+          if (svgEl) {
+            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+            style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
+            svgEl.appendChild(style)
+            svgEl.style.maxWidth = '100%'
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled && containerRef.current)
+          containerRef.current.innerHTML = '<p class="text-xs text-red-400 p-2">Erreur de rendu du diagramme.</p>'
+      })
+    return () => { cancelled = true }
+  }, [timelineCode, envId])
+
+  useEffect(() => {
+    if (!isFullscreen || !timelineCode || !fsContainerRef.current) return
+    let cancelled = false
+    const id = `timeline-env-fs-${envId}`
+    document.getElementById(`d${id}`)?.remove()
+    mermaid.render(id, timelineCode)
+      .then(({ svg }) => {
+        if (!cancelled && fsContainerRef.current) {
+          fsContainerRef.current.innerHTML = svg
+          const svgEl = fsContainerRef.current.querySelector('svg')
+          if (svgEl) {
+            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+            style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
+            svgEl.appendChild(style)
+            svgEl.removeAttribute('width')
+            svgEl.removeAttribute('height')
+            svgEl.style.width = '100%'
+            svgEl.style.height = 'auto'
+          }
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isFullscreen, timelineCode, envId])
+
+  useEffect(() => {
+    if (!isFullscreen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false) }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isFullscreen])
+
+  if (!engs) return <div className="text-gray-400 text-sm text-center py-4">Chargement…</div>
+  if (!timelineCode) return null
+
+  return (
+    <>
+      <div
+        ref={containerRef}
+        className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-4 cursor-zoom-in"
+        onClick={() => setIsFullscreen(true)}
+        title="Cliquer pour agrandir"
+      />
+      {isFullscreen && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setIsFullscreen(false)}
+        >
+          <div
+            className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+            <div ref={fsContainerRef} className="overflow-x-auto" />
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
 // ─── Composant : section titre ───────────────────────────────
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -118,6 +288,8 @@ export default function EnvDetailPage() {
 
   const envId = Number(id)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showRptMenu, setShowRptMenu] = useState(false)
+  const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
 
   const { data: env, isLoading, isError } = useQuery({
     queryKey: ['env', envId],
@@ -129,6 +301,26 @@ export default function EnvDetailPage() {
     mutationFn: (description: string) =>
       envApi.update(envId, { description }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['env', envId] }),
+  })
+
+  const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
+    mutationFn: async (destination: 'filesystem' | 'obsidian' | 'download') => {
+      if (destination === 'download') {
+        const res = await rptApi.downloadEnv(envId)
+        const blob = new Blob([res.data], { type: 'text/markdown' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const cd = res.headers['content-disposition'] ?? ''
+        const match = cd.match(/filename="?([^"]+)"?/)
+        a.download = match ? match[1] : `rapport_env_${envId}.md`
+        a.href = url
+        a.click()
+        URL.revokeObjectURL(url)
+        return null
+      }
+      return rptApi.env(envId, destination).then(r => r.data)
+    },
+    onSuccess: (data) => { if (data) setRptResult(data); setShowRptMenu(false) },
   })
 
   const { mutateAsync: deleteEnv, isPending: isDeleting } = useMutation({
@@ -178,48 +370,91 @@ export default function EnvDetailPage() {
                 </span>
               </div>
             </div>
-            {isEditeur() && (
-              <div className="flex items-center gap-2 shrink-0">
-                {showDeleteConfirm ? (
-                  <>
-                    <span className="text-sm text-red-600 font-medium">Supprimer définitivement ?</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Bouton RPT */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowRptMenu((v) => !v)}
+                  disabled={isGeneratingRpt}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  title="Générer un rapport"
+                >
+                  <FileOutput size={14} />
+                  Rapport
+                  <ChevronDown size={12} />
+                </button>
+                {showRptMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
                     <button
-                      onClick={() => deleteEnv()}
-                      disabled={isDeleting}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      onClick={() => generateRpt('download')}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      {isDeleting ? 'Suppression…' : 'Confirmer'}
+                      Dossier local
                     </button>
                     <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      onClick={() => generateRpt('obsidian')}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
                     >
-                      Annuler
+                      Vault Obsidian
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => navigate(`/env/${envId}/edit`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <Edit size={14} />
-                      Modifier
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      Supprimer
-                    </button>
-                  </>
+                  </div>
                 )}
               </div>
-            )}
+
+              {isEditeur() && (
+                <>
+                  {showDeleteConfirm ? (
+                    <>
+                      <span className="text-sm text-red-600 font-medium">Supprimer définitivement ?</span>
+                      <button
+                        onClick={() => deleteEnv()}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        {isDeleting ? 'Suppression…' : 'Confirmer'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => navigate(`/env/${envId}/edit`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <Edit size={14} />
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                        Supprimer
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ─── Confirmation RPT ─────────────────────────────── */}
+      {rptResult && (
+        <div className="mb-6 flex items-start justify-between gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+          <div>
+            <p className="text-sm font-medium text-green-800">Rapport généré avec succès</p>
+            <p className="text-xs text-green-700 mt-0.5 font-mono break-all">{rptResult.chemin}</p>
+          </div>
+          <button onClick={() => setRptResult(null)} className="text-green-600 hover:text-green-800 text-xs shrink-0">✕</button>
+        </div>
+      )}
 
       {/* ─── Description ──────────────────────────────────── */}
       {env.obj.description && (
@@ -283,7 +518,13 @@ export default function EnvDetailPage() {
         </section>
       )}
 
-      {/* ─── Engagements ──────────────────────────────────── */}
+      {/* ─── Timeline Engagements ─────────────────────────── */}
+      <section className="mb-4">
+        <SectionTitle>Timeline des engagements</SectionTitle>
+        <TimelineDiagram envId={envId} envNom={env.obj.nom} />
+      </section>
+
+      {/* ─── Table Engagements ────────────────────────────── */}
       <section className="mb-7">
         <SectionTitle>Engagements</SectionTitle>
         <EngTable envId={envId} />

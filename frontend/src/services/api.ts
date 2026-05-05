@@ -161,6 +161,10 @@ export const rptApi = {
     api.post(`/rpt/org/${id}`, { destination }),
   env: (id: number, destination: 'filesystem' | 'obsidian' = 'filesystem') =>
     api.post(`/rpt/env/${id}`, { destination }),
+  downloadOrg: (id: number) =>
+    api.get(`/rpt/org/${id}/download`, { responseType: 'blob' }),
+  downloadEnv: (id: number) =>
+    api.get(`/rpt/env/${id}/download`, { responseType: 'blob' }),
 }
 
 // ─── LOG ─────────────────────────────────────────────────
@@ -169,7 +173,7 @@ export const logApi = {
     api.get('/log', { params }),
 }
 
-// ─── MEDIA — Images ──────────────────────────────────────
+// ─── MEDIA — Images & Documents ──────────────────────────
 export const mediaApi = {
   uploadImage: (objId: number, file: File) => {
     const form = new FormData()
@@ -182,6 +186,15 @@ export const mediaApi = {
     api.put(`/media/obj/${objId}/images/${imgId}/principale`),
   deleteImage: (objId: number, imgId: number) =>
     api.delete(`/media/obj/${objId}/images/${imgId}`),
+  uploadDoc: (objId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/media/obj/${objId}/documents`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deleteDoc: (objId: number, docId: number) =>
+    api.delete(`/media/obj/${objId}/documents/${docId}`),
 }
 
 // ─── URL Tools ───────────────────────────────────────────

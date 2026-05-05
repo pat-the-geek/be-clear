@@ -154,11 +154,13 @@ async def create_env(
     try:
         await index_obj(
             obj_id=env.obj_id,
+            entity_id=env.id,
             nom=env.obj.nom,
             description=env.obj.description,
             values_text=[v.valeur_texte for v in env.obj.values if v.valeur_texte],
             entity_type="env",
             cla_nom=env.obj.cla.nom,
+            image_chemin=next((i.chemin for i in env.obj.images if i.est_principale), None),
         )
     except Exception:
         pass
@@ -243,11 +245,13 @@ async def update_env(
     try:
         await index_obj(
             obj_id=env.obj_id,
+            entity_id=env.id,
             nom=env.obj.nom,
             description=env.obj.description,
             values_text=[v.valeur_texte for v in env.obj.values if v.valeur_texte],
             entity_type="env",
             cla_nom=env.obj.cla.nom,
+            image_chemin=next((i.chemin for i in env.obj.images if i.est_principale), None),
         )
     except Exception:
         pass

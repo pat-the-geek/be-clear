@@ -1,11 +1,28 @@
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2 } from 'lucide-react'
-import { eventApi } from '@/services/api'
+import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X } from 'lucide-react'
+import { eventApi, teventApi } from '@/services/api'
+import MarkdownContent from '@/components/shared/MarkdownContent'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
-import type { Event as AppEvent, Value } from '@/types'
+import { Modal } from '@/components/shared/Modal'
+import ImageManager from '@/components/shared/ImageManager'
+import DocManager from '@/components/shared/DocManager'
+import type { Event as AppEvent, Value, Tevent } from '@/types'
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function isoToDatetimeLocal(iso?: string): string {
+  if (!iso) return ''
+  return iso.slice(0, 16)
+}
+
+function datetimeLocalToIso(local: string): string {
+  if (!local) return ''
+  return new Date(local).toISOString()
+}
 
 // ─── Composant local : ligne PROP / VALUE ────────────────────
 
@@ -41,12 +58,7 @@ function PropValueRow({ label, value }: PropValueRowProps) {
       </td>
       <td className="py-2 text-sm text-gray-900">
         {type === 'URL' && value.valeur_texte ? (
-          <a
-            href={value.valeur_texte}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline break-all"
-          >
+          <a href={value.valeur_texte} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
             {value.valeur_texte}
           </a>
         ) : type === 'EMAIL' && value.valeur_texte ? (
@@ -61,6 +73,155 @@ function PropValueRow({ label, value }: PropValueRowProps) {
   )
 }
 
+// ─── Modal d'édition d'EVENT ─────────────────────────────────
+
+interface EditModalProps {
+  open: boolean
+  onClose: () => void
+  event: AppEvent
+  onUpdated: () => void
+}
+
+function EditModal({ open, onClose, event, onUpdated }: EditModalProps) {
+  const queryClient = useQueryClient()
+  const [nom, setNom] = useState(event.obj.nom)
+  const [teventId, setTeventId] = useState<number>(event.tevent.id)
+  const [dateHeurePrevue, setDateHeurePrevue] = useState(isoToDatetimeLocal(event.date_heure_prevue))
+  const [dateHeureReelle, setDateHeureReelle] = useState(isoToDatetimeLocal(event.date_heure_reelle))
+
+  const { data: tevents } = useQuery<Tevent[]>({
+    queryKey: ['tevents'],
+    queryFn: () => teventApi.list().then((r) => r.data),
+    enabled: open,
+  })
+
+  useEffect(() => {
+    if (open) {
+      setNom(event.obj.nom)
+      setTeventId(event.tevent.id)
+      setDateHeurePrevue(isoToDatetimeLocal(event.date_heure_prevue))
+      setDateHeureReelle(isoToDatetimeLocal(event.date_heure_reelle))
+    }
+  }, [open, event])
+
+  const { mutate: save, isPending, error, reset } = useMutation({
+    mutationFn: () =>
+      eventApi.update(event.id, {
+        nom: nom.trim(),
+        tevent_id: teventId,
+        date_heure_prevue: datetimeLocalToIso(dateHeurePrevue),
+        date_heure_reelle: dateHeureReelle ? datetimeLocalToIso(dateHeureReelle) : null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', event.id] })
+      queryClient.invalidateQueries({ queryKey: ['eng', event.eng_id] })
+      onUpdated()
+      onClose()
+      reset()
+    },
+  })
+
+  const canSubmit = nom.trim() && teventId && dateHeurePrevue
+
+  return (
+    <Modal open={open} onClose={onClose} title="Modifier l'évènement">
+      <div className="space-y-4 p-1">
+        {/* Nom */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Nom</label>
+          <input
+            value={nom}
+            onChange={(e) => setNom(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+            placeholder="Nom de l'évènement"
+          />
+        </div>
+
+        {/* Type */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Type (TEVENT)</label>
+          <select
+            value={teventId}
+            onChange={(e) => setTeventId(Number(e.target.value))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+          >
+            {tevents?.map((t) => (
+              <option key={t.id} value={t.id}>{t.nom}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Date prévue */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Date et heure prévues</label>
+          <input
+            type="datetime-local"
+            value={dateHeurePrevue}
+            onChange={(e) => setDateHeurePrevue(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+          />
+        </div>
+
+        {/* Date réelle */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-gray-500">Date et heure réelles</label>
+            {!dateHeureReelle && (
+              <button
+                type="button"
+                onClick={() => setDateHeureReelle(isoToDatetimeLocal(new Date().toISOString()))}
+                className="text-xs text-green-600 hover:underline font-medium"
+              >
+                Maintenant
+              </button>
+            )}
+          </div>
+          <input
+            type="datetime-local"
+            value={dateHeureReelle}
+            onChange={(e) => setDateHeureReelle(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+          />
+          {dateHeureReelle && (
+            <button
+              type="button"
+              onClick={() => setDateHeureReelle('')}
+              className="mt-1 text-xs text-red-500 hover:underline"
+            >
+              Effacer (marquer non accompli)
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {(error as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? 'Erreur lors de la sauvegarde'}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => { onClose(); reset() }}
+            className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => save()}
+            disabled={!canSubmit || isPending}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Page principale ─────────────────────────────────────────
 
 export default function EventDetailPage() {
@@ -70,6 +231,9 @@ export default function EventDetailPage() {
   const isEditeur = useAuthStore((s) => s.isEditeur)
 
   const eventId = Number(id)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [descDraft, setDescDraft] = useState('')
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['event', eventId],
@@ -86,34 +250,30 @@ export default function EventDetailPage() {
     },
   })
 
+  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+    mutationFn: (description: string) => eventApi.update(eventId, { description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', eventId] })
+      setEditingDesc(false)
+    },
+  })
+
   if (isLoading) {
-    return (
-      <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
-    )
+    return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
   }
 
   if (isError || !event) {
-    return (
-      <div className="p-6 text-center text-red-500 py-16">
-        Impossible de charger cet évènement.
-      </div>
-    )
+    return <div className="p-6 text-center text-red-500 py-16">Impossible de charger cet évènement.</div>
   }
 
   const accompli = !!event.date_heure_reelle
-
-  // Durée prévue du TEVENT
   const dureeValeur = event.tevent.duree_prevue_valeur
   const dureeUnite = event.tevent.duree_prevue_unite
 
   function formatDuree(val?: number, unite?: string): string {
     if (val === undefined || !unite) return '—'
     const labels: Record<string, string> = {
-      secondes: 'seconde',
-      minutes: 'minute',
-      heures: 'heure',
-      jours: 'jour',
-      mois: 'mois',
+      secondes: 'seconde', minutes: 'minute', heures: 'heure', jours: 'jour', mois: 'mois',
     }
     const label = labels[unite] ?? unite
     return `${val} ${label}${val > 1 && unite !== 'mois' ? 's' : ''}`
@@ -140,69 +300,61 @@ export default function EventDetailPage() {
             size="md"
           />
           <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-              {event.obj.nom}
-            </h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
-              {event.tevent.nom}
-            </span>
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+                {event.obj.nom}
+              </h1>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
+                {event.tevent.nom}
+              </span>
+            </div>
+            <Link to={`/eng/${event.eng_id}`} className="text-sm text-blue-600 hover:underline">
+              Voir l'engagement parent
+            </Link>
           </div>
+        </div>
 
-          {/* Lien retour vers l'ENG */}
-          <Link
-            to={`/eng/${event.eng_id}`}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            Voir l'engagement parent
-          </Link>
-          </div>{/* flex-1 */}
-        </div>{/* flex items-start gap-4 */}
-
-
-        {/* Bouton Marquer accompli */}
-        {isEditeur() && !accompli && (
-          <button
-            onClick={() => marquerAccompli()}
-            disabled={isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors shrink-0"
-          >
-            <CheckCircle2 size={16} />
-            {isPending ? 'Enregistrement…' : 'Marquer comme accompli'}
-          </button>
-        )}
+        {/* Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {isEditeur() && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Pencil size={13} />
+              Modifier
+            </button>
+          )}
+          {isEditeur() && !accompli && (
+            <button
+              onClick={() => marquerAccompli()}
+              disabled={isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              <CheckCircle2 size={16} />
+              {isPending ? 'Enregistrement…' : 'Marquer accompli'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ─── Dates ────────────────────────────── */}
       <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Dates
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Dates</h2>
         <div className="grid grid-cols-2 gap-3">
-          {/* Date prévue */}
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-xs text-gray-500 mb-1">Date prévue</p>
-            <p className="text-sm font-medium text-gray-900">
-              {formatDateTime(event.date_heure_prevue)}
-            </p>
+            <p className="text-sm font-medium text-gray-900">{formatDateTime(event.date_heure_prevue)}</p>
           </div>
-
-          {/* Date réelle */}
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-xs text-gray-500 mb-1">Date réelle</p>
             {event.date_heure_reelle ? (
               <>
-                <p className="text-sm font-medium text-gray-900">
-                  {formatDateTime(event.date_heure_reelle)}
-                </p>
-                <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                  Accompli
-                </span>
+                <p className="text-sm font-medium text-gray-900">{formatDateTime(event.date_heure_reelle)}</p>
+                <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Accompli</span>
               </>
             ) : (
-              <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                En attente
-              </span>
+              <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">En attente</span>
             )}
           </div>
         </div>
@@ -211,37 +363,125 @@ export default function EventDetailPage() {
       {/* ─── Durée prévue ─────────────────────── */}
       {dureeValeur !== undefined && (
         <section className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Durée prévue
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Durée prévue</h2>
           <div className="bg-gray-50 rounded-lg p-4 inline-block">
-            <p className="text-sm font-medium text-gray-900">
-              {formatDuree(dureeValeur, dureeUnite)}
-            </p>
+            <p className="text-sm font-medium text-gray-900">{formatDuree(dureeValeur, dureeUnite)}</p>
           </div>
+        </section>
+      )}
+
+      {/* ─── Description ──────────────────────── */}
+      {(event.obj.description || isEditeur()) && (
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Description</h2>
+            {isEditeur() && !editingDesc && (
+              <button
+                onClick={() => { setDescDraft(event.obj.description ?? ''); setEditingDesc(true) }}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-violet-600 transition-colors"
+              >
+                <Pencil size={12} />
+                Modifier
+              </button>
+            )}
+          </div>
+          {editingDesc ? (
+            <div className="space-y-2">
+              <textarea
+                rows={10}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-y"
+                placeholder="Description en Markdown (Mermaid et syntaxe Obsidian supportés)…"
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                autoFocus
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={() => setEditingDesc(false)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <X size={13} />
+                  Annuler
+                </button>
+                <button
+                  onClick={() => saveDesc(descDraft)}
+                  disabled={isSavingDesc}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingDesc ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          ) : event.obj.description ? (
+            <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
+              <MarkdownContent>{event.obj.description}</MarkdownContent>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setDescDraft(''); setEditingDesc(true) }}
+              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-violet-300 hover:text-violet-500 transition-colors"
+            >
+              + Ajouter une description
+            </button>
+          )}
         </section>
       )}
 
       {/* ─── Propriétés ───────────────────────── */}
       {event.obj.values.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Propriétés
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Propriétés</h2>
           <div className="bg-white rounded-lg border border-gray-200 px-4 overflow-hidden">
             <table className="w-full">
               <tbody>
                 {event.obj.values.map((val) => (
-                  <PropValueRow
-                    key={val.id}
-                    label={val.prop.nom}
-                    value={val}
-                  />
+                  <PropValueRow key={val.id} label={val.prop.nom} value={val} />
                 ))}
               </tbody>
             </table>
           </div>
         </section>
+      )}
+
+      {/* ─── Images ───────────────────────────── */}
+      {(event.obj.images.length > 0 || isEditeur()) && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Images ({event.obj.images.length})
+          </h2>
+          <ImageManager
+            objId={event.obj.id}
+            images={event.obj.images}
+            queryKey={['event', eventId]}
+            readOnly={!isEditeur()}
+          />
+        </section>
+      )}
+
+      {/* ─── Documents ────────────────────────── */}
+      {(event.obj.documents.length > 0 || isEditeur()) && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Documents ({event.obj.documents.length})
+          </h2>
+          <DocManager
+            objId={event.obj.id}
+            documents={event.obj.documents}
+            queryKey={['event', eventId]}
+            readOnly={!isEditeur()}
+          />
+        </section>
+      )}
+
+      {/* ─── Modal d'édition ──────────────────── */}
+      {event && (
+        <EditModal
+          open={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          event={event}
+          onUpdated={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
+        />
       )}
     </div>
   )

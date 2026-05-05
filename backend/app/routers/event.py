@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
 from app.models.activity import Event, Eng, User, Tevent
-from app.models.object import Obj, Value
+from app.models.object import Obj, Cla, Value
 from app.schemas.event import EventOut, EventCreate, EventUpdate, TeventRef
 from app.schemas.org import ObjOut
 from app.services.log import write_log
@@ -24,9 +24,12 @@ def _event_options():
     return [
         joinedload(Event.tevent),
         joinedload(Event.obj).options(
-            joinedload(Obj.cla),
+            joinedload(Obj.cla).selectinload(Cla.props),
             selectinload(Obj.values).joinedload(Value.prop),
             selectinload(Obj.images),
+            selectinload(Obj.documents),
+            joinedload(Obj.created_by).joinedload(User.obj),
+            joinedload(Obj.updated_by).joinedload(User.obj),
         ),
     ]
 
@@ -150,14 +153,21 @@ async def create_event(
     if eng is None:
         raise HTTPException(status_code=404, detail="Engagement introuvable")
 
+    # Lire date_debut immédiatement (avant tout autre appel DB qui expirerait l'objet)
+    eng_date_debut = eng.date_debut
+
     # Vérifier que le TEVENT existe
     tevent = await db.get(Tevent, body.tevent_id)
     if tevent is None:
         raise HTTPException(status_code=400, detail="TEVENT introuvable")
 
     # RF-15 : date_heure_prevue >= eng.date_debut
+    from datetime import timezone as _tz
     date_heure_prevue = datetime.fromisoformat(body.date_heure_prevue)
-    if eng.date_debut is not None and date_heure_prevue < eng.date_debut:
+    # Rendre le datetime aware si nécessaire pour comparer avec DateTime(timezone=True)
+    if date_heure_prevue.tzinfo is None:
+        date_heure_prevue = date_heure_prevue.replace(tzinfo=_tz.utc)
+    if eng_date_debut is not None and date_heure_prevue < eng_date_debut:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -215,11 +225,13 @@ async def create_event(
     try:
         await index_obj(
             obj_id=event.obj_id,
+            entity_id=event.id,
             nom=event.obj.nom,
             description=event.obj.description,
             values_text=[v.valeur_texte for v in event.obj.values if v.valeur_texte],
             entity_type="event",
             cla_nom=event.obj.cla.nom,
+            image_chemin=next((i.chemin for i in event.obj.images if i.est_principale), None),
         )
     except Exception:
         pass
@@ -272,10 +284,14 @@ async def update_event(
             raise HTTPException(status_code=400, detail="TEVENT introuvable")
         event.tevent_id = body.tevent_id
     if body.date_heure_prevue is not None:
+        from datetime import timezone as _tz
         new_date = datetime.fromisoformat(body.date_heure_prevue)
+        if new_date.tzinfo is None:
+            new_date = new_date.replace(tzinfo=_tz.utc)
         # RF-15 : vérifier la cohérence avec date_debut de l'ENG
         eng = await db.get(Eng, eng_id)
-        if eng and eng.date_debut is not None and new_date < eng.date_debut:
+        eng_date_debut = eng.date_debut if eng else None
+        if eng and eng_date_debut is not None and new_date < eng_date_debut:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -310,11 +326,13 @@ async def update_event(
     try:
         await index_obj(
             obj_id=event.obj_id,
+            entity_id=event.id,
             nom=event.obj.nom,
             description=event.obj.description,
             values_text=[v.valeur_texte for v in event.obj.values if v.valeur_texte],
             entity_type="event",
             cla_nom=event.obj.cla.nom,
+            image_chemin=next((i.chemin for i in event.obj.images if i.est_principale), None),
         )
     except Exception:
         pass

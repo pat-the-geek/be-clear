@@ -251,7 +251,6 @@ function EngTable({ envId }: { envId: number }) {
               {th('date_fin', 'Fin réelle')}
               {th('accomplissement', 'Avancement', 'center')}
               {th('nb_events', 'Évts', 'center')}
-              <th className="px-2 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
@@ -259,7 +258,12 @@ function EngTable({ envId }: { envId: number }) {
               const pct = eng.accomplissement
               return (
                 <tr key={eng.id} className={cn('border-b border-amber-100 hover:bg-amber-100/60 transition-colors', i % 2 === 0 ? 'bg-amber-50/30' : 'bg-amber-50/60')}>
-                  <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{eng.nom}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <Link to={`/eng/${eng.id}`} className="inline-flex items-center gap-1 font-medium text-gray-900 hover:text-amber-700 transition-colors">
+                      {eng.nom}
+                      <ExternalLink size={11} className="text-gray-300 shrink-0" />
+                    </Link>
+                  </td>
                   <td className="px-4 py-2.5 whitespace-nowrap"><span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">{eng.teng.nom}</span></td>
                   <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{eng.date_debut_prevue ? formatDate(eng.date_debut_prevue) : '—'}</td>
                   <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{eng.date_fin_prevue ? formatDate(eng.date_fin_prevue) : '—'}</td>
@@ -274,11 +278,6 @@ function EngTable({ envId }: { envId: number }) {
                     ) : '—'}
                   </td>
                   <td className="px-4 py-2.5 text-center text-gray-500">{eng.nb_events ?? 0}</td>
-                  <td className="px-2 py-2.5">
-                    <Link to={`/eng/${eng.id}`} className="text-gray-300 hover:text-orange-500 transition-colors">
-                      <ExternalLink size={14} />
-                    </Link>
-                  </td>
                 </tr>
               )
             })}

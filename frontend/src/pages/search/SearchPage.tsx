@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
+import { Search, Building2, Leaf, Handshake, CalendarClock } from 'lucide-react'
 import { searchApi } from '@/services/api'
+import { imgUrl } from '@/components/shared/ImageManager'
 
 // ─── Types Meilisearch ───────────────────────────────────────
 
 interface SearchHit {
   id: number
+  entity_id: number
   nom: string
   description?: string
   entity_type: 'org' | 'env' | 'eng' | 'event'
   cla_nom?: string
+  image_chemin?: string | null
   _formatted?: {
     nom?: string
     description?: string
@@ -26,11 +29,11 @@ interface SearchResponse {
 
 // ─── Styles badges par type entité ──────────────────────────
 
-const TYPE_BADGE: Record<SearchHit['entity_type'], { label: string; className: string }> = {
-  org:   { label: 'Organisation',   className: 'bg-blue-100 text-blue-700' },
-  env:   { label: 'Environnement',  className: 'bg-emerald-100 text-emerald-700' },
-  eng:   { label: 'Engagement',     className: 'bg-violet-100 text-violet-700' },
-  event: { label: 'Évènement',      className: 'bg-orange-100 text-orange-700' },
+const TYPE_BADGE: Record<SearchHit['entity_type'], { label: string; className: string; Icon: React.ElementType }> = {
+  org:   { label: 'Organisation',   className: 'bg-blue-100 text-blue-700',     Icon: Building2 },
+  env:   { label: 'Environnement',  className: 'bg-emerald-100 text-emerald-700', Icon: Leaf },
+  eng:   { label: 'Engagement',     className: 'bg-violet-100 text-violet-700', Icon: Handshake },
+  event: { label: 'Évènement',      className: 'bg-orange-100 text-orange-700', Icon: CalendarClock },
 }
 
 // ─── Composant : carte résultat ──────────────────────────────
@@ -40,18 +43,33 @@ interface ResultCardProps {
 }
 
 function ResultCard({ hit }: ResultCardProps) {
-  const badge = TYPE_BADGE[hit.entity_type] ?? { label: hit.entity_type, className: 'bg-gray-100 text-gray-600' }
+  const badge = TYPE_BADGE[hit.entity_type] ?? { label: hit.entity_type, className: 'bg-gray-100 text-gray-600', Icon: Building2 }
+  const { Icon } = badge
   const formattedNom = hit._formatted?.nom
   const formattedDesc = hit._formatted?.description
+  const imageUrl = hit.image_chemin ? imgUrl(hit.image_chemin) : null
 
   return (
     <Link
-      to={`/${hit.entity_type}/${hit.id}`}
-      className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all"
+      to={`/${hit.entity_type}/${hit.entity_id}`}
+      className="block p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all"
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
+        {/* Miniature ou icône */}
+        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={hit.nom}
+              className="w-full h-full object-cover object-center"
+            />
+          ) : (
+            <Icon size={18} className="text-gray-400" />
+          )}
+        </div>
+
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-2 mb-0.5">
             {/* Nom avec highlight */}
             <p className="text-sm font-semibold text-gray-900">
               {formattedNom ? (
@@ -78,11 +96,11 @@ function ResultCard({ hit }: ResultCardProps) {
           {/* Extrait contextuel */}
           {formattedDesc ? (
             <p
-              className="text-xs text-gray-500 mt-1 line-clamp-2 search-highlight"
+              className="text-xs text-gray-500 line-clamp-1 search-highlight"
               dangerouslySetInnerHTML={{ __html: formattedDesc }}
             />
           ) : hit.description ? (
-            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{hit.description}</p>
+            <p className="text-xs text-gray-500 line-clamp-1">{hit.description}</p>
           ) : null}
         </div>
       </div>
@@ -94,12 +112,17 @@ function ResultCard({ hit }: ResultCardProps) {
 
 function SkeletonCard() {
   return (
-    <div className="p-4 bg-white border border-gray-200 rounded-lg animate-pulse">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="h-4 bg-gray-200 rounded w-1/3" />
-        <div className="h-4 bg-gray-200 rounded w-16" />
+    <div className="p-3 bg-white border border-gray-200 rounded-lg animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gray-200 rounded-lg flex-shrink-0" />
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="h-4 bg-gray-200 rounded w-1/3" />
+            <div className="h-4 bg-gray-200 rounded w-16" />
+          </div>
+          <div className="h-3 bg-gray-100 rounded w-2/3" />
+        </div>
       </div>
-      <div className="h-3 bg-gray-100 rounded w-2/3" />
     </div>
   )
 }
@@ -113,7 +136,6 @@ export default function SearchPage() {
 
   const [inputValue, setInputValue] = useState(qParam)
 
-  // Synchronise l'input si l'URL change (navigation)
   useEffect(() => {
     setInputValue(qParam)
   }, [qParam])
@@ -176,33 +198,29 @@ export default function SearchPage() {
 
         {/* ─── Résultats ─────────────────────── */}
 
-        {/* Pas encore de requête valide */}
         {!isQueryValid && (
           <div className="text-center text-gray-400 py-16">
             Saisissez au moins 2 caractères pour lancer une recherche.
           </div>
         )}
 
-        {/* Loading */}
         {isQueryValid && isLoading && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
         )}
 
-        {/* Erreur */}
         {isQueryValid && isError && (
           <div className="text-center text-red-500 py-8 bg-red-50 rounded-lg border border-red-100">
             Une erreur est survenue lors de la recherche.
           </div>
         )}
 
-        {/* Résultats */}
         {data && (
           <>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-3">
               {data.estimatedTotalHits} résultat{data.estimatedTotalHits !== 1 ? 's' : ''} pour «&nbsp;{data.query}&nbsp;»
             </p>
 
@@ -211,9 +229,9 @@ export default function SearchPage() {
                 Aucun résultat pour cette recherche.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {data.hits.map((hit) => (
-                  <ResultCard key={`${hit.entity_type}-${hit.id}`} hit={hit} />
+                  <ResultCard key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
                 ))}
               </div>
             )}

@@ -15,6 +15,7 @@ import { orgApi, torgApi } from '@/services/api'
 import type { Org, Torg } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import ImageManager from '@/components/shared/ImageManager'
+import DocManager from '@/components/shared/DocManager'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -255,6 +256,18 @@ export default function OrgEditPage() {
           <ImageManager
             objId={org.obj.id}
             images={org.obj.images}
+            queryKey={['org', orgId]}
+          />
+        </section>
+
+        {/* ── Documents ──────────────────────────────────── */}
+        <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            Documents ({org.obj.documents.length})
+          </h2>
+          <DocManager
+            objId={org.obj.id}
+            documents={org.obj.documents}
             queryKey={['org', orgId]}
           />
         </section>
