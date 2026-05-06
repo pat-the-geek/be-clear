@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText } from 'lucide-react'
 import mermaid from 'mermaid'
 import MarkdownContent from '@/components/shared/MarkdownContent'
-import { engApi, eventApi, teventApi } from '@/services/api'
+import { engApi, eventApi, teventApi, claApi } from '@/services/api'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
 import { Modal } from '@/components/shared/Modal'
@@ -15,6 +15,7 @@ import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import { imgUrl } from '@/components/shared/ImageManager'
 import { useAuthStore } from '@/stores/authStore'
 import type { Eng, EngEventBrief, Tevent, Event as AppEvent, Prop, Value } from '@/types'
+import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 
 // ─── Helpers date ────────────────────────────────────────────
 
@@ -186,11 +187,21 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
   const [description, setDescription] = useState('')
   const descRef = useAutoResize(description)
   const autoNomRef = useRef('')
+  const [drafts, setDrafts] = useState<Map<number, ValueDraft>>(new Map())
 
   const { data: tevents } = useQuery({
     queryKey: ['tevent', 'list'],
     queryFn: () => teventApi.list().then((r) => r.data as Tevent[]),
     enabled: open,
+  })
+
+  const selectedTevent = tevents?.find((t) => t.id === teventId)
+  const claId = selectedTevent?.cla?.id ?? null
+
+  const { data: claProps = [], isFetching: propsLoading } = useQuery({
+    queryKey: ['cla-props-all', claId],
+    queryFn: () => claApi.propsAll(claId!).then((r) => r.data as Prop[]),
+    enabled: !!claId,
   })
 
   const { data: suggested } = useQuery({
@@ -213,9 +224,14 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
       setTeventId(null)
       setDateHeurePrevue('')
       setDescription('')
+      setDrafts(new Map())
       autoNomRef.current = ''
     }
   }, [open])
+
+  useEffect(() => {
+    setDrafts(new Map(claProps.map((p) => [p.id, emptyDraft(p.id)])))
+  }, [claProps])
 
   const handleTeventChange = useCallback((id: number | null) => {
     setTeventId(id)
@@ -231,17 +247,16 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
   const [validationError, setValidationError] = useState<string | null>(null)
 
   const { mutate: create, isPending, error, reset } = useMutation({
-    mutationFn: () => {
-      const t = tevents?.find((x) => x.id === teventId)
-      return eventApi.create({
+    mutationFn: () =>
+      eventApi.create({
         eng_id: engId,
         tevent_id: teventId!,
         nom: nom.trim(),
         description: description.trim() || undefined,
-        cla_id: t?.cla?.id,
+        cla_id: selectedTevent?.cla?.id,
         date_heure_prevue: datetimeLocalToIso(dateHeurePrevue),
-      })
-    },
+        values: Array.from(drafts.values()),
+      }),
     onSuccess: () => {
       onCreated()
       onClose()
@@ -318,6 +333,33 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
           />
         </div>
 
+        {propsLoading && (
+          <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
+            <Loader2 size={12} className="animate-spin" /> Chargement des propriétés…
+          </div>
+        )}
+
+        {claProps.length > 0 && !propsLoading && (
+          <div className="border-t border-gray-100 pt-3 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+              Propriétés ({claProps.length})
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {claProps.map((prop) => (
+                <ValueField
+                  key={prop.id}
+                  propId={prop.id}
+                  propNom={prop.nom}
+                  propType={prop.type}
+                  valeursList={prop.valeurs_liste}
+                  draft={drafts.get(prop.id) ?? emptyDraft(prop.id)}
+                  onChange={(updated) => setDrafts((prev) => new Map(prev).set(updated.prop_id, updated))}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {(validationError || apiError) && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
             {validationError ?? apiError}
@@ -363,6 +405,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
   const [dateHeureReelle, setDateHeureReelle] = useState('')
   const [description, setDescription] = useState('')
   const descEditRef = useAutoResize(description)
+  const [drafts, setDrafts] = useState<Map<number, ValueDraft>>(new Map())
 
   const { data: fullEvent } = useQuery({
     queryKey: ['event', eventId],
@@ -376,6 +419,13 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
     enabled: open,
   })
 
+  const claId = fullEvent?.obj?.cla?.id ?? null
+  const { data: claProps = [] } = useQuery({
+    queryKey: ['cla-props-all', claId],
+    queryFn: () => claApi.propsAll(claId!).then((r) => r.data as Prop[]),
+    enabled: !!claId,
+  })
+
   useEffect(() => {
     if (fullEvent) {
       setNom(fullEvent.obj.nom)
@@ -383,8 +433,33 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
       setDateHeurePrevue(isoToDatetimeLocal(fullEvent.date_heure_prevue))
       setDateHeureReelle(isoToDatetimeLocal(fullEvent.date_heure_reelle))
       setDescription(fullEvent.obj.description ?? '')
+      const map = new Map<number, ValueDraft>()
+      for (const val of fullEvent.obj.values) {
+        map.set(val.prop.id, {
+          prop_id: val.prop.id,
+          valeur_texte: val.valeur_texte ?? null,
+          valeur_date: val.valeur_date ?? null,
+          valeur_nombre: val.valeur_nombre ?? null,
+          valeur_bool: val.valeur_bool ?? null,
+          valeur_json: val.valeur_json ?? null,
+          valeur_ref_obj_id: val.valeur_ref_obj_id ?? null,
+        })
+      }
+      setDrafts(map)
     }
   }, [fullEvent])
+
+  useEffect(() => {
+    if (claProps.length > 0 && fullEvent) {
+      setDrafts((prev) => {
+        const next = new Map(prev)
+        for (const p of claProps) {
+          if (!next.has(p.id)) next.set(p.id, emptyDraft(p.id))
+        }
+        return next
+      })
+    }
+  }, [claProps, fullEvent])
 
   useEffect(() => {
     if (!open) {
@@ -393,6 +468,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
       setDateHeurePrevue('')
       setDateHeureReelle('')
       setDescription('')
+      setDrafts(new Map())
     }
   }, [open])
 
@@ -404,6 +480,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
         date_heure_prevue: dateHeurePrevue ? datetimeLocalToIso(dateHeurePrevue) : undefined,
         date_heure_reelle: dateHeureReelle ? datetimeLocalToIso(dateHeureReelle) : undefined,
         description: description.trim() || null,
+        values: Array.from(drafts.values()),
       }),
     onSuccess: () => {
       onUpdated()
@@ -510,6 +587,27 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+
+            {claProps.length > 0 && (
+              <div className="border-t border-gray-100 pt-3 space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                  Propriétés ({claProps.length})
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {claProps.map((prop) => (
+                    <ValueField
+                      key={prop.id}
+                      propId={prop.id}
+                      propNom={prop.nom}
+                      propType={prop.type}
+                      valeursList={prop.valeurs_liste}
+                      draft={drafts.get(prop.id) ?? emptyDraft(prop.id)}
+                      onChange={(updated) => setDrafts((prev) => new Map(prev).set(updated.prop_id, updated))}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {apiError && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">

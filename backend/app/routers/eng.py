@@ -242,6 +242,12 @@ async def create_eng(
     if len(envs) != len(body.env_ids):
         raise HTTPException(status_code=400, detail="Un ou plusieurs ENV introuvables")
 
+    # Valider org_principale_id / env_principale_id
+    if body.org_principale_id is not None and body.org_principale_id not in body.org_ids:
+        raise HTTPException(status_code=400, detail="org_principale_id doit faire partie des org_ids")
+    if body.env_principale_id is not None and body.env_principale_id not in body.env_ids:
+        raise HTTPException(status_code=400, detail="env_principale_id doit faire partie des env_ids")
+
     # Parser les dates
     date_debut = datetime.fromisoformat(body.date_debut) if body.date_debut else None
     date_debut_prevue = datetime.fromisoformat(body.date_debut_prevue) if body.date_debut_prevue else None
@@ -363,9 +369,17 @@ async def update_eng(
     if body.env_ids is not None:
         envs_result = await db.execute(select(Env).where(Env.id.in_(body.env_ids)))
         eng.envs = list(envs_result.scalars().all())
+
+    # Valider org_principale_id / env_principale_id après mise à jour des relations
+    effective_org_ids = set(body.org_ids) if body.org_ids is not None else {o.id for o in eng.orgs}
+    effective_env_ids = set(body.env_ids) if body.env_ids is not None else {e.id for e in eng.envs}
     if 'org_principale_id' in body.model_fields_set:
+        if body.org_principale_id is not None and body.org_principale_id not in effective_org_ids:
+            raise HTTPException(status_code=400, detail="org_principale_id doit faire partie des org_ids")
         eng.org_principale_id = body.org_principale_id
     if 'env_principale_id' in body.model_fields_set:
+        if body.env_principale_id is not None and body.env_principale_id not in effective_env_ids:
+            raise HTTPException(status_code=400, detail="env_principale_id doit faire partie des env_ids")
         eng.env_principale_id = body.env_principale_id
 
     # ── Mise à jour des VALUES ──────────────────────────────────
