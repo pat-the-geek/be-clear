@@ -1347,7 +1347,9 @@ export default function EngDetailPage() {
       {/* ─── Journal ──────────────────────────── */}
       <section className="mb-6">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Journal des modifications</h2>
-        <LogTimeline tableName="eng" entiteId={engId} />
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
+          <LogTimeline tableName="eng" entiteId={engId} />
+        </div>
       </section>
 
       {/* ─── Modales ──────────────────────────── */}

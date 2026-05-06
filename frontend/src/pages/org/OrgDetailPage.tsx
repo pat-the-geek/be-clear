@@ -511,7 +511,9 @@ export default function OrgDetailPage() {
 
       <section className="mb-7">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Journal des modifications</h2>
-        <LogTimeline tableName="org" entiteId={orgId} />
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
+          <LogTimeline tableName="org" entiteId={orgId} />
+        </div>
       </section>
     </div>
   )
