@@ -483,6 +483,94 @@ async def delete_eng(
     await db.commit()
 
 
+# ─── POST /eng/{id}/duplicate ────────────────────────────────
+
+@router.post("/{eng_id}/duplicate", response_model=EngOut, status_code=status.HTTP_201_CREATED)
+async def duplicate_eng(
+    eng_id: int,
+    offset_days: int = Query(0, description="Décaler les dates des EVENTs (jours)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_editeur),
+):
+    """Duplique un ENG avec tous ses EVENTs (dates décalées de offset_days jours)."""
+    from datetime import timedelta
+
+    result = await db.execute(
+        select(Eng).options(*_eng_options()).where(Eng.id == eng_id)
+    )
+    src = result.unique().scalar_one_or_none()
+    if src is None:
+        raise HTTPException(status_code=404, detail="Engagement introuvable")
+
+    # Nouvel OBJ pour l'ENG copie
+    new_obj = Obj(
+        nom=f"{src.obj.nom} (copie)",
+        description=src.obj.description,
+        cla_id=src.obj.cla_id,
+        created_by_id=current_user.id,
+        updated_by_id=current_user.id,
+    )
+    db.add(new_obj)
+    await db.flush()
+
+    delta = timedelta(days=offset_days)
+
+    new_eng = Eng(
+        obj_id=new_obj.id,
+        teng_id=src.teng_id,
+        date_debut=src.date_debut and src.date_debut + delta,
+        date_debut_prevue=src.date_debut_prevue and src.date_debut_prevue + delta,
+        date_fin=src.date_fin and src.date_fin + delta,
+        org_principale_id=src.org_principale_id,
+        env_principale_id=src.env_principale_id,
+        created_by_id=current_user.id,
+        updated_by_id=current_user.id,
+    )
+    new_eng.orgs = list(src.orgs)
+    new_eng.envs = list(src.envs)
+    db.add(new_eng)
+    await db.flush()
+
+    # Dupliquer les EVENTs
+    events_result = await db.execute(
+        select(Event).options(
+            joinedload(Event.obj).options(selectinload(Obj.values))
+        ).where(Event.eng_id == eng_id).order_by(Event.date_heure_prevue)
+    )
+    for ev in events_result.unique().scalars().all():
+        ev_obj = Obj(
+            nom=ev.obj.nom,
+            description=ev.obj.description,
+            cla_id=ev.obj.cla_id,
+            created_by_id=current_user.id,
+            updated_by_id=current_user.id,
+        )
+        db.add(ev_obj)
+        await db.flush()
+        for v in ev.obj.values:
+            db.add(Value(obj_id=ev_obj.id, prop_id=v.prop_id,
+                         valeur_texte=v.valeur_texte, valeur_date=v.valeur_date,
+                         valeur_nombre=v.valeur_nombre, valeur_bool=v.valeur_bool,
+                         valeur_json=v.valeur_json, valeur_ref_obj_id=v.valeur_ref_obj_id))
+        db.add(Event(
+            obj_id=ev_obj.id,
+            eng_id=new_eng.id,
+            tevent_id=ev.tevent_id,
+            date_heure_prevue=ev.date_heure_prevue + delta,
+            date_heure_reelle=None,
+            created_by_id=current_user.id,
+            updated_by_id=current_user.id,
+        ))
+
+    await write_log(db, user_id=current_user.id, operation="INSERT",
+                    table_name="eng", entite_id=new_eng.id,
+                    apres={"nom": new_obj.nom, "source_eng_id": eng_id})
+    await db.commit()
+
+    res = await db.execute(select(Eng).options(*_eng_options()).where(Eng.id == new_eng.id))
+    return _to_eng_out(res.unique().scalar_one())
+
+
 # ─── GET /eng/{id}/gantt ─────────────────────────────────────
 
 @router.get("/{eng_id}/gantt")

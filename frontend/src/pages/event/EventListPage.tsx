@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, AlertTriangle, X, Search, Plus } from 'lucide-react'
+import { CheckCircle2, Clock, AlertTriangle, X, Search, Plus, List, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { eventApi, teventApi, orgApi, envApi, engApi } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -25,8 +25,75 @@ interface EngBriefItem {
 
 const PER_PAGE = 50
 
+const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+function CalendarGrid({ year, month, events }: { year: number; month: number; events: EventItem[] }) {
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7 // Monday = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = new Date()
+
+  const cells: Array<{ day: number; evs: EventItem[] } | null> = []
+  for (let i = 0; i < firstDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    cells.push({ day: d, evs: events.filter((ev) => ev.date_heure_prevue.startsWith(dateStr)) })
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_NAMES.map((d) => (
+          <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((cell, i) => {
+          if (!cell) return <div key={i} className="min-h-16 bg-gray-50 rounded-lg" />
+          const isToday = year === today.getFullYear() && month === today.getMonth() && cell.day === today.getDate()
+          return (
+            <div
+              key={i}
+              className={`min-h-16 rounded-lg p-1 border ${isToday ? 'border-violet-300 bg-violet-50' : 'border-gray-100 bg-white'}`}
+            >
+              <p className={`text-xs font-medium mb-0.5 ${isToday ? 'text-violet-700' : 'text-gray-400'}`}>{cell.day}</p>
+              <div className="space-y-0.5">
+                {cell.evs.slice(0, 3).map((ev) => {
+                  const overdue = !ev.est_accompli && new Date(ev.date_heure_prevue) < today
+                  return (
+                    <Link
+                      key={ev.id}
+                      to={`/event/${ev.id}`}
+                      className={`block text-[10px] px-1 py-0.5 rounded truncate leading-tight ${
+                        ev.est_accompli
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : overdue
+                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                      }`}
+                      title={ev.obj.nom}
+                    >
+                      {ev.obj.nom}
+                    </Link>
+                  )
+                })}
+                {cell.evs.length > 3 && (
+                  <p className="text-[10px] text-gray-400 pl-1">+{cell.evs.length - 3}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function EventListPage() {
   const navigate = useNavigate()
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear())
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
   const [search, setSearch] = useState('')
   const [selectedTeventId, setSelectedTeventId] = useState<number | null>(null)
   const [selectedEngId, setSelectedEngId] = useState<number | null>(null)
@@ -75,6 +142,18 @@ export default function EventListPage() {
         per_page: PER_PAGE,
       }).then((r) => r.data as PaginatedResponse<EventItem>),
     placeholderData: (prev) => prev,
+    enabled: viewMode === 'list',
+  })
+
+  const calMonthStart = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`
+  const calMonthEnd = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(new Date(calYear, calMonth + 1, 0).getDate()).padStart(2, '0')}`
+
+  const { data: calData, isLoading: calLoading } = useQuery({
+    queryKey: ['events', 'calendar', calYear, calMonth],
+    queryFn: () =>
+      eventApi.list({ date_from: calMonthStart, date_to: calMonthEnd, per_page: 200 })
+        .then((r) => r.data as PaginatedResponse<EventItem>),
+    enabled: viewMode === 'calendar',
   })
 
   const events = data?.items ?? []
@@ -101,13 +180,40 @@ export default function EventListPage() {
       <div className="border-b border-gray-200 bg-white px-6 py-4 shrink-0 space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-gray-900">Événements</h1>
-          <button
-            onClick={() => navigate('/event/new')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
-          >
-            <Plus size={14} />
-            Nouvel évènement
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Toggle vue liste / calendrier */}
+            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <List size={13} />
+                Liste
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border-l border-gray-200 transition-colors ${
+                  viewMode === 'calendar'
+                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <CalendarDays size={13} />
+                Calendrier
+              </button>
+            </div>
+            <button
+              onClick={() => navigate('/event/new')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+            >
+              <Plus size={14} />
+              Nouvel évènement
+            </button>
+          </div>
         </div>
 
         {/* Barre de recherche + réinitialisation */}
@@ -255,9 +361,41 @@ export default function EventListPage() {
         </div>
       </div>
 
-      {/* ─── Liste ──────────────────────────────────────────────── */}
+      {/* ─── Contenu ──────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        {isLoading ? (
+        {viewMode === 'calendar' ? (
+          <>
+            {/* En-tête navigation calendrier */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => {
+                  if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11) }
+                  else setCalMonth((m) => m - 1)
+                }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <h2 className="text-base font-semibold text-gray-800">
+                {MONTH_NAMES[calMonth]} {calYear}
+              </h2>
+              <button
+                onClick={() => {
+                  if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0) }
+                  else setCalMonth((m) => m + 1)
+                }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            {calLoading ? (
+              <div className="text-center text-gray-400 py-16">Chargement…</div>
+            ) : (
+              <CalendarGrid year={calYear} month={calMonth} events={calData?.items ?? []} />
+            )}
+          </>
+        ) : isLoading ? (
           <div className="text-center text-gray-400 py-16">Chargement…</div>
         ) : events.length === 0 ? (
           <div className="text-center text-gray-400 py-16">Aucun événement.</div>
@@ -317,8 +455,8 @@ export default function EventListPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
+        {/* Pagination (liste uniquement) */}
+        {viewMode === 'list' && totalPages > 1 && (
           <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
             <span>{total} événements au total</span>
             <div className="flex items-center gap-2">

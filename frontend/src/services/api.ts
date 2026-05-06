@@ -68,6 +68,7 @@ export const engApi = {
   update: (id: number, data: unknown) => api.put(`/eng/${id}`, data),
   delete: (id: number) => api.delete(`/eng/${id}`),
   gantt: (id: number) => api.get(`/eng/${id}/gantt`),
+  duplicate: (id: number, offsetDays = 0) => api.post(`/eng/${id}/duplicate`, null, { params: { offset_days: offsetDays } }),
 }
 
 // ─── EVENT ───────────────────────────────────────────────
@@ -141,7 +142,7 @@ export const claApi = {
 
 // ─── Recherche & RAG ─────────────────────────────────────
 export const searchApi = {
-  search: (q: string, params?: { offset?: number; limit?: number }) =>
+  search: (q: string, params?: { offset?: number; limit?: number; entity_type?: string }) =>
     api.get('/search', { params: { q, ...params } }),
 }
 
@@ -189,7 +190,7 @@ export const rptApi = {
 
 // ─── LOG ─────────────────────────────────────────────────
 export const logApi = {
-  list: (params?: { table_name?: string; user_id?: number; operation?: string; date_from?: string; date_to?: string; page?: number }) =>
+  list: (params?: { table_name?: string; entite_id?: number; user_id?: number; operation?: string; date_from?: string; date_to?: string; page?: number; per_page?: number }) =>
     api.get('/log', { params }),
 }
 

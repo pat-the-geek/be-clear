@@ -36,6 +36,7 @@ class LogOut(BaseModel):
 @router.get("", response_model=Paginated[LogOut])
 async def list_logs(
     table_name: str | None = Query(None, description="Filtrer par table"),
+    entite_id: int | None = Query(None, description="Filtrer par entité"),
     user_id: int | None = Query(None, description="Filtrer par utilisateur"),
     operation: str | None = Query(None, description="INSERT | UPDATE | DELETE"),
     date_from: datetime | None = Query(None, description="Date de début (ISO)"),
@@ -49,6 +50,8 @@ async def list_logs(
 
     if table_name is not None:
         q = q.where(Log.table_name == table_name)
+    if entite_id is not None:
+        q = q.where(Log.entite_id == entite_id)
     if user_id is not None:
         q = q.where(Log.user_id == user_id)
     if operation is not None:

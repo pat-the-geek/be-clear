@@ -18,6 +18,7 @@ router = APIRouter()
 @router.get("")
 async def search(
     q: str = Query(..., min_length=2, description="Texte à rechercher (min 2 caractères)"),
+    entity_type: str | None = Query(None, description="Filtrer par type : org | env | eng | event"),
     offset: int = Query(0, ge=0, description="Décalage pour la pagination"),
     limit: int = Query(20, ge=1, le=100, description="Nombre max de résultats"),
     _: User = Depends(get_current_user),
@@ -26,7 +27,8 @@ async def search(
     if len(q.strip()) < 2:
         raise HTTPException(status_code=400, detail="La requête doit comporter au moins 2 caractères")
 
-    result = await search_service.search_objs(q, offset=offset, limit=limit)
+    filter_expr = f'entity_type = "{entity_type}"' if entity_type else None
+    result = await search_service.search_objs(q, offset=offset, limit=limit, filter_expr=filter_expr)
 
     items = []
     for hit in result["hits"]:

@@ -10,11 +10,11 @@
  *  • Propriétés (values via ValueField)
  *  • Images
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, Loader2, Star } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Star, Search } from 'lucide-react'
 import { engApi, tengApi, orgApi, envApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import type { Eng, Teng, OrgBrief, EnvBrief } from '@/types'
@@ -92,6 +92,17 @@ export default function EngEditPage() {
   const [dateDebutPrevue, setDateDebutPrevue] = useState('')
   const [dateFin, setDateFin] = useState('')
   const [drafts, setDrafts] = useState<Map<number, ValueDraft>>(new Map())
+  const [orgSearch, setOrgSearch] = useState('')
+  const [envSearch, setEnvSearch] = useState('')
+
+  const filteredOrgList = useMemo(
+    () => orgList?.filter((o) => o.nom.toLowerCase().includes(orgSearch.toLowerCase())) ?? [],
+    [orgList, orgSearch],
+  )
+  const filteredEnvList = useMemo(
+    () => envList?.filter((e) => e.nom.toLowerCase().includes(envSearch.toLowerCase())) ?? [],
+    [envList, envSearch],
+  )
 
   useEffect(() => {
     if (!eng) return
@@ -288,8 +299,21 @@ export default function EngEditPage() {
           ) : orgList.length === 0 ? (
             <p className="text-sm text-gray-400">Aucune organisation disponible</p>
           ) : (
+            <>
+              {orgList.length > 8 && (
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={orgSearch}
+                    onChange={(e) => setOrgSearch(e.target.value)}
+                    placeholder="Filtrer les organisations…"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+              )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5 max-h-48 overflow-y-auto">
-              {orgList.map((org) => {
+              {filteredOrgList.map((org) => {
                 const checked = selectedOrgIds.has(org.id)
                 const isPrincipale = orgPrincipaleId === org.id
                 return (
@@ -322,6 +346,7 @@ export default function EngEditPage() {
                 )
               })}
             </div>
+            </>
           )}
           {selectedOrgIds.size > 0 && (
             <p className="text-[11px] text-gray-400">
@@ -350,8 +375,21 @@ export default function EngEditPage() {
           ) : envList.length === 0 ? (
             <p className="text-sm text-gray-400">Aucun environnement disponible</p>
           ) : (
+            <>
+              {envList.length > 8 && (
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={envSearch}
+                    onChange={(e) => setEnvSearch(e.target.value)}
+                    placeholder="Filtrer les environnements…"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  />
+                </div>
+              )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5 max-h-48 overflow-y-auto">
-              {envList.map((env) => {
+              {filteredEnvList.map((env) => {
                 const checked = selectedEnvIds.has(env.id)
                 const isPrincipale = envPrincipaleId === env.id
                 return (
@@ -384,6 +422,7 @@ export default function EngEditPage() {
                 )
               })}
             </div>
+            </>
           )}
           {selectedEnvIds.size > 0 && (
             <p className="text-[11px] text-gray-400">

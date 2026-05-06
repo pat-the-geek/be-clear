@@ -131,6 +131,16 @@ function SkeletonCard() {
 
 const SEARCH_LIMIT = 20
 
+type EntityTypeFilter = SearchHit['entity_type'] | null
+
+const TYPE_CHIPS: { label: string; value: EntityTypeFilter }[] = [
+  { label: 'Tous', value: null },
+  { label: 'Organisations', value: 'org' },
+  { label: 'Environnements', value: 'env' },
+  { label: 'Engagements', value: 'eng' },
+  { label: 'Évènements', value: 'event' },
+]
+
 export default function SearchPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -138,18 +148,25 @@ export default function SearchPage() {
 
   const [inputValue, setInputValue] = useState(qParam)
   const [page, setPage] = useState(1)
+  const [entityType, setEntityType] = useState<EntityTypeFilter>(null)
 
   useEffect(() => {
     setInputValue(qParam)
     setPage(1)
+    setEntityType(null)
   }, [qParam])
 
   const isQueryValid = qParam.trim().length >= 2
   const offset = (page - 1) * SEARCH_LIMIT
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['search', qParam, page],
-    queryFn: () => searchApi.search(qParam, { offset, limit: SEARCH_LIMIT }).then((r) => r.data as SearchResponse),
+    queryKey: ['search', qParam, page, entityType],
+    queryFn: () =>
+      searchApi.search(qParam, {
+        offset,
+        limit: SEARCH_LIMIT,
+        entity_type: entityType ?? undefined,
+      }).then((r) => r.data as SearchResponse),
     enabled: isQueryValid,
     placeholderData: (prev) => prev,
   })
@@ -203,6 +220,30 @@ export default function SearchPage() {
             </button>
           </form>
         </div>
+
+        {/* ─── Filtres par type ──────────────── */}
+        {isQueryValid && (
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            {TYPE_CHIPS.map(({ label, value }) => {
+              const badge = value ? TYPE_BADGE[value] : null
+              const active = entityType === value
+              return (
+                <button
+                  key={String(value)}
+                  onClick={() => { setEntityType(value); setPage(1) }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                    active
+                      ? 'bg-blue-100 text-blue-800 border-blue-200 font-medium'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {badge && <badge.Icon size={12} />}
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* ─── Résultats ─────────────────────── */}
 

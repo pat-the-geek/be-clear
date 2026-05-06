@@ -3,7 +3,7 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, AlertTriangle, Copy, Square, CheckSquare } from 'lucide-react'
 import mermaid from 'mermaid'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi, claApi } from '@/services/api'
@@ -710,14 +710,26 @@ interface EventRowProps {
   onAccomplir: (id: number) => void
   isDeleting: boolean
   isAccomplishing: boolean
+  selected?: boolean
+  onToggleSelect?: (id: number) => void
 }
 
-function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting, isAccomplishing }: EventRowProps) {
+function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting, isAccomplishing, selected, onToggleSelect }: EventRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const isOverdue = !event.est_accompli && new Date(event.date_heure_prevue) < new Date()
 
   return (
     <div className="group flex items-center gap-2">
+      {isEditeur && !event.est_accompli && (
+        <button
+          type="button"
+          onClick={() => onToggleSelect?.(event.id)}
+          className={`shrink-0 transition-colors ${selected ? 'text-violet-600' : 'text-gray-300 hover:text-violet-400'}`}
+          title={selected ? 'Désélectionner' : 'Sélectionner'}
+        >
+          {selected ? <CheckSquare size={16} /> : <Square size={16} />}
+        </button>
+      )}
       <Link
         to={`/event/${event.id}`}
         className={`flex-1 flex items-center gap-3 p-3 border rounded-lg hover:shadow-sm transition-all min-w-0 ${
@@ -834,6 +846,7 @@ export default function EngDetailPage() {
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
   const descRef = useAutoResize(descDraft)
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -872,6 +885,30 @@ export default function EngDetailPage() {
   const handleEventMutated = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['eng', engId] })
   }, [queryClient, engId])
+
+  const { mutate: duplicate, isPending: isDuplicating } = useMutation({
+    mutationFn: () => engApi.duplicate(engId),
+    onSuccess: (res) => {
+      const newId = (res.data as Eng).id
+      queryClient.invalidateQueries({ queryKey: ['engs'] })
+      toast.success('Engagement dupliqué')
+      navigate(`/eng/${newId}`)
+    },
+    onError: () => toast.error('Erreur lors de la duplication'),
+  })
+
+  const { mutate: bulkAccomplir, isPending: isBulkAccomplishing } = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map((id) => eventApi.update(id, { date_heure_reelle: new Date().toISOString() })))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+      const count = selectedEventIds.size
+      setSelectedEventIds(new Set())
+      toast.success(`${count} événement(s) marqués accomplis`)
+    },
+    onError: () => toast.error('Erreur lors de la mise à jour'),
+  })
 
   const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
     mutationFn: (description: string) => engApi.update(engId, { description }),
@@ -1014,6 +1051,15 @@ export default function EngDetailPage() {
                     </>
                   ) : (
                     <>
+                      <button
+                        onClick={() => duplicate()}
+                        disabled={isDuplicating}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                        title="Dupliquer cet engagement"
+                      >
+                        {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                        Dupliquer
+                      </button>
                       <button
                         onClick={() => navigate(`/eng/${engId}/edit`)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -1250,20 +1296,50 @@ export default function EngDetailPage() {
             Aucun évènement
           </div>
         ) : (
-          <div className="space-y-2">
-            {sortedEvents.map((event) => (
-              <EventRow
-                key={event.id}
-                event={event}
-                isEditeur={isEditeur()}
-                onEdit={() => setEditingEventId(event.id)}
-                onDelete={(id) => deleteEvent(id)}
-                onAccomplir={(id) => accomplirEvent(id)}
-                isDeleting={isDeletingEvent && deletingEventId === event.id}
-                isAccomplishing={isAccomplishing && accomplishingEventId === event.id}
-              />
-            ))}
-          </div>
+          <>
+            <div className="space-y-2">
+              {sortedEvents.map((event) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  isEditeur={isEditeur()}
+                  onEdit={() => setEditingEventId(event.id)}
+                  onDelete={(id) => deleteEvent(id)}
+                  onAccomplir={(id) => accomplirEvent(id)}
+                  isDeleting={isDeletingEvent && deletingEventId === event.id}
+                  isAccomplishing={isAccomplishing && accomplishingEventId === event.id}
+                  selected={selectedEventIds.has(event.id)}
+                  onToggleSelect={(id) => setSelectedEventIds((prev) => {
+                    const next = new Set(prev)
+                    next.has(id) ? next.delete(id) : next.add(id)
+                    return next
+                  })}
+                />
+              ))}
+            </div>
+
+            {/* Barre d'actions groupées */}
+            {selectedEventIds.size > 0 && (
+              <div className="sticky bottom-4 z-10 mt-3 flex items-center gap-3 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-xl">
+                <span className="text-sm font-medium">{selectedEventIds.size} sélectionné(s)</span>
+                <button
+                  onClick={() => bulkAccomplir([...selectedEventIds])}
+                  disabled={isBulkAccomplishing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {isBulkAccomplishing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  Marquer accomplis
+                </button>
+                <button
+                  onClick={() => setSelectedEventIds(new Set())}
+                  className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={14} />
+                  Annuler
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
 
