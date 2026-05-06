@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/authStore'
 import type { Eng, EngEventBrief, Tevent, Event as AppEvent, Prop, Value } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import CalendarView from '@/components/shared/CalendarView'
+import { toast } from '@/lib/toast'
 
 // ─── Helpers date ────────────────────────────────────────────
 
@@ -840,17 +841,26 @@ export default function EngDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['engs'] })
       navigate(-1)
     },
+    onError: () => toast.error('Erreur lors de la suppression'),
   })
 
   const { mutate: deleteEvent, isPending: isDeletingEvent, variables: deletingEventId } = useMutation({
     mutationFn: (eventId: number) => eventApi.delete(eventId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['eng', engId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+      toast.success('Événement supprimé')
+    },
+    onError: () => toast.error('Erreur lors de la suppression'),
   })
 
   const { mutate: accomplirEvent, isPending: isAccomplishing, variables: accomplishingEventId } = useMutation({
     mutationFn: (eventId: number) =>
       eventApi.update(eventId, { date_heure_reelle: new Date().toISOString() }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['eng', engId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+      toast.success('Événement marqué accompli')
+    },
+    onError: () => toast.error('Erreur lors de la mise à jour'),
   })
 
   const handleEventMutated = useCallback(() => {
@@ -862,7 +872,9 @@ export default function EngDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['eng', engId] })
       setEditingDesc(false)
+      toast.success('Description enregistrée')
     },
+    onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
   if (isLoading) return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>

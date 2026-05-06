@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus, Pencil, X, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
 import { orgApi, rptApi } from '@/services/api'
+import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
@@ -111,7 +112,9 @@ export default function OrgDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['org', orgId] })
       setEditingDesc(false)
+      toast.success('Description enregistrée')
     },
+    onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
   const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
@@ -131,7 +134,12 @@ export default function OrgDetailPage() {
       }
       return rptApi.org(orgId, destination).then(r => r.data)
     },
-    onSuccess: (data) => { if (data) setRptResult(data); setShowRptMenu(false) },
+    onSuccess: (data) => {
+      if (data) setRptResult(data)
+      setShowRptMenu(false)
+      toast.success('Rapport généré')
+    },
+    onError: () => toast.error('Erreur lors de la génération du rapport'),
   })
 
   const { mutateAsync: deleteOrg, isPending: isDeleting } = useMutation({
@@ -140,6 +148,7 @@ export default function OrgDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['orgs'] })
       window.location.href = '/org'
     },
+    onError: () => toast.error('Erreur lors de la suppression'),
   })
 
   if (isLoading) return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>

@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit, AlertTriangle } from 'lucide-react'
 import { eventApi } from '@/services/api'
+import { toast } from '@/lib/toast'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import { useAuthStore } from '@/stores/authStore'
@@ -85,7 +86,9 @@ export default function EventDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['event', eventId] })
       queryClient.invalidateQueries({ queryKey: ['eng', event?.eng_id] })
+      toast.success('Événement marqué accompli')
     },
+    onError: () => toast.error('Erreur lors de la mise à jour'),
   })
 
   const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
@@ -93,7 +96,9 @@ export default function EventDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['event', eventId] })
       setEditingDesc(false)
+      toast.success('Description enregistrée')
     },
+    onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
   if (isLoading) {

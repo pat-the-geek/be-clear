@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound } from 'lucide-react'
+import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound, BarChart3, CheckCircle2, Clock, AlertTriangle, Users, Handshake, Leaf, Building2, CalendarClock, Activity } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, api } from '@/services/api'
+import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, statsApi, api } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import type { Cla, ClaDetail, Prop, PropType, Torg, Tenv, Teng, Tevent } from '@/types'
@@ -1883,9 +1883,100 @@ function TabLog() {
   )
 }
 
+// ─── Onglet Statistiques ─────────────────────────────────────
+
+interface StatsData {
+  nb_orgs: number
+  nb_envs: number
+  nb_engs: number
+  nb_events: number
+  nb_users: number
+  nb_events_retard: number
+  nb_events_accomplis: number
+  nb_engs_termines: number
+  nb_engs_en_cours: number
+  nb_engs_non_demarres: number
+  nb_recents_7j: number
+}
+
+function StatCard({ icon, label, value, color = 'text-gray-900', bg = 'bg-white' }: {
+  icon: React.ReactNode
+  label: string
+  value: number
+  color?: string
+  bg?: string
+}) {
+  return (
+    <div className={`${bg} border border-gray-200 rounded-xl p-4`}>
+      <div className="flex items-center gap-2 mb-1 text-gray-500">
+        {icon}
+        <span className="text-xs font-medium">{label}</span>
+      </div>
+      <p className={`text-2xl font-bold ${color}`}>{value.toLocaleString('fr-FR')}</p>
+    </div>
+  )
+}
+
+function TabStats() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['stats'],
+    queryFn: () => statsApi.get().then((r) => r.data as StatsData),
+  })
+
+  if (isLoading) return <div className="text-center text-gray-400 py-16">Chargement…</div>
+  if (!data) return null
+
+  const pctAccomplis = data.nb_events > 0
+    ? Math.round((data.nb_events_accomplis / data.nb_events) * 100)
+    : 0
+
+  return (
+    <div className="space-y-8 max-w-3xl">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Entités</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <StatCard icon={<Building2 size={14} />}    label="Organisations"  value={data.nb_orgs} />
+          <StatCard icon={<Leaf size={14} />}          label="Environnements" value={data.nb_envs} />
+          <StatCard icon={<Handshake size={14} />}     label="Engagements"    value={data.nb_engs} />
+          <StatCard icon={<CalendarClock size={14} />} label="Événements"     value={data.nb_events} />
+          <StatCard icon={<Users size={14} />}         label="Utilisateurs"   value={data.nb_users} />
+          <StatCard icon={<Activity size={14} />}      label="Modifiés (7j)"  value={data.nb_recents_7j} bg="bg-blue-50" color="text-blue-700" />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Engagements par statut</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard icon={<CheckCircle2 size={14} className="text-green-500" />} label="Terminés"      value={data.nb_engs_termines}     bg="bg-green-50" color="text-green-700" />
+          <StatCard icon={<Clock size={14} className="text-amber-500" />}        label="En cours"      value={data.nb_engs_en_cours}      bg="bg-amber-50" color="text-amber-700" />
+          <StatCard icon={<BarChart3 size={14} className="text-gray-400" />}     label="Non démarrés"  value={data.nb_engs_non_demarres} />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Événements</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard icon={<CheckCircle2 size={14} className="text-green-500" />} label="Accomplis"  value={data.nb_events_accomplis} bg="bg-green-50" color="text-green-700" />
+          <StatCard icon={<AlertTriangle size={14} className="text-red-500" />}  label="En retard"  value={data.nb_events_retard}    bg="bg-red-50"   color="text-red-700" />
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1 text-gray-500">
+              <BarChart3 size={14} />
+              <span className="text-xs font-medium">Taux d'accomplissement</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{pctAccomplis} %</p>
+            <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-green-400 transition-all" style={{ width: `${pctAccomplis}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Définition des onglets ──────────────────────────────────
 
-type TabId = 'classes' | 'users' | 'types-org' | 'types-env' | 'types-eng' | 'config' | 'log'
+type TabId = 'stats' | 'classes' | 'users' | 'types-org' | 'types-env' | 'types-eng' | 'config' | 'log'
 
 interface TabDef {
   id: TabId
@@ -1893,6 +1984,7 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
+  { id: 'stats',     label: 'Statistiques' },
   { id: 'classes',   label: 'Classes (CLA)' },
   { id: 'users',     label: 'Utilisateurs' },
   { id: 'types-org', label: 'Types ORG' },
@@ -1907,7 +1999,7 @@ const TABS: TabDef[] = [
 export default function AdminPage() {
   const navigate = useNavigate()
   const isAdmin = useAuthStore((s) => s.isAdmin)
-  const [activeTab, setActiveTab] = useState<TabId>('classes')
+  const [activeTab, setActiveTab] = useState<TabId>('stats')
 
   // Redirection si non-admin
   useEffect(() => {
@@ -1947,6 +2039,7 @@ export default function AdminPage() {
 
       {/* ─── Contenu de l'onglet actif ────────── */}
       <div className="flex-1 overflow-y-auto p-6">
+        {activeTab === 'stats'     && <TabStats />}
         {activeTab === 'classes'   && <TabClasses />}
         {activeTab === 'users'     && <TabUsers />}
         {activeTab === 'types-org' && <TabTypesOrg />}

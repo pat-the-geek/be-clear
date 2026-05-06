@@ -25,6 +25,7 @@ import ProfilePage from '@/pages/profile/ProfilePage'
 import EngListPage from '@/pages/eng/EngListPage'
 import EngCreatePage from '@/pages/eng/EngCreatePage'
 import EventListPage from '@/pages/event/EventListPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -83,10 +84,13 @@ export default function App() {
 
         {/* Profil utilisateur */}
         <Route path="/profile" element={<ProfilePage />} />
+
+        {/* 404 dans la zone protégée */}
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/panel" replace />} />
+      {/* Fallback hors auth */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

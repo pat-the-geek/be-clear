@@ -37,6 +37,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - OBSIDIAN_VAULT_PATH=/vault
       - MEDIA_PATH=/media
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:8000}
     volumes:
       - vol_media:/media
       - ${OBSIDIAN_VAULT_PATH_HOST:-/tmp/obsidian}:/vault

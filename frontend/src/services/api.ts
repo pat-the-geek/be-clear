@@ -210,6 +210,11 @@ export const mediaApi = {
     api.delete(`/media/obj/${objId}/documents/${docId}`),
 }
 
+// ─── Stats ───────────────────────────────────────────────
+export const statsApi = {
+  get: () => api.get('/stats'),
+}
+
 // ─── URL Tools ───────────────────────────────────────────
 export const urlApi = {
   check:     (url: string)                       => api.get('/url/check',     { params: { url } }),
