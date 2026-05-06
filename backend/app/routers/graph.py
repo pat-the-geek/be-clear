@@ -84,6 +84,41 @@ async def _envs_for_eng(eng_id: int, db: AsyncSession) -> list[Env]:
     return res.unique().scalars().all()
 
 
+@router.get("/all", response_model=GraphResponse)
+async def graph_all(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Graphe global : toutes les relations ORG ↔ ENG ↔ ENV."""
+    eng_res = await db.execute(
+        select(Eng).options(joinedload(Eng.obj))
+    )
+    engs = eng_res.unique().scalars().all()
+
+    nodes: dict[str, GraphNode] = {}
+    edges: list[GraphEdge] = []
+
+    for eng in engs:
+        eid = f"eng-{eng.id}"
+        if eid not in nodes:
+            nodes[eid] = GraphNode(id=eid, type="eng", nom=eng.obj.nom, entity_id=eng.id)
+
+        for o in await _orgs_for_eng(eng.id, db):
+            nid = f"org-{o.id}"
+            if nid not in nodes:
+                nodes[nid] = GraphNode(id=nid, type="org", nom=o.obj.nom, entity_id=o.id)
+            _add_edge(edges, nid, eid)
+
+        for e in await _envs_for_eng(eng.id, db):
+            nid = f"env-{e.id}"
+            if nid not in nodes:
+                nodes[nid] = GraphNode(id=nid, type="env", nom=e.obj.nom, entity_id=e.id)
+            _add_edge(edges, eid, nid)
+
+    _add_degree(nodes, edges)
+    return GraphResponse(nodes=list(nodes.values()), edges=edges)
+
+
 @router.get("/org/{org_id}", response_model=GraphResponse)
 async def graph_org(
     org_id: int,

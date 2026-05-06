@@ -120,6 +120,7 @@ export const teventApi = {
 
 // ─── GRAPH ───────────────────────────────────────────────
 export const graphApi = {
+  all: () => api.get('/graph/all'),
   org: (id: number) => api.get(`/graph/org/${id}`),
   env: (id: number) => api.get(`/graph/env/${id}`),
 }

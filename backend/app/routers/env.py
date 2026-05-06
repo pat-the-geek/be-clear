@@ -39,7 +39,7 @@ async def list_envs(
     q: str | None = Query(None, description="Recherche sur le nom (insensible à la casse)"),
     created_by_me: bool = Query(False),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

@@ -26,6 +26,7 @@ import EngListPage from '@/pages/eng/EngListPage'
 import EngCreatePage from '@/pages/eng/EngCreatePage'
 import EventListPage from '@/pages/event/EventListPage'
 import EventCreatePage from '@/pages/event/EventCreatePage'
+import GraphPage from '@/pages/graph/GraphPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -76,6 +77,9 @@ export default function App() {
         <Route path="/event/new" element={<EventCreatePage />} />
         <Route path="/event/:id" element={<EventDetailPage />} />
         <Route path="/event/:id/edit" element={<EventEditPage />} />
+
+        {/* Graphe global */}
+        <Route path="/graph" element={<GraphPage />} />
 
         {/* Recherche & IA */}
         <Route path="/search" element={<SearchPage />} />

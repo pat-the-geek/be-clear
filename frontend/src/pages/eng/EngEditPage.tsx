@@ -69,14 +69,14 @@ export default function EngEditPage() {
     queryFn: () => tengApi.list().then((r) => r.data as Teng[]),
   })
 
-  const { data: orgList } = useQuery({
+  const { data: orgList, isError: orgError } = useQuery({
     queryKey: ['orgs', 'all'],
-    queryFn: () => orgApi.list({ per_page: 200 }).then((r) => r.data.items as OrgBrief[]),
+    queryFn: () => orgApi.list({ per_page: 500 }).then((r) => r.data.items as OrgBrief[]),
   })
 
-  const { data: envList } = useQuery({
+  const { data: envList, isError: envError } = useQuery({
     queryKey: ['envs', 'all'],
-    queryFn: () => envApi.list({ per_page: 200 }).then((r) => r.data.items as EnvBrief[]),
+    queryFn: () => envApi.list({ per_page: 500 }).then((r) => r.data.items as EnvBrief[]),
   })
 
   // ── État du formulaire ────────────────────────────────────
@@ -281,7 +281,9 @@ export default function EngEditPage() {
               )}
             </div>
           </div>
-          {!orgList ? (
+          {orgError ? (
+            <p className="text-sm text-red-400">Erreur de chargement des organisations</p>
+          ) : !orgList ? (
             <p className="text-sm text-gray-400">Chargement…</p>
           ) : orgList.length === 0 ? (
             <p className="text-sm text-gray-400">Aucune organisation disponible</p>
@@ -341,7 +343,9 @@ export default function EngEditPage() {
               )}
             </div>
           </div>
-          {!envList ? (
+          {envError ? (
+            <p className="text-sm text-red-400">Erreur de chargement des environnements</p>
+          ) : !envList ? (
             <p className="text-sm text-gray-400">Chargement…</p>
           ) : envList.length === 0 ? (
             <p className="text-sm text-gray-400">Aucun environnement disponible</p>

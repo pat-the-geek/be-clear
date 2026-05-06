@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Globe, Handshake, CalendarClock,
-  Search, Bot, Settings, LogOut, Menu, X,
+  Search, Bot, Settings, LogOut, Menu, X, Network,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/env',    label: 'Environnements',icon: Globe },
   { to: '/eng',    label: 'Engagements',   icon: Handshake },
   { to: '/events', label: 'Événements',    icon: CalendarClock, overdueBadge: true },
+  { to: '/graph',  label: 'Graphe',        icon: Network },
   { to: '/search', label: 'Recherche',     icon: Search },
   { to: '/rag',    label: 'Terminal IA',   icon: Bot },
 ]
