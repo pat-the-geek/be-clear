@@ -145,6 +145,24 @@ export default function EventListPage() {
             </button>
           ))}
 
+          {/* Filtre rapide En retard */}
+          <button
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10)
+              setAccompli(false)
+              setDateTo(today)
+              setPage(1)
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+              accompli === false && dateTo === new Date().toISOString().slice(0, 10)
+                ? 'bg-red-100 text-red-800 border-red-200 font-medium'
+                : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+            }`}
+          >
+            <AlertTriangle size={11} />
+            En retard
+          </button>
+
           <div className="w-px h-4 bg-gray-200 mx-1" />
 
           {/* Filtre TEVENT */}

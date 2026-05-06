@@ -16,6 +16,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Loader2, Star } from 'lucide-react'
 import { engApi, tengApi, orgApi, envApi } from '@/services/api'
+import { toast } from '@/lib/toast'
 import type { Eng, Teng, OrgBrief, EnvBrief } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import ImageManager from '@/components/shared/ImageManager'
@@ -128,8 +129,12 @@ export default function EngEditPage() {
         values: Array.from(drafts.values()),
       }),
     onSuccess: () => {
+      toast.success('Engagement mis à jour')
       queryClient.invalidateQueries({ queryKey: ['eng', engId] })
       navigate(`/eng/${engId}`)
+    },
+    onError: () => {
+      toast.error('Échec de la mise à jour')
     },
   })
 

@@ -13,6 +13,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { orgApi, torgApi } from '@/services/api'
+import { toast } from '@/lib/toast'
 import type { Org, Torg } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import ImageManager from '@/components/shared/ImageManager'
@@ -105,9 +106,13 @@ export default function OrgEditPage() {
       })
     },
     onSuccess: () => {
+      toast.success('Organisation mise à jour')
       queryClient.invalidateQueries({ queryKey: ['org', orgId] })
       queryClient.invalidateQueries({ queryKey: ['orgs'] })
       navigate(`/org/${orgId}`)
+    },
+    onError: () => {
+      toast.error('Échec de la mise à jour')
     },
   })
 

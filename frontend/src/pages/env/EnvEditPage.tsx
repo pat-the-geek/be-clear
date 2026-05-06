@@ -13,6 +13,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { envApi, tenvApi } from '@/services/api'
+import { toast } from '@/lib/toast'
 import type { Env, Tenv } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import ImageManager from '@/components/shared/ImageManager'
@@ -102,9 +103,13 @@ export default function EnvEditPage() {
       })
     },
     onSuccess: () => {
+      toast.success('Environnement mis à jour')
       queryClient.invalidateQueries({ queryKey: ['env', envId] })
       queryClient.invalidateQueries({ queryKey: ['envs'] })
       navigate(`/env/${envId}`)
+    },
+    onError: () => {
+      toast.error('Échec de la mise à jour')
     },
   })
 
