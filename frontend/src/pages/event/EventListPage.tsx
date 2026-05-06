@@ -2,19 +2,25 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Clock, AlertTriangle, X, Search } from 'lucide-react'
-import { eventApi, teventApi } from '@/services/api'
+import { eventApi, teventApi, orgApi, envApi, engApi } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
 import { useDebounce } from '@/hooks/useDebounce'
-import type { Tevent, PaginatedResponse } from '@/types'
+import type { Tevent, OrgBrief, EnvBrief, PaginatedResponse } from '@/types'
 
 interface EventItem {
   id: number
   obj: { nom: string }
   eng_id: number
+  eng_nom?: string
   tevent: { id: number; nom: string }
   date_heure_prevue: string
   date_heure_reelle?: string
   est_accompli: boolean
+}
+
+interface EngBriefItem {
+  id: number
+  nom: string
 }
 
 const PER_PAGE = 50
@@ -22,6 +28,9 @@ const PER_PAGE = 50
 export default function EventListPage() {
   const [search, setSearch] = useState('')
   const [selectedTeventId, setSelectedTeventId] = useState<number | null>(null)
+  const [selectedEngId, setSelectedEngId] = useState<number | null>(null)
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
+  const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null)
   const [accompli, setAccompli] = useState<boolean | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -34,11 +43,30 @@ export default function EventListPage() {
     queryFn: () => teventApi.list().then((r) => r.data as Tevent[]),
   })
 
+  const { data: orgList } = useQuery({
+    queryKey: ['orgs', 'brief'],
+    queryFn: () => orgApi.list({ per_page: 200 }).then((r) => (r.data as PaginatedResponse<OrgBrief>).items),
+  })
+
+  const { data: envList } = useQuery({
+    queryKey: ['envs', 'brief'],
+    queryFn: () => envApi.list({ per_page: 200 }).then((r) => (r.data as PaginatedResponse<EnvBrief>).items),
+  })
+
+  const { data: engList } = useQuery({
+    queryKey: ['engs', 'brief'],
+    queryFn: () => engApi.list({ per_page: 200 }).then((r) => (r.data as PaginatedResponse<EngBriefItem>).items),
+  })
+
   const { data, isLoading } = useQuery({
-    queryKey: ['events', 'list', selectedTeventId, accompli, dateFrom, dateTo, page],
+    queryKey: ['events', 'list', debouncedSearch, selectedTeventId, selectedEngId, selectedOrgId, selectedEnvId, accompli, dateFrom, dateTo, page],
     queryFn: () =>
       eventApi.list({
+        q: debouncedSearch || undefined,
         tevent_id: selectedTeventId ?? undefined,
+        eng_id: selectedEngId ?? undefined,
+        org_id: selectedOrgId ?? undefined,
+        env_id: selectedEnvId ?? undefined,
         accompli: accompli ?? undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
@@ -52,13 +80,11 @@ export default function EventListPage() {
   const total = data?.total ?? 0
   const totalPages = Math.ceil(total / PER_PAGE)
 
-  // Filtre texte côté client (le backend ne supporte pas q sur events)
-  const filtered = debouncedSearch
-    ? events.filter((e) => e.obj.nom.toLowerCase().includes(debouncedSearch.toLowerCase()))
-    : events
-
   function resetFilters() {
     setSelectedTeventId(null)
+    setSelectedEngId(null)
+    setSelectedOrgId(null)
+    setSelectedEnvId(null)
     setAccompli(null)
     setDateFrom('')
     setDateTo('')
@@ -66,7 +92,7 @@ export default function EventListPage() {
     setPage(1)
   }
 
-  const hasActiveFilter = selectedTeventId != null || accompli != null || dateFrom || dateTo || search
+  const hasActiveFilter = selectedTeventId != null || selectedEngId != null || selectedOrgId != null || selectedEnvId != null || accompli != null || dateFrom || dateTo || search
 
   return (
     <div className="flex flex-col h-full">
@@ -137,6 +163,46 @@ export default function EventListPage() {
           ))}
         </div>
 
+        {/* Filtres ENG / ORG / ENV */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {engList && engList.length > 0 && (
+            <select
+              value={selectedEngId ?? ''}
+              onChange={(e) => { setSelectedEngId(e.target.value ? Number(e.target.value) : null); setPage(1) }}
+              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+            >
+              <option value="">Tous les ENG</option>
+              {engList.map((e) => (
+                <option key={e.id} value={e.id}>{e.nom}</option>
+              ))}
+            </select>
+          )}
+          {orgList && orgList.length > 0 && (
+            <select
+              value={selectedOrgId ?? ''}
+              onChange={(e) => { setSelectedOrgId(e.target.value ? Number(e.target.value) : null); setPage(1) }}
+              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+            >
+              <option value="">Toutes les ORG</option>
+              {orgList.map((o) => (
+                <option key={o.id} value={o.id}>{o.nom}</option>
+              ))}
+            </select>
+          )}
+          {envList && envList.length > 0 && (
+            <select
+              value={selectedEnvId ?? ''}
+              onChange={(e) => { setSelectedEnvId(e.target.value ? Number(e.target.value) : null); setPage(1) }}
+              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+            >
+              <option value="">Tous les ENV</option>
+              {envList.map((e) => (
+                <option key={e.id} value={e.id}>{e.nom}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
         {/* Filtre dates */}
         <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
           <span className="text-xs font-medium">Période :</span>
@@ -165,11 +231,11 @@ export default function EventListPage() {
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {isLoading ? (
           <div className="text-center text-gray-400 py-16">Chargement…</div>
-        ) : filtered.length === 0 ? (
+        ) : events.length === 0 ? (
           <div className="text-center text-gray-400 py-16">Aucun événement.</div>
         ) : (
           <div className="space-y-1">
-            {filtered.map((ev) => {
+            {events.map((ev) => {
               const overdue = !ev.est_accompli && new Date(ev.date_heure_prevue) < new Date()
               return (
                 <Link
@@ -195,11 +261,14 @@ export default function EventListPage() {
                     <p className={`text-sm font-medium truncate ${ev.est_accompli ? 'text-gray-500' : 'text-gray-900'}`}>
                       {ev.obj.nom}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                    <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600">
                         {ev.tevent.nom}
                       </span>
-                      Prévu : {formatDateTime(ev.date_heure_prevue)}
+                      {ev.eng_nom && (
+                        <span className="text-gray-400 truncate max-w-[140px]">{ev.eng_nom}</span>
+                      )}
+                      <span>Prévu : {formatDateTime(ev.date_heure_prevue)}</span>
                     </p>
                   </div>
 

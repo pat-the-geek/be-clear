@@ -72,7 +72,7 @@ export const engApi = {
 
 // ─── EVENT ───────────────────────────────────────────────
 export const eventApi = {
-  list: (params?: { eng_id?: number; tevent_id?: number; accompli?: boolean; date_from?: string; date_to?: string; page?: number; per_page?: number }) =>
+  list: (params?: { q?: string; eng_id?: number; org_id?: number; env_id?: number; tevent_id?: number; accompli?: boolean; date_from?: string; date_to?: string; page?: number; per_page?: number }) =>
     api.get('/event', { params }),
   listByEng: (engId: number) => api.get('/event', { params: { eng_id: engId } }),
   get: (id: number) => api.get(`/event/${id}`),
@@ -134,7 +134,8 @@ export const claApi = {
 
 // ─── Recherche & RAG ─────────────────────────────────────
 export const searchApi = {
-  search: (q: string) => api.get('/search', { params: { q } }),
+  search: (q: string, params?: { offset?: number; limit?: number }) =>
+    api.get('/search', { params: { q, ...params } }),
 }
 
 export const ragApi = {

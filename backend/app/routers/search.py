@@ -18,16 +18,18 @@ router = APIRouter()
 @router.get("")
 async def search(
     q: str = Query(..., min_length=2, description="Texte à rechercher (min 2 caractères)"),
+    offset: int = Query(0, ge=0, description="Décalage pour la pagination"),
+    limit: int = Query(20, ge=1, le=100, description="Nombre max de résultats"),
     _: User = Depends(get_current_user),
 ):
     """Recherche full-text sur les OBJ indexés dans Meilisearch."""
     if len(q.strip()) < 2:
         raise HTTPException(status_code=400, detail="La requête doit comporter au moins 2 caractères")
 
-    hits = await search_service.search_objs(q)
+    result = await search_service.search_objs(q, offset=offset, limit=limit)
 
     items = []
-    for hit in hits:
+    for hit in result["hits"]:
         items.append({
             "id": hit.get("id"),
             "entity_id": hit.get("entity_id") or hit.get("id"),
@@ -38,7 +40,13 @@ async def search(
             "_formatted": hit.get("_formatted", {}),
         })
 
-    return {"query": q, "hits": items}
+    return {
+        "query": q,
+        "hits": items,
+        "estimatedTotalHits": result["estimated_total_hits"],
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 # ─── POST /search/reindex ─────────────────────────────────

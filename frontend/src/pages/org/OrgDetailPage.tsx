@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus, Pencil, X, CheckCircle2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus, Pencil, X, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
 import { orgApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -12,6 +12,7 @@ import DocManager from '@/components/shared/DocManager'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
+import CalendarView from '@/components/shared/CalendarView'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import type { Org, Prop, Value } from '@/types'
 
@@ -85,6 +86,7 @@ export default function OrgDetailPage() {
   const orgId = Number(id)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showRptMenu, setShowRptMenu] = useState(false)
+  const [eventsView, setEventsView] = useState<'list' | 'calendar'>('list')
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
   const [showCreateEng, setShowCreateEng] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
@@ -377,6 +379,34 @@ export default function OrgDetailPage() {
           )}
         </div>
         <EngTable orgId={orgId} />
+      </section>
+
+      {/* ─── Événements ───────────────────────────────────── */}
+      <section className="mb-7">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Événements</h2>
+          <div className="flex items-center gap-1 p-0.5 bg-gray-100 rounded-lg">
+            <button
+              onClick={() => setEventsView('list')}
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${eventsView === 'list' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <List size={12} />
+              Liste
+            </button>
+            <button
+              onClick={() => setEventsView('calendar')}
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${eventsView === 'calendar' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <CalendarClock size={12} />
+              Calendrier
+            </button>
+          </div>
+        </div>
+        {eventsView === 'calendar' ? (
+          <CalendarView orgId={orgId} />
+        ) : (
+          <p className="text-xs text-gray-400">Voir la liste des événements dans la page <a href="/events" className="text-blue-500 hover:underline">Événements</a> en filtrant par cette organisation.</p>
+        )}
       </section>
 
       <CreateEngModal

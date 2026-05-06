@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
-from app.models.activity import Event, Eng, User, Tevent
+from app.models.activity import Event, Eng, User, Tevent, eng_org, eng_env
 from app.models.object import Obj, Cla, Value
 from app.schemas.event import EventOut, EventCreate, EventUpdate, TeventRef, UpcomingEventOut
 from app.schemas.org import ObjOut
@@ -23,6 +23,7 @@ router = APIRouter()
 def _event_options():
     return [
         joinedload(Event.tevent),
+        joinedload(Event.eng).joinedload(Eng.obj),
         joinedload(Event.obj).options(
             joinedload(Obj.cla).selectinload(Cla.props),
             selectinload(Obj.values).joinedload(Value.prop),
@@ -43,10 +44,14 @@ def _dt_to_str(dt) -> str | None:
 
 
 def _event_to_out(event: Event) -> EventOut:
+    eng_nom = None
+    if event.eng is not None and event.eng.obj is not None:
+        eng_nom = event.eng.obj.nom
     return EventOut(
         id=event.id,
         obj=event.obj,
         eng_id=event.eng_id,
+        eng_nom=eng_nom,
         tevent=event.tevent,
         date_heure_prevue=_dt_to_str(event.date_heure_prevue),
         date_heure_reelle=_dt_to_str(event.date_heure_reelle),
@@ -193,7 +198,10 @@ async def overdue_events(
 
 @router.get("")
 async def list_events(
-    eng_id: int | None = Query(None, description="Filtre par ENG (optionnel)"),
+    q: str | None = Query(None, description="Recherche textuelle sur le nom"),
+    eng_id: int | None = Query(None, description="Filtre par ENG"),
+    org_id: int | None = Query(None, description="Filtre par ORG (via ENGs)"),
+    env_id: int | None = Query(None, description="Filtre par ENV (via ENGs)"),
     tevent_id: int | None = Query(None, description="Filtre par type TEVENT"),
     accompli: bool | None = Query(None, description="True = accomplis, False = en attente, None = tous"),
     date_from: str | None = Query(None, description="Date prévue ≥ (ISO date)"),
@@ -206,27 +214,33 @@ async def list_events(
     from datetime import timezone as _tz
     from sqlalchemy import func
 
-    q = select(Event).options(*_event_options())
+    stmt = select(Event).options(*_event_options())
+    if q:
+        stmt = stmt.join(Obj, Event.obj_id == Obj.id).where(Obj.nom.ilike(f'%{q}%'))
     if eng_id is not None:
-        q = q.where(Event.eng_id == eng_id)
+        stmt = stmt.where(Event.eng_id == eng_id)
+    if org_id is not None:
+        stmt = stmt.join(eng_org, Event.eng_id == eng_org.c.eng_id).where(eng_org.c.org_id == org_id)
+    if env_id is not None:
+        stmt = stmt.join(eng_env, Event.eng_id == eng_env.c.eng_id).where(eng_env.c.env_id == env_id)
     if tevent_id is not None:
-        q = q.where(Event.tevent_id == tevent_id)
+        stmt = stmt.where(Event.tevent_id == tevent_id)
     if accompli is True:
-        q = q.where(Event.date_heure_reelle.is_not(None))
+        stmt = stmt.where(Event.date_heure_reelle.is_not(None))
     elif accompli is False:
-        q = q.where(Event.date_heure_reelle.is_(None))
+        stmt = stmt.where(Event.date_heure_reelle.is_(None))
     if date_from:
         dt_from = datetime.fromisoformat(date_from).replace(tzinfo=_tz.utc)
-        q = q.where(Event.date_heure_prevue >= dt_from)
+        stmt = stmt.where(Event.date_heure_prevue >= dt_from)
     if date_to:
         dt_to = datetime.fromisoformat(date_to).replace(tzinfo=_tz.utc)
-        q = q.where(Event.date_heure_prevue <= dt_to)
+        stmt = stmt.where(Event.date_heure_prevue <= dt_to)
 
-    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = total_result.scalar_one()
 
-    q = q.order_by(Event.date_heure_prevue).offset((page - 1) * per_page).limit(per_page)
-    events = (await db.execute(q)).unique().scalars().all()
+    stmt = stmt.order_by(Event.date_heure_prevue).offset((page - 1) * per_page).limit(per_page)
+    events = (await db.execute(stmt)).unique().scalars().all()
 
     return {
         "items": [_event_to_out(e) for e in events],

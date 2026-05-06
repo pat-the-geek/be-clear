@@ -21,6 +21,7 @@ class EventOut(BaseModel):
     id: int
     obj: ObjOut
     eng_id: int
+    eng_nom: Optional[str] = None
     tevent: TeventRef
     date_heure_prevue: str
     date_heure_reelle: Optional[str] = None

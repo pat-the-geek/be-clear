@@ -1,9 +1,5 @@
-/**
- * ValueField — champ de formulaire adapté au type d'une PROP
- *
- * Rendu un input différent selon `prop.type` et met à jour `draft` via `onChange`.
- * `draft` est une copie partielle d'un ValueIn (les champs non utilisés restent null).
- */
+import { useState, useEffect, useRef } from 'react'
+import { searchApi } from '@/services/api'
 import type { PropType } from '@/types'
 
 export interface ValueDraft {
@@ -253,7 +249,19 @@ export default function ValueField({ propNom, propType, valeursList, draft, onCh
     )
   }
 
-  // ── Coordonnées / REFERENCE / fallback texte ─────────────
+  // ── Référence OBJ ────────────────────────────────────────
+  if (propType === 'REFERENCE') {
+    return (
+      <ReferenceField
+        propNom={propNom}
+        draft={draft}
+        onChange={onChange}
+        disabled={disabled}
+      />
+    )
+  }
+
+  // ── Coordonnées / fallback texte ─────────────────────────
   return (
     <div>
       {label}
@@ -264,6 +272,119 @@ export default function ValueField({ propNom, propType, valeursList, draft, onCh
         onChange={(e) => set({ valeur_texte: e.target.value || null })}
         disabled={disabled}
       />
+    </div>
+  )
+}
+
+// ─── Composant interne pour le type REFERENCE ────────────
+
+interface ReferenceFieldProps {
+  propNom: string
+  draft: ValueDraft
+  onChange: (updated: ValueDraft) => void
+  disabled?: boolean
+}
+
+interface SearchHit {
+  id: number
+  entity_id: number
+  nom: string
+  entity_type: string
+}
+
+function ReferenceField({ propNom, draft, onChange, disabled }: ReferenceFieldProps) {
+  const [inputValue, setInputValue] = useState('')
+  const [hits, setHits] = useState<SearchHit[]>([])
+  const [open, setOpen] = useState(false)
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!inputValue || inputValue.length < 2) {
+      setHits([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchApi.search(inputValue, { limit: 10 })
+        if (!cancelled) setHits((res.data as { hits: SearchHit[] }).hits ?? [])
+      } catch {
+        if (!cancelled) setHits([])
+      }
+    }, 250)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [inputValue])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function selectHit(hit: SearchHit) {
+    setSelectedLabel(hit.nom)
+    setInputValue(hit.nom)
+    setOpen(false)
+    onChange({ ...draft, valeur_ref_obj_id: hit.id, valeur_texte: hit.nom })
+  }
+
+  function clearSelection() {
+    setSelectedLabel(null)
+    setInputValue('')
+    setHits([])
+    onChange({ ...draft, valeur_ref_obj_id: null, valeur_texte: null })
+  }
+
+  return (
+    <div ref={containerRef}>
+      <label className={labelClass}>{propNom}</label>
+      <div className="relative">
+        <input
+          type="text"
+          className={`${inputClass} pr-8`}
+          value={inputValue}
+          placeholder="Rechercher un objet…"
+          disabled={disabled}
+          onChange={(e) => {
+            setInputValue(e.target.value)
+            setSelectedLabel(null)
+            setOpen(true)
+          }}
+          onFocus={() => { if (inputValue.length >= 2) setOpen(true) }}
+        />
+        {(inputValue || selectedLabel) && !disabled && (
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            ×
+          </button>
+        )}
+        {open && hits.length > 0 && (
+          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {hits.map((hit) => (
+              <button
+                key={hit.id}
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-violet-50 flex items-center gap-2"
+                onMouseDown={() => selectHit(hit)}
+              >
+                <span className="font-medium text-gray-900 truncate">{hit.nom}</span>
+                <span className="text-xs text-gray-400 shrink-0 ml-auto">{hit.entity_type}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {draft.valeur_ref_obj_id != null && (
+        <p className="text-[11px] text-violet-600 mt-1">ID : {draft.valeur_ref_obj_id}</p>
+      )}
     </div>
   )
 }

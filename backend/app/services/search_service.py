@@ -42,14 +42,19 @@ async def delete_obj(obj_id: int) -> None:
         await index.delete_document(obj_id)
 
 
-async def search_objs(q: str) -> list[dict]:
-    """Recherche full-text. Retourne les hits avec attributs mis en évidence."""
+async def search_objs(q: str, offset: int = 0, limit: int = 20) -> dict:
+    """Recherche full-text. Retourne les hits et le total estimé."""
     async with await get_client() as client:
         index = client.index("objets")
         results = await index.search(
             q,
+            offset=offset,
+            limit=limit,
             attributes_to_highlight=["nom", "description"],
             highlight_pre_tag="<em>",
             highlight_post_tag="</em>",
         )
-        return results.hits
+        return {
+            "hits": results.hits,
+            "estimated_total_hits": results.estimated_total_hits or 0,
+        }

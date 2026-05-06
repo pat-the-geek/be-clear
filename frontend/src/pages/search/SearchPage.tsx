@@ -129,24 +129,32 @@ function SkeletonCard() {
 
 // ─── Page principale ─────────────────────────────────────────
 
+const SEARCH_LIMIT = 20
+
 export default function SearchPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const qParam = searchParams.get('q') ?? ''
 
   const [inputValue, setInputValue] = useState(qParam)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     setInputValue(qParam)
+    setPage(1)
   }, [qParam])
 
   const isQueryValid = qParam.trim().length >= 2
+  const offset = (page - 1) * SEARCH_LIMIT
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['search', qParam],
-    queryFn: () => searchApi.search(qParam).then((r) => r.data as SearchResponse),
+    queryKey: ['search', qParam, page],
+    queryFn: () => searchApi.search(qParam, { offset, limit: SEARCH_LIMIT }).then((r) => r.data as SearchResponse),
     enabled: isQueryValid,
+    placeholderData: (prev) => prev,
   })
+
+  const totalPages = data ? Math.ceil(data.estimatedTotalHits / SEARCH_LIMIT) : 0
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -229,11 +237,35 @@ export default function SearchPage() {
                 Aucun résultat pour cette recherche.
               </div>
             ) : (
-              <div className="space-y-2">
-                {data.hits.map((hit) => (
-                  <ResultCard key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
-                ))}
-              </div>
+              <>
+                <div className="space-y-2">
+                  {data.hits.map((hit) => (
+                    <ResultCard key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 text-sm text-gray-500">
+                    <span>Page {page} / {totalPages}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors text-sm"
+                      >
+                        ← Précédent
+                      </button>
+                      <button
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors text-sm"
+                      >
+                        Suivant →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

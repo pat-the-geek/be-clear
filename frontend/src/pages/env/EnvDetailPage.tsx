@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import mermaid from 'mermaid'
-import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
 import { envApi, engApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -12,6 +12,7 @@ import EntityAvatar from '@/components/shared/EntityAvatar'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
+import CalendarView from '@/components/shared/CalendarView'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
 import MarkdownContent from '@/components/shared/MarkdownContent'
@@ -257,6 +258,7 @@ export default function EnvDetailPage() {
 
   const envId = Number(id)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [eventsView, setEventsView] = useState<'list' | 'calendar'>('list')
   const [showRptMenu, setShowRptMenu] = useState(false)
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
   const [showCreateEng, setShowCreateEng] = useState(false)
@@ -555,6 +557,34 @@ export default function EnvDetailPage() {
           )}
         </div>
         <EngTable envId={envId} />
+      </section>
+
+      {/* ─── Événements ───────────────────────────────────── */}
+      <section className="mb-7">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Événements</h2>
+          <div className="flex items-center gap-1 p-0.5 bg-gray-100 rounded-lg">
+            <button
+              onClick={() => setEventsView('list')}
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${eventsView === 'list' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <List size={12} />
+              Liste
+            </button>
+            <button
+              onClick={() => setEventsView('calendar')}
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${eventsView === 'calendar' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <CalendarClock size={12} />
+              Calendrier
+            </button>
+          </div>
+        </div>
+        {eventsView === 'calendar' ? (
+          <CalendarView envId={envId} />
+        ) : (
+          <p className="text-xs text-gray-400">Voir la liste des événements dans la page <a href="/events" className="text-blue-500 hover:underline">Événements</a> en filtrant par cet environnement.</p>
+        )}
       </section>
 
       <CreateEngModal
