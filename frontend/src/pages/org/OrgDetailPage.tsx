@@ -13,6 +13,7 @@ import DocManager from '@/components/shared/DocManager'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
+import LogTimeline from '@/components/shared/LogTimeline'
 import CalendarView from '@/components/shared/CalendarView'
 import EventsInlineList from '@/components/shared/EventsInlineList'
 import MarkdownContent from '@/components/shared/MarkdownContent'
@@ -506,6 +507,11 @@ export default function OrgDetailPage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="mb-7">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Journal des modifications</h2>
+        <LogTimeline tableName="org" entiteId={orgId} />
       </section>
     </div>
   )

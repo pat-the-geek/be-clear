@@ -13,6 +13,7 @@ import { formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
+import LogTimeline from '@/components/shared/LogTimeline'
 import type { Event as AppEvent, Value } from '@/types'
 
 // ─── Composant local : ligne PROP / VALUE ────────────────────
@@ -394,6 +395,11 @@ export default function EventDetailPage() {
           />
         </section>
       )}
+
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Journal des modifications</h2>
+        <LogTimeline tableName="event" entiteId={eventId} />
+      </section>
 
     </div>
 

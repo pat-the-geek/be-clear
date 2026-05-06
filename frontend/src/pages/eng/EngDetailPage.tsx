@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/authStore'
 import type { Eng, EngEventBrief, Tevent, Event as AppEvent, Prop, Value } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import CalendarView from '@/components/shared/CalendarView'
+import LogTimeline from '@/components/shared/LogTimeline'
 import { toast } from '@/lib/toast'
 
 // ─── Helpers date ────────────────────────────────────────────
@@ -1341,6 +1342,12 @@ export default function EngDetailPage() {
             )}
           </>
         )}
+      </section>
+
+      {/* ─── Journal ──────────────────────────── */}
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Journal des modifications</h2>
+        <LogTimeline tableName="eng" entiteId={engId} />
       </section>
 
       {/* ─── Modales ──────────────────────────── */}
