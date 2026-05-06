@@ -25,6 +25,7 @@ import ProfilePage from '@/pages/profile/ProfilePage'
 import EngListPage from '@/pages/eng/EngListPage'
 import EngCreatePage from '@/pages/eng/EngCreatePage'
 import EventListPage from '@/pages/event/EventListPage'
+import EventCreatePage from '@/pages/event/EventCreatePage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -72,6 +73,7 @@ export default function App() {
 
         {/* Évènements */}
         <Route path="/events" element={<EventListPage />} />
+        <Route path="/event/new" element={<EventCreatePage />} />
         <Route path="/event/:id" element={<EventDetailPage />} />
         <Route path="/event/:id/edit" element={<EventEditPage />} />
 

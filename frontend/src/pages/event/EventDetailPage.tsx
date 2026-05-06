@@ -2,11 +2,12 @@ import React, { useState } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit, AlertTriangle, Trash2 } from 'lucide-react'
 import { eventApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
+import ConfirmModal from '@/components/shared/ConfirmModal'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
@@ -73,6 +74,7 @@ export default function EventDetailPage() {
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
   const descRef = useAutoResize(descDraft)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['event', eventId],
@@ -101,6 +103,16 @@ export default function EventDetailPage() {
     onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
+  const { mutate: deleteEvent, isPending: isDeleting } = useMutation({
+    mutationFn: () => eventApi.delete(eventId),
+    onSuccess: () => {
+      toast.success('Évènement supprimé')
+      queryClient.invalidateQueries({ queryKey: ['events'] })
+      navigate(-1)
+    },
+    onError: () => toast.error('Erreur lors de la suppression'),
+  })
+
   if (isLoading) {
     return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
   }
@@ -124,6 +136,7 @@ export default function EventDetailPage() {
   }
 
   return (
+    <>
     <div className="p-6 max-w-3xl mx-auto">
       {/* Retour */}
       <button
@@ -172,6 +185,15 @@ export default function EventDetailPage() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
+          {isEditeur() && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Supprimer"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
           {isEditeur() && (
             <button
               onClick={() => navigate(`/event/${eventId}/edit`)}
@@ -329,5 +351,16 @@ export default function EventDetailPage() {
       )}
 
     </div>
+
+    <ConfirmModal
+      open={showDeleteConfirm}
+      title="Supprimer l'évènement"
+      message={`Supprimer définitivement "${event.obj.nom}" ? Cette action est irréversible.`}
+      confirmLabel="Supprimer"
+      onConfirm={() => deleteEvent()}
+      onCancel={() => setShowDeleteConfirm(false)}
+      isPending={isDeleting}
+    />
+    </>
   )
 }

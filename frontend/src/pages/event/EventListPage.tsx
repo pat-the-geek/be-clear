@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, AlertTriangle, X, Search } from 'lucide-react'
+import { CheckCircle2, Clock, AlertTriangle, X, Search, Plus } from 'lucide-react'
 import { eventApi, teventApi, orgApi, envApi, engApi } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -26,6 +26,7 @@ interface EngBriefItem {
 const PER_PAGE = 50
 
 export default function EventListPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [selectedTeventId, setSelectedTeventId] = useState<number | null>(null)
   const [selectedEngId, setSelectedEngId] = useState<number | null>(null)
@@ -98,7 +99,16 @@ export default function EventListPage() {
     <div className="flex flex-col h-full">
       {/* ─── En-tête ──────────────────────────────────────────── */}
       <div className="border-b border-gray-200 bg-white px-6 py-4 shrink-0 space-y-3">
-        <h1 className="text-lg font-bold text-gray-900">Événements</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-bold text-gray-900">Événements</h1>
+          <button
+            onClick={() => navigate('/event/new')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+          >
+            <Plus size={14} />
+            Nouvel évènement
+          </button>
+        </div>
 
         {/* Barre de recherche + réinitialisation */}
         <div className="flex items-center gap-3 flex-wrap">
