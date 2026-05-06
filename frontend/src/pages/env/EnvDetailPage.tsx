@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import mermaid from 'mermaid'
 import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
-import { envApi, engApi, rptApi } from '@/services/api'
+import { envApi, engApi, rptApi, graphApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -18,6 +18,7 @@ import EventsInlineList from '@/components/shared/EventsInlineList'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
 import MarkdownContent from '@/components/shared/MarkdownContent'
+import ForceGraph, { type GNode, type GEdge } from '@/components/shared/ForceGraph'
 import type { Env, Prop, Value, EngBrief, PaginatedResponse } from '@/types'
 
 // ─── Composant : carte PROP / VALUE ─────────────────────────
@@ -261,6 +262,7 @@ export default function EnvDetailPage() {
   const envId = Number(id)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [eventsView, setEventsView] = useState<'list' | 'calendar'>('list')
+  const [engView, setEngView] = useState<'table' | 'graph'>('table')
   const [showRptMenu, setShowRptMenu] = useState(false)
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
   const [showCreateEng, setShowCreateEng] = useState(false)
@@ -272,6 +274,13 @@ export default function EnvDetailPage() {
     queryKey: ['env', envId],
     queryFn: () => envApi.get(envId).then((r) => r.data as Env),
     enabled: !isNaN(envId),
+  })
+
+  const { data: graphData } = useQuery({
+    queryKey: ['graph', 'env', envId],
+    queryFn: () => graphApi.env(envId).then((r) => r.data as { nodes: GNode[]; edges: GEdge[] }),
+    enabled: !isNaN(envId) && engView === 'graph',
+    staleTime: 1000 * 60 * 5,
   })
 
   const { mutate: applyDescription } = useMutation({
@@ -555,18 +564,43 @@ export default function EnvDetailPage() {
       <section className="mb-7">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Engagements</h2>
-          {isEditeur() && (
-            <button
-              onClick={() => setShowCreateEng(true)}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
-              title="Nouvel engagement"
-            >
-              <Plus size={14} />
-              Nouveau
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 rounded-lg">
+              <button
+                onClick={() => setEngView('table')}
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${engView === 'table' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <List size={12} /> Tableau
+              </button>
+              <button
+                onClick={() => setEngView('graph')}
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${engView === 'graph' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Hash size={12} /> Graphe
+              </button>
+            </div>
+            {isEditeur() && (
+              <button
+                onClick={() => setShowCreateEng(true)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
+                title="Nouvel engagement"
+              >
+                <Plus size={14} />
+                Nouveau
+              </button>
+            )}
+          </div>
         </div>
-        <EngTable envId={envId} />
+        {engView === 'table' ? (
+          <EngTable envId={envId} />
+        ) : (
+          <ForceGraph
+            nodes={graphData?.nodes ?? []}
+            edges={graphData?.edges ?? []}
+            focalId={`env-${envId}`}
+            height={440}
+          />
+        )}
       </section>
 
       {/* ─── Événements ───────────────────────────────────── */}

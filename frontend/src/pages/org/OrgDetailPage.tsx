@@ -3,7 +3,7 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus, Pencil, X, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
-import { orgApi, rptApi } from '@/services/api'
+import { orgApi, rptApi, graphApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -16,6 +16,7 @@ import CreateEngModal from '@/components/shared/CreateEngModal'
 import CalendarView from '@/components/shared/CalendarView'
 import EventsInlineList from '@/components/shared/EventsInlineList'
 import MarkdownContent from '@/components/shared/MarkdownContent'
+import ForceGraph, { type GNode, type GEdge } from '@/components/shared/ForceGraph'
 import type { Org, Prop, Value } from '@/types'
 
 // ─── Composant : carte PROP / VALUE ─────────────────────────
@@ -89,6 +90,7 @@ export default function OrgDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showRptMenu, setShowRptMenu] = useState(false)
   const [eventsView, setEventsView] = useState<'list' | 'calendar'>('list')
+  const [engView, setEngView] = useState<'table' | 'graph'>('table')
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
   const [showCreateEng, setShowCreateEng] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
@@ -99,6 +101,13 @@ export default function OrgDetailPage() {
     queryKey: ['org', orgId],
     queryFn: () => orgApi.get(orgId).then((r) => r.data as Org),
     enabled: !isNaN(orgId),
+  })
+
+  const { data: graphData } = useQuery({
+    queryKey: ['graph', 'org', orgId],
+    queryFn: () => graphApi.org(orgId).then((r) => r.data as { nodes: GNode[]; edges: GEdge[] }),
+    enabled: !isNaN(orgId) && engView === 'graph',
+    staleTime: 1000 * 60 * 5,
   })
 
   const { mutate: applyDescription } = useMutation({
@@ -377,18 +386,44 @@ export default function OrgDetailPage() {
       <section className="mb-7">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Engagements</h2>
-          {isEditeur() && (
-            <button
-              onClick={() => setShowCreateEng(true)}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
-              title="Nouvel engagement"
-            >
-              <Plus size={14} />
-              Nouveau
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Toggle Tableau / Graphe */}
+            <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 rounded-lg">
+              <button
+                onClick={() => setEngView('table')}
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${engView === 'table' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <List size={12} /> Tableau
+              </button>
+              <button
+                onClick={() => setEngView('graph')}
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${engView === 'graph' ? 'bg-white text-gray-800 shadow-sm font-medium' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Hash size={12} /> Graphe
+              </button>
+            </div>
+            {isEditeur() && (
+              <button
+                onClick={() => setShowCreateEng(true)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
+                title="Nouvel engagement"
+              >
+                <Plus size={14} />
+                Nouveau
+              </button>
+            )}
+          </div>
         </div>
-        <EngTable orgId={orgId} />
+        {engView === 'table' ? (
+          <EngTable orgId={orgId} />
+        ) : (
+          <ForceGraph
+            nodes={graphData?.nodes ?? []}
+            edges={graphData?.edges ?? []}
+            focalId={`org-${orgId}`}
+            height={440}
+          />
+        )}
       </section>
 
       {/* ─── Événements ───────────────────────────────────── */}

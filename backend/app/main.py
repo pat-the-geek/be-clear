@@ -64,7 +64,7 @@ app.add_middleware(
 
 # ─── Routers ───────────────────────────────────────────────
 from app.routers import auth, org, env, eng, event, torg, tenv, teng as teng_router, tevent as tevent_router
-from app.routers import search, rag, user, cla, config, log as log_router, rpt, url_tools, media, stats
+from app.routers import search, rag, user, cla, config, log as log_router, rpt, url_tools, media, stats, graph
 
 app.include_router(auth.router,           prefix="/api/auth",    tags=["auth"])
 app.include_router(org.router,            prefix="/api/org",     tags=["org"])
@@ -85,6 +85,7 @@ app.include_router(log_router.router, prefix="/api/log",    tags=["admin"])
 app.include_router(url_tools.router,  prefix="/api/url",    tags=["url"])
 app.include_router(media.router,      prefix="/api/media",  tags=["media"])
 app.include_router(stats.router,      prefix="/api/stats",  tags=["admin"])
+app.include_router(graph.router,      prefix="/api/graph",  tags=["graph"])
 
 # Servir les fichiers uploadés — monté en dernier pour ne pas masquer les routes
 from fastapi.staticfiles import StaticFiles

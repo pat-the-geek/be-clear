@@ -118,6 +118,12 @@ export const teventApi = {
   delete: (id: number) => api.delete(`/tevent/${id}`),
 }
 
+// ─── GRAPH ───────────────────────────────────────────────
+export const graphApi = {
+  org: (id: number) => api.get(`/graph/org/${id}`),
+  env: (id: number) => api.get(`/graph/env/${id}`),
+}
+
 // ─── CLA / PROP ──────────────────────────────────────────
 export const claApi = {
   list: () => api.get('/cla'),
