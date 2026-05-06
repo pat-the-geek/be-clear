@@ -3,7 +3,7 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays } from 'lucide-react'
 import mermaid from 'mermaid'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi, claApi } from '@/services/api'
@@ -16,6 +16,7 @@ import { imgUrl } from '@/components/shared/ImageManager'
 import { useAuthStore } from '@/stores/authStore'
 import type { Eng, EngEventBrief, Tevent, Event as AppEvent, Prop, Value } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
+import CalendarView from '@/components/shared/CalendarView'
 
 // ─── Helpers date ────────────────────────────────────────────
 
@@ -807,6 +808,7 @@ export default function EngDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [editingEventId, setEditingEventId] = useState<number | null>(null)
+  const [eventsView, setEventsView] = useState<'list' | 'calendar'>('list')
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
   const descRef = useAutoResize(descDraft)
@@ -1156,18 +1158,47 @@ export default function EngDetailPage() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
             Évènements ({sortedEvents.length})
           </h2>
-          {isEditeur() && (
-            <button
-              onClick={() => setShowCreateEvent(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-            >
-              <Plus size={14} />
-              Ajouter
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Toggle vue */}
+            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setEventsView('list')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
+                  eventsView === 'list'
+                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <List size={13} />
+                Liste
+              </button>
+              <button
+                onClick={() => setEventsView('calendar')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border-l border-gray-200 transition-colors ${
+                  eventsView === 'calendar'
+                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <CalendarDays size={13} />
+                Calendrier
+              </button>
+            </div>
+            {isEditeur() && (
+              <button
+                onClick={() => setShowCreateEvent(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+              >
+                <Plus size={14} />
+                Ajouter
+              </button>
+            )}
+          </div>
         </div>
 
-        {sortedEvents.length === 0 ? (
+        {eventsView === 'calendar' ? (
+          <CalendarView engId={engId} />
+        ) : sortedEvents.length === 0 ? (
           <div className="text-center text-gray-400 py-8 bg-gray-50 rounded-lg border border-gray-200">
             Aucun évènement
           </div>

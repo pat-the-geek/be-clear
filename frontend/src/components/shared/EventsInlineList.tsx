@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Clock, AlertTriangle, Search, X } from 'lucide-react'
 import { eventApi } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
+import { useDebounce } from '@/hooks/useDebounce'
 import type { PaginatedResponse } from '@/types'
 
 interface EventItem {
@@ -28,18 +29,21 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
   const [status, setStatus] = useState<StatusFilter>('tous')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
 
   const accompli =
     status === 'attente' ? false : status === 'accomplis' ? true : undefined
 
   const { data, isLoading } = useQuery({
-    queryKey: ['events', 'inline', orgId, envId, engId, status, dateFrom, dateTo],
+    queryKey: ['events', 'inline', orgId, envId, engId, status, dateFrom, dateTo, debouncedSearch],
     queryFn: () =>
       eventApi.list({
         org_id: orgId,
         env_id: envId,
         eng_id: engId,
         accompli,
+        q: debouncedSearch || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         per_page: 100,
@@ -69,6 +73,25 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
             {label}
           </button>
         ))}
+
+        <div className="relative">
+          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher…"
+            className="pl-6 pr-5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-violet-400 w-36"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center gap-1.5 ml-auto text-xs text-gray-500">
           <label className="flex items-center gap-1">
