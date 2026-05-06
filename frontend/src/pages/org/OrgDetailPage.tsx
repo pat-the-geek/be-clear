@@ -13,6 +13,7 @@ import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
 import CalendarView from '@/components/shared/CalendarView'
+import EventsInlineList from '@/components/shared/EventsInlineList'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import type { Org, Prop, Value } from '@/types'
 
@@ -405,7 +406,7 @@ export default function OrgDetailPage() {
         {eventsView === 'calendar' ? (
           <CalendarView orgId={orgId} />
         ) : (
-          <p className="text-xs text-gray-400">Voir la liste des événements dans la page <a href="/events" className="text-blue-500 hover:underline">Événements</a> en filtrant par cette organisation.</p>
+          <EventsInlineList orgId={orgId} />
         )}
       </section>
 

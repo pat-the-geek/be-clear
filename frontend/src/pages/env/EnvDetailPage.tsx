@@ -13,6 +13,7 @@ import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
 import CalendarView from '@/components/shared/CalendarView'
+import EventsInlineList from '@/components/shared/EventsInlineList'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
 import MarkdownContent from '@/components/shared/MarkdownContent'
@@ -583,7 +584,7 @@ export default function EnvDetailPage() {
         {eventsView === 'calendar' ? (
           <CalendarView envId={envId} />
         ) : (
-          <p className="text-xs text-gray-400">Voir la liste des événements dans la page <a href="/events" className="text-blue-500 hover:underline">Événements</a> en filtrant par cet environnement.</p>
+          <EventsInlineList envId={envId} />
         )}
       </section>
 
