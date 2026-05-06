@@ -28,6 +28,17 @@ class EventOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UpcomingEventOut(BaseModel):
+    """Vue allégée pour le panel — prochains EVENTs non accomplis."""
+    id: int
+    nom: str
+    eng_id: int
+    eng_nom: str
+    tevent_nom: str
+    date_heure_prevue: str
+    model_config = {"from_attributes": True}
+
+
 class EventCreate(BaseModel):
     eng_id: int
     tevent_id: int

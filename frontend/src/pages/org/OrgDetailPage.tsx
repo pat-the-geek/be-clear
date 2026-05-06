@@ -1,9 +1,8 @@
 import { useState } from 'react'
+import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus } from 'lucide-react'
+import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, Plus, Pencil, X, CheckCircle2, Loader2 } from 'lucide-react'
 import { orgApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -13,42 +12,8 @@ import DocManager from '@/components/shared/DocManager'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
+import MarkdownContent from '@/components/shared/MarkdownContent'
 import type { Org, Prop, Value } from '@/types'
-
-// ─── Composant : rendu Markdown uniforme ────────────────────
-
-function Markdown({ children }: { children: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mb-2 mt-3">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mb-1.5 mt-3">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mb-1 mt-2">{children}</h3>,
-        p: ({ children }) => <p className="text-sm text-gray-700 mb-2 leading-relaxed">{children}</p>,
-        ul: ({ children }) => <ul className="text-sm list-disc list-inside space-y-1 mb-2 text-gray-700">{children}</ul>,
-        ol: ({ children }) => <ol className="text-sm list-decimal list-inside space-y-1 mb-2 text-gray-700">{children}</ol>,
-        li: ({ children }) => <li className="text-sm text-gray-700">{children}</li>,
-        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-        em: ({ children }) => <em className="italic text-gray-600">{children}</em>,
-        code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
-          inline
-            ? <code className="font-mono text-xs bg-gray-100 text-gray-800 px-1 py-0.5 rounded">{children}</code>
-            : <code>{children}</code>,
-        pre: ({ children }) => <pre className="bg-gray-800 text-green-300 text-xs rounded-lg p-3 overflow-x-auto my-2">{children}</pre>,
-        blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-300 pl-3 text-gray-500 italic text-sm my-2">{children}</blockquote>,
-        a: ({ href, children }) => <a href={href} className="text-blue-600 underline hover:text-blue-700">{children}</a>,
-        table: ({ children }) => <div className="overflow-x-auto my-2"><table className="w-full text-sm border-collapse">{children}</table></div>,
-        thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
-        tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
-        th: ({ children }) => <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 uppercase">{children}</th>,
-        td: ({ children }) => <td className="px-3 py-2 text-gray-700">{children}</td>,
-      }}
-    >
-      {children}
-    </ReactMarkdown>
-  )
-}
 
 // ─── Composant : carte PROP / VALUE ─────────────────────────
 
@@ -78,7 +43,7 @@ function PropValueCard({ prop, value, onApplyDescription }: {
     } else if (value.valeur_nombre != null) {
       display = String(value.valeur_nombre)
     } else if (type === 'MARKDOWN' && value.valeur_texte) {
-      display = <Markdown>{value.valeur_texte}</Markdown>
+      display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
     } else if (type === 'URL' && value.valeur_texte) {
       display = <UrlValueDisplay url={value.valeur_texte} onApplyDescription={onApplyDescription} />
     } else if (type === 'EMAIL' && value.valeur_texte) {
@@ -122,6 +87,9 @@ export default function OrgDetailPage() {
   const [showRptMenu, setShowRptMenu] = useState(false)
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
   const [showCreateEng, setShowCreateEng] = useState(false)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [descDraft, setDescDraft] = useState('')
+  const descRef = useAutoResize(descDraft)
 
   const { data: org, isLoading, isError } = useQuery({
     queryKey: ['org', orgId],
@@ -133,6 +101,14 @@ export default function OrgDetailPage() {
     mutationFn: (description: string) =>
       orgApi.update(orgId, { description }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['org', orgId] }),
+  })
+
+  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+    mutationFn: (description: string) => orgApi.update(orgId, { description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['org', orgId] })
+      setEditingDesc(false)
+    },
   })
 
   const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
@@ -290,12 +266,58 @@ export default function OrgDetailPage() {
       )}
 
       {/* ─── Description ──────────────────────────────────── */}
-      {org.obj.description && (
+      {(org.obj.description || isEditeur()) && (
         <section className="mb-7">
-          <SectionTitle>Description</SectionTitle>
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-            <Markdown>{org.obj.description}</Markdown>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Description</h2>
+            {isEditeur() && !editingDesc && (
+              <button
+                onClick={() => { setDescDraft(org.obj.description ?? ''); setEditingDesc(true) }}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
+              >
+                <Pencil size={12} />
+                Modifier
+              </button>
+            )}
           </div>
+          {editingDesc ? (
+            <div className="space-y-2">
+              <textarea
+                ref={descRef}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-mono resize-none min-h-[160px]"
+                placeholder="Description en Markdown…"
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { setEditingDesc(false); setDescDraft('') }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <X size={13} />
+                  Annuler
+                </button>
+                <button
+                  onClick={() => saveDesc(descDraft)}
+                  disabled={isSavingDesc}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingDesc ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          ) : org.obj.description ? (
+            <MarkdownContent>{org.obj.description}</MarkdownContent>
+          ) : (
+            <button
+              onClick={() => { setDescDraft(''); setEditingDesc(true) }}
+              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-blue-300 hover:text-blue-500 transition-colors"
+            >
+              + Ajouter une description
+            </button>
+          )}
         </section>
       )}
 

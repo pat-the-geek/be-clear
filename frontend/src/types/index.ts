@@ -34,7 +34,12 @@ export interface Cla {
   visuel_type?: 'icone' | 'image'
   visuel_valeur?: string
   super_classe_id?: number
+  super_classe_nom?: string
   props: Prop[]   // props directes de la classe (retournées par l'API)
+}
+
+export interface ClaDetail extends Cla {
+  props_heritees: Prop[]  // props héritées de la super-classe (et de toute la chaîne)
 }
 
 export type PropType =
@@ -171,6 +176,8 @@ export interface EngBrief {
   teng: Teng
   accomplissement?: number
   nb_events?: number
+  org_principale_nom?: string | null
+  env_principale_nom?: string | null
   date_debut?: string
   date_debut_prevue?: string
   date_fin?: string
@@ -209,6 +216,8 @@ export interface Eng {
   teng: Teng
   orgs: OrgRef[]
   envs: EnvRef[]
+  org_principale?: OrgRef | null
+  env_principale?: EnvRef | null
   events: EngEventBrief[]
   date_debut?: string
   date_debut_prevue?: string

@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
-import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus } from 'lucide-react'
+import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2 } from 'lucide-react'
 import { envApi, engApi, rptApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -15,42 +14,8 @@ import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
+import MarkdownContent from '@/components/shared/MarkdownContent'
 import type { Env, Prop, Value, EngBrief, PaginatedResponse } from '@/types'
-
-// ─── Composant : rendu Markdown uniforme ────────────────────
-
-function Markdown({ children }: { children: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mb-2 mt-3">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mb-1.5 mt-3">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mb-1 mt-2">{children}</h3>,
-        p: ({ children }) => <p className="text-sm text-gray-700 mb-2 leading-relaxed">{children}</p>,
-        ul: ({ children }) => <ul className="text-sm list-disc list-inside space-y-1 mb-2 text-gray-700">{children}</ul>,
-        ol: ({ children }) => <ol className="text-sm list-decimal list-inside space-y-1 mb-2 text-gray-700">{children}</ol>,
-        li: ({ children }) => <li className="text-sm text-gray-700">{children}</li>,
-        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-        em: ({ children }) => <em className="italic text-gray-600">{children}</em>,
-        code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
-          inline
-            ? <code className="font-mono text-xs bg-gray-100 text-gray-800 px-1 py-0.5 rounded">{children}</code>
-            : <code>{children}</code>,
-        pre: ({ children }) => <pre className="bg-gray-800 text-green-300 text-xs rounded-lg p-3 overflow-x-auto my-2">{children}</pre>,
-        blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-300 pl-3 text-gray-500 italic text-sm my-2">{children}</blockquote>,
-        a: ({ href, children }) => <a href={href} className="text-blue-600 underline hover:text-blue-700">{children}</a>,
-        table: ({ children }) => <div className="overflow-x-auto my-2"><table className="w-full text-sm border-collapse">{children}</table></div>,
-        thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
-        tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
-        th: ({ children }) => <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 uppercase">{children}</th>,
-        td: ({ children }) => <td className="px-3 py-2 text-gray-700">{children}</td>,
-      }}
-    >
-      {children}
-    </ReactMarkdown>
-  )
-}
 
 // ─── Composant : carte PROP / VALUE ─────────────────────────
 
@@ -80,7 +45,7 @@ function PropValueCard({ prop, value, onApplyDescription }: {
     } else if (value.valeur_nombre != null) {
       display = String(value.valeur_nombre)
     } else if (type === 'MARKDOWN' && value.valeur_texte) {
-      display = <Markdown>{value.valeur_texte}</Markdown>
+      display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
     } else if (type === 'URL' && value.valeur_texte) {
       display = <UrlValueDisplay url={value.valeur_texte} onApplyDescription={onApplyDescription} />
     } else if (type === 'EMAIL' && value.valeur_texte) {
@@ -191,7 +156,10 @@ function TimelineDiagram({ envId, envNom }: { envId: number; envNom: string }) {
             const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
             style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
             svgEl.appendChild(style)
-            svgEl.style.maxWidth = '100%'
+            svgEl.removeAttribute('width')
+            svgEl.removeAttribute('height')
+            svgEl.style.width = '100%'
+            svgEl.style.height = 'auto'
           }
         }
       })
@@ -241,7 +209,7 @@ function TimelineDiagram({ envId, envNom }: { envId: number; envNom: string }) {
     <>
       <div
         ref={containerRef}
-        className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-4 cursor-zoom-in"
+        className="overflow-x-auto overflow-y-hidden max-h-64 rounded-xl border border-gray-200 bg-white p-4 cursor-zoom-in"
         onClick={() => setIsFullscreen(true)}
         title="Cliquer pour agrandir"
       />
@@ -292,6 +260,9 @@ export default function EnvDetailPage() {
   const [showRptMenu, setShowRptMenu] = useState(false)
   const [rptResult, setRptResult] = useState<{ chemin: string; nom_fichier: string } | null>(null)
   const [showCreateEng, setShowCreateEng] = useState(false)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [descDraft, setDescDraft] = useState('')
+  const descRef = useAutoResize(descDraft)
 
   const { data: env, isLoading, isError } = useQuery({
     queryKey: ['env', envId],
@@ -303,6 +274,14 @@ export default function EnvDetailPage() {
     mutationFn: (description: string) =>
       envApi.update(envId, { description }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['env', envId] }),
+  })
+
+  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+    mutationFn: (description: string) => envApi.update(envId, { description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['env', envId] })
+      setEditingDesc(false)
+    },
   })
 
   const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
@@ -459,12 +438,58 @@ export default function EnvDetailPage() {
       )}
 
       {/* ─── Description ──────────────────────────────────── */}
-      {env.obj.description && (
+      {(env.obj.description || isEditeur()) && (
         <section className="mb-7">
-          <SectionTitle>Description</SectionTitle>
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-            <Markdown>{env.obj.description}</Markdown>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Description</h2>
+            {isEditeur() && !editingDesc && (
+              <button
+                onClick={() => { setDescDraft(env.obj.description ?? ''); setEditingDesc(true) }}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-orange-500 transition-colors"
+              >
+                <Pencil size={12} />
+                Modifier
+              </button>
+            )}
           </div>
+          {editingDesc ? (
+            <div className="space-y-2">
+              <textarea
+                ref={descRef}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white font-mono resize-none min-h-[160px]"
+                placeholder="Description en Markdown…"
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { setEditingDesc(false); setDescDraft('') }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <X size={13} />
+                  Annuler
+                </button>
+                <button
+                  onClick={() => saveDesc(descDraft)}
+                  disabled={isSavingDesc}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingDesc ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          ) : env.obj.description ? (
+            <MarkdownContent>{env.obj.description}</MarkdownContent>
+          ) : (
+            <button
+              onClick={() => { setDescDraft(''); setEditingDesc(true) }}
+              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-orange-300 hover:text-orange-500 transition-colors"
+            >
+              + Ajouter une description
+            </button>
+          )}
         </section>
       )}
 

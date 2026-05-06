@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -23,6 +24,16 @@ def _verify_password(plain: str, hashed: str | None) -> bool:
         return False
 
 
+def _hash_password(plain: str) -> str:
+    import bcrypt
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authentification locale par auth_uid + mot de passe bcrypt."""
@@ -43,6 +54,23 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     token = create_access_token(user.id)
     return TokenResponse(access_token=token)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordBody,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change le mot de passe de l'utilisateur connecté."""
+    result = await db.execute(select(User).where(User.id == current_user.id))
+    user = result.scalar_one()
+
+    if not _verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect")
+
+    user.password_hash = _hash_password(body.new_password)
+    await db.commit()
 
 
 @router.get("/me", response_model=UserMe)

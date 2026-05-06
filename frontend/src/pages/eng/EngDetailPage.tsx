@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -88,8 +89,6 @@ function GanttDiagram({ id, code }: GanttDiagramProps) {
             const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
             style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
             svgEl.appendChild(style)
-            const h = parseFloat(svgEl.getAttribute('height') ?? '0')
-            if (h > 0) svgEl.setAttribute('height', String(h * 2))
           }
         }
       } catch {
@@ -185,6 +184,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
   const [teventId, setTeventId] = useState<number | null>(null)
   const [dateHeurePrevue, setDateHeurePrevue] = useState('')
   const [description, setDescription] = useState('')
+  const descRef = useAutoResize(description)
   const autoNomRef = useRef('')
 
   const { data: tevents } = useQuery({
@@ -310,8 +310,8 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
             Description
           </label>
           <textarea
-            rows={3}
-            className={`${inputClass} font-mono resize-y`}
+            ref={descRef}
+            className={`${inputClass} font-mono resize-none min-h-[80px]`}
             placeholder="Description en Markdown…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -361,6 +361,8 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
   const [teventId, setTeventId] = useState<number | null>(null)
   const [dateHeurePrevue, setDateHeurePrevue] = useState('')
   const [dateHeureReelle, setDateHeureReelle] = useState('')
+  const [description, setDescription] = useState('')
+  const descEditRef = useAutoResize(description)
 
   const { data: fullEvent } = useQuery({
     queryKey: ['event', eventId],
@@ -380,6 +382,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
       setTeventId(fullEvent.tevent.id)
       setDateHeurePrevue(isoToDatetimeLocal(fullEvent.date_heure_prevue))
       setDateHeureReelle(isoToDatetimeLocal(fullEvent.date_heure_reelle))
+      setDescription(fullEvent.obj.description ?? '')
     }
   }, [fullEvent])
 
@@ -389,6 +392,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
       setTeventId(null)
       setDateHeurePrevue('')
       setDateHeureReelle('')
+      setDescription('')
     }
   }, [open])
 
@@ -399,6 +403,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
         tevent_id: teventId || undefined,
         date_heure_prevue: dateHeurePrevue ? datetimeLocalToIso(dateHeurePrevue) : undefined,
         date_heure_reelle: dateHeureReelle ? datetimeLocalToIso(dateHeureReelle) : undefined,
+        description: description.trim() || null,
       }),
     onSuccess: () => {
       onUpdated()
@@ -490,6 +495,19 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
                 className={inputClass}
                 value={dateHeureReelle}
                 onChange={(e) => setDateHeureReelle(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                Description <span className="text-gray-400 font-normal normal-case">(Markdown)</span>
+              </label>
+              <textarea
+                ref={descEditRef}
+                className={`${inputClass} font-mono resize-none min-h-[80px]`}
+                placeholder="Description en Markdown…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
             </div>
 
@@ -684,6 +702,7 @@ export default function EngDetailPage() {
   const [editingEventId, setEditingEventId] = useState<number | null>(null)
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
+  const descRef = useAutoResize(descDraft)
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -778,16 +797,42 @@ export default function EngDetailPage() {
 
                 {/* ORGs et ENVs */}
                 <div className="flex flex-wrap gap-2 mt-4">
-                  {eng.orgs.map((org) => (
-                    <Link key={org.id} to={`/org/${org.id}`} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
-                      {org.nom}
-                    </Link>
-                  ))}
-                  {eng.envs.map((env) => (
-                    <Link key={env.id} to={`/env/${env.id}`} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors">
-                      {env.nom}
-                    </Link>
-                  ))}
+                  {eng.orgs.map((org) => {
+                    const isPrincipale = eng.org_principale?.id === org.id
+                    return (
+                      <Link
+                        key={org.id}
+                        to={`/org/${org.id}`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                          isPrincipale
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                        }`}
+                        title={isPrincipale ? 'ORG principale' : undefined}
+                      >
+                        {isPrincipale && <span>★</span>}
+                        {org.nom}
+                      </Link>
+                    )
+                  })}
+                  {eng.envs.map((env) => {
+                    const isPrincipal = eng.env_principale?.id === env.id
+                    return (
+                      <Link
+                        key={env.id}
+                        to={`/env/${env.id}`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                          isPrincipal
+                            ? 'bg-orange-600 text-white hover:bg-orange-700'
+                            : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+                        }`}
+                        title={isPrincipal ? 'ENV principal' : undefined}
+                      >
+                        {isPrincipal && <span>★</span>}
+                        {env.nom}
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -865,8 +910,8 @@ export default function EngDetailPage() {
           {editingDesc ? (
             <div className="space-y-2">
               <textarea
-                rows={10}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-y"
+                ref={descRef}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-none min-h-[160px]"
                 placeholder="Description en Markdown…"
                 value={descDraft}
                 onChange={(e) => setDescDraft(e.target.value)}
@@ -891,9 +936,7 @@ export default function EngDetailPage() {
               </div>
             </div>
           ) : eng.obj.description ? (
-            <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
-              <MarkdownContent>{eng.obj.description}</MarkdownContent>
-            </div>
+            <MarkdownContent>{eng.obj.description}</MarkdownContent>
           ) : (
             <button
               onClick={() => { setDescDraft(''); setEditingDesc(true) }}

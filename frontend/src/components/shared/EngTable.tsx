@@ -26,23 +26,26 @@ type SortBy =
   | 'created_at' | 'updated_at'
 
 interface Column {
-  key: SortBy
+  key: string
+  sortKey?: SortBy    // défini = triable ; absent = non-triable
   label: string
   minWidth: number    // px
   align?: 'right'
 }
 
 const COLUMNS: Column[] = [
-  { key: 'nom',               label: 'Nom',          minWidth: 200 },
-  { key: 'teng',              label: 'Type',         minWidth: 140 },
-  { key: 'date_debut_prevue', label: 'Début prévu',  minWidth: 110 },
-  { key: 'date_fin_prevue',   label: 'Fin prévue',   minWidth: 110 },
-  { key: 'date_debut',        label: 'Début réel',   minWidth: 110 },
-  { key: 'date_fin',          label: 'Fin réelle',   minWidth: 110 },
-  { key: 'accomplissement',   label: 'Avancement',   minWidth: 120, align: 'right' },
-  { key: 'nb_events',         label: 'Évts',         minWidth: 60,  align: 'right' },
-  { key: 'created_at',        label: 'Créé le',      minWidth: 150 },
-  { key: 'updated_at',        label: 'Modifié le',   minWidth: 150 },
+  { key: 'nom',               sortKey: 'nom',               label: 'Nom',          minWidth: 200 },
+  { key: 'teng',              sortKey: 'teng',              label: 'Type',         minWidth: 130 },
+  { key: 'org_principale',                                  label: 'ORG princ.',   minWidth: 130 },
+  { key: 'env_principale',                                  label: 'ENV princ.',   minWidth: 130 },
+  { key: 'date_debut_prevue', sortKey: 'date_debut_prevue', label: 'Début prévu',  minWidth: 110 },
+  { key: 'date_fin_prevue',   sortKey: 'date_fin_prevue',   label: 'Fin prévue',   minWidth: 110 },
+  { key: 'date_debut',        sortKey: 'date_debut',        label: 'Début réel',   minWidth: 110 },
+  { key: 'date_fin',          sortKey: 'date_fin',          label: 'Fin réelle',   minWidth: 110 },
+  { key: 'accomplissement',   sortKey: 'accomplissement',   label: 'Avancement',   minWidth: 120, align: 'right' },
+  { key: 'nb_events',         sortKey: 'nb_events',         label: 'Évts',         minWidth: 60,  align: 'right' },
+  { key: 'created_at',        sortKey: 'created_at',        label: 'Créé le',      minWidth: 150 },
+  { key: 'updated_at',        sortKey: 'updated_at',        label: 'Modifié le',   minWidth: 150 },
 ]
 const COL_COUNT = COLUMNS.length
 const PER_PAGE = 50
@@ -54,6 +57,15 @@ function SortIcon({ col, sortBy, sortDir }: { col: SortBy; sortBy: SortBy; sortD
   return sortDir === 'asc'
     ? <ChevronUp size={12} className="text-amber-600 ml-1 shrink-0" />
     : <ChevronDown size={12} className="text-amber-600 ml-1 shrink-0" />
+}
+
+function StaticTag({ value }: { value?: string | null }) {
+  if (!value) return <span className="text-gray-300">—</span>
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 max-w-[120px] truncate">
+      {value}
+    </span>
+  )
 }
 
 // ─── Cellule Avancement ───────────────────────────────────────
@@ -89,9 +101,17 @@ function EngRow({ eng }: { eng: EngBrief }) {
       </td>
       {/* Type */}
       <td className="px-3 py-2.5">
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 max-w-[130px] truncate">
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 max-w-[120px] truncate">
           {eng.teng.nom}
         </span>
+      </td>
+      {/* ORG principale */}
+      <td className="px-3 py-2.5">
+        <StaticTag value={eng.org_principale_nom} />
+      </td>
+      {/* ENV principale */}
+      <td className="px-3 py-2.5">
+        <StaticTag value={eng.env_principale_nom} />
       </td>
       {/* Début prévu */}
       <td className="px-3 py-2.5 text-xs text-gray-600 tabular-nums">
@@ -148,11 +168,23 @@ function EngRow({ eng }: { eng: EngBrief }) {
 interface EngTableProps {
   orgId?: number
   envId?: number
+  q?: string
+  tengId?: number
+  createdByMe?: boolean
+  defaultSortBy?: SortBy
+  defaultSortDir?: SortDir
+  /** Remplit toute la hauteur du parent flex au lieu du plafond 480 px */
+  fillHeight?: boolean
 }
 
-export default function EngTable({ orgId, envId }: EngTableProps) {
-  const [sortBy, setSortBy] = useState<SortBy>('nom')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+export default function EngTable({
+  orgId, envId, q, tengId, createdByMe,
+  defaultSortBy = 'nom',
+  defaultSortDir = 'asc',
+  fillHeight = false,
+}: EngTableProps) {
+  const [sortBy, setSortBy] = useState<SortBy>(defaultSortBy)
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir)
 
   const handleSort = useCallback((col: SortBy) => {
     setSortBy((prev) => {
@@ -174,11 +206,14 @@ export default function EngTable({ orgId, envId }: EngTableProps) {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ['engs', 'table', orgId, envId, sortBy, sortDir],
+    queryKey: ['engs', 'table', orgId, envId, q, tengId, createdByMe, sortBy, sortDir],
     queryFn: async ({ pageParam = 1 }) => {
       const res = await engApi.list({
         org_id: orgId,
         env_id: envId,
+        q: q || undefined,
+        teng_id: tengId || undefined,
+        created_by_me: createdByMe,
         sort_by: sortBy,
         sort_dir: sortDir,
         page: pageParam as number,
@@ -256,9 +291,9 @@ export default function EngTable({ orgId, envId }: EngTableProps) {
 
   // ── Rendu ────────────────────────────────────────────────────
   return (
-    <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+    <div className={`rounded-xl border border-gray-200 overflow-hidden bg-white ${fillHeight ? 'flex flex-col h-full' : ''}`}>
       {/* Barre de statut */}
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between shrink-0">
         <span className="text-xs text-gray-500">
           {allItems.length < total
             ? `${allItems.length} chargés sur ${total} engagement${total > 1 ? 's' : ''}`
@@ -275,8 +310,8 @@ export default function EngTable({ orgId, envId }: EngTableProps) {
       {/* Conteneur de scroll */}
       <div
         ref={scrollRef}
-        className="overflow-auto"
-        style={{ maxHeight: '480px' }}
+        className={fillHeight ? 'flex-1 overflow-auto' : 'overflow-auto'}
+        style={fillHeight ? undefined : { maxHeight: '480px' }}
       >
         <table
           className="border-collapse"
@@ -297,14 +332,15 @@ export default function EngTable({ orgId, envId }: EngTableProps) {
                   key={col.key}
                   className={`
                     px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider
-                    cursor-pointer select-none hover:text-gray-800 hover:bg-gray-50 transition-colors whitespace-nowrap
+                    select-none whitespace-nowrap transition-colors
+                    ${col.sortKey ? 'cursor-pointer hover:text-gray-800 hover:bg-gray-50' : 'cursor-default'}
                     ${col.align === 'right' ? 'text-right' : ''}
                   `}
-                  onClick={() => handleSort(col.key)}
+                  onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
                 >
                   <span className={`inline-flex items-center gap-0.5 ${col.align === 'right' ? 'justify-end w-full' : ''}`}>
                     {col.label}
-                    <SortIcon col={col.key} sortBy={sortBy} sortDir={sortDir} />
+                    {col.sortKey && <SortIcon col={col.sortKey} sortBy={sortBy} sortDir={sortDir} />}
                   </span>
                 </th>
               ))}

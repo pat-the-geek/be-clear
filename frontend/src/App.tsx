@@ -17,10 +17,13 @@ import EnvCreatePage from '@/pages/env/EnvCreatePage'
 import EngDetailPage from '@/pages/eng/EngDetailPage'
 import EngEditPage from '@/pages/eng/EngEditPage'
 import EventDetailPage from '@/pages/event/EventDetailPage'
+import EventEditPage from '@/pages/event/EventEditPage'
 import SearchPage from '@/pages/search/SearchPage'
 import RagPage from '@/pages/rag/RagPage'
 import AdminPage from '@/pages/admin/AdminPage'
 import ProfilePage from '@/pages/profile/ProfilePage'
+import EngListPage from '@/pages/eng/EngListPage'
+import EngCreatePage from '@/pages/eng/EngCreatePage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -60,11 +63,14 @@ export default function App() {
         <Route path="/env/:id/edit" element={<EnvEditPage />} />
 
         {/* Engagements */}
+        <Route path="/eng" element={<EngListPage />} />
+        <Route path="/eng/new" element={<EngCreatePage />} />
         <Route path="/eng/:id" element={<EngDetailPage />} />
         <Route path="/eng/:id/edit" element={<EngEditPage />} />
 
         {/* Évènements */}
         <Route path="/event/:id" element={<EventDetailPage />} />
+        <Route path="/event/:id/edit" element={<EventEditPage />} />
 
         {/* Recherche & IA */}
         <Route path="/search" element={<SearchPage />} />

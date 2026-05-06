@@ -9,7 +9,7 @@ from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
 from app.models.activity import Event, Eng, User, Tevent
 from app.models.object import Obj, Cla, Value
-from app.schemas.event import EventOut, EventCreate, EventUpdate, TeventRef
+from app.schemas.event import EventOut, EventCreate, EventUpdate, TeventRef, UpcomingEventOut
 from app.schemas.org import ObjOut
 from app.services.log import write_log
 from app.services.gantt import recalculate_eng, _to_timedelta
@@ -103,6 +103,90 @@ async def suggest_event_date(
 
     suggested = dernier.date_heure_prevue + delta
     return {"date_heure_prevue_suggere": _dt_to_str(suggested)}
+
+
+# ─── GET /event/upcoming ─────────────────────────────────────
+# Déclaré AVANT /{event_id} pour éviter la collision de route
+
+@router.get("/upcoming", response_model=list[UpcomingEventOut])
+async def upcoming_events(
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne les prochains EVENTs non accomplis dans les ENGs créés par l'utilisateur."""
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Event)
+        .join(Eng, Event.eng_id == Eng.id)
+        .join(Obj, Eng.obj_id == Obj.id)
+        .options(
+            joinedload(Event.tevent),
+            joinedload(Event.obj),
+            joinedload(Event.eng).joinedload(Eng.obj),
+        )
+        .where(
+            Event.date_heure_reelle.is_(None),
+            Event.date_heure_prevue >= now,
+            Eng.created_by_id == current_user.id,
+        )
+        .order_by(Event.date_heure_prevue.asc())
+        .limit(limit)
+    )
+    events = result.unique().scalars().all()
+    return [
+        UpcomingEventOut(
+            id=e.id,
+            nom=e.obj.nom,
+            eng_id=e.eng_id,
+            eng_nom=e.eng.obj.nom,
+            tevent_nom=e.tevent.nom if e.tevent else "",
+            date_heure_prevue=_dt_to_str(e.date_heure_prevue),
+        )
+        for e in events
+    ]
+
+
+# ─── GET /event/overdue ──────────────────────────────────────
+
+@router.get("/overdue", response_model=list[UpcomingEventOut])
+async def overdue_events(
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne les EVENTs en retard (date_heure_prevue passée, non accomplis) des ENGs de l'utilisateur."""
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Event)
+        .join(Eng, Event.eng_id == Eng.id)
+        .options(
+            joinedload(Event.tevent),
+            joinedload(Event.obj),
+            joinedload(Event.eng).joinedload(Eng.obj),
+        )
+        .where(
+            Event.date_heure_reelle.is_(None),
+            Event.date_heure_prevue < now,
+            Eng.created_by_id == current_user.id,
+        )
+        .order_by(Event.date_heure_prevue.desc())
+        .limit(limit)
+    )
+    events = result.unique().scalars().all()
+    return [
+        UpcomingEventOut(
+            id=e.id,
+            nom=e.obj.nom,
+            eng_id=e.eng_id,
+            eng_nom=e.eng.obj.nom,
+            tevent_nom=e.tevent.nom if e.tevent else "",
+            date_heure_prevue=_dt_to_str(e.date_heure_prevue),
+        )
+        for e in events
+    ]
 
 
 # ─── GET /event ──────────────────────────────────────────────

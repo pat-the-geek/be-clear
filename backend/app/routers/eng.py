@@ -34,6 +34,8 @@ def _eng_options():
         ),
         selectinload(Eng.orgs).joinedload(Org.obj),
         selectinload(Eng.envs).joinedload(Env.obj),
+        joinedload(Eng.org_principale).joinedload(Org.obj),
+        joinedload(Eng.env_principale).joinedload(Env.obj),
         selectinload(Eng.events).options(
             joinedload(Event.tevent),
             joinedload(Event.obj),
@@ -53,6 +55,8 @@ def _eng_to_out(eng: Eng) -> EngOut:
     """Construit un EngOut à partir du modèle SQLAlchemy."""
     orgs = [OrgRef(id=o.id, nom=o.obj.nom) for o in eng.orgs]
     envs = [EnvRef(id=e.id, nom=e.obj.nom) for e in eng.envs]
+    org_principale = OrgRef(id=eng.org_principale.id, nom=eng.org_principale.obj.nom) if eng.org_principale else None
+    env_principale = EnvRef(id=eng.env_principale.id, nom=eng.env_principale.obj.nom) if eng.env_principale else None
     events = [
         EventBrief(
             id=ev.id,
@@ -70,6 +74,8 @@ def _eng_to_out(eng: Eng) -> EngOut:
         teng=eng.teng,
         orgs=orgs,
         envs=envs,
+        org_principale=org_principale,
+        env_principale=env_principale,
         events=events,
         date_debut=_dt_to_str(eng.date_debut),
         date_debut_prevue=_dt_to_str(eng.date_debut_prevue),
@@ -86,6 +92,7 @@ def _eng_to_out(eng: Eng) -> EngOut:
 async def list_engs(
     org_id: int | None = Query(None),
     env_id: int | None = Query(None),
+    teng_id: int | None = Query(None),
     q: str | None = Query(None, description="Recherche sur le nom (insensible à la casse)"),
     created_by_me: bool = Query(False),
     sort_by: str = Query("nom", description="Champ de tri"),
@@ -100,6 +107,8 @@ async def list_engs(
         stmt = stmt.join(eng_org, Eng.id == eng_org.c.eng_id).where(eng_org.c.org_id == org_id)
     if env_id:
         stmt = stmt.join(eng_env, Eng.id == eng_env.c.eng_id).where(eng_env.c.env_id == env_id)
+    if teng_id:
+        stmt = stmt.where(Eng.teng_id == teng_id)
     if q:
         stmt = stmt.where(Eng.obj_id.in_(
             select(Obj.id).where(Obj.nom.ilike(f"%{q.strip()}%"))
@@ -154,12 +163,27 @@ async def list_engs(
         except Exception:
             pass
 
+        org_principale_nom: str | None = None
+        env_principale_nom: str | None = None
+        try:
+            if eng.org_principale is not None:
+                org_principale_nom = eng.org_principale.obj.nom
+        except Exception:
+            pass
+        try:
+            if eng.env_principale is not None:
+                env_principale_nom = eng.env_principale.obj.nom
+        except Exception:
+            pass
+
         items.append(EngBrief(
             id=eng.id,
             nom=eng.obj.nom,
             teng=eng.teng,
             accomplissement=float(eng.accomplissement) if eng.accomplissement is not None else None,
             nb_events=len(eng.events),
+            org_principale_nom=org_principale_nom,
+            env_principale_nom=env_principale_nom,
             date_debut=_dt_to_str(eng.date_debut),
             date_debut_prevue=_dt_to_str(eng.date_debut_prevue),
             date_fin=_dt_to_str(eng.date_fin),
@@ -248,6 +272,8 @@ async def create_eng(
         date_debut_prevue=date_debut_prevue,
         date_fin=date_fin,
         date_fin_prevue=date_fin_prevue,
+        org_principale_id=body.org_principale_id,
+        env_principale_id=body.env_principale_id,
         created_by_id=current_user.id,
         updated_by_id=current_user.id,
     )
@@ -337,6 +363,10 @@ async def update_eng(
     if body.env_ids is not None:
         envs_result = await db.execute(select(Env).where(Env.id.in_(body.env_ids)))
         eng.envs = list(envs_result.scalars().all())
+    if 'org_principale_id' in body.model_fields_set:
+        eng.org_principale_id = body.org_principale_id
+    if 'env_principale_id' in body.model_fields_set:
+        eng.env_principale_id = body.env_principale_id
 
     eng.obj.updated_by_id = current_user.id
 

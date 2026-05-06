@@ -33,6 +33,8 @@ export const authApi = {
   login: (credentials: { username: string; password: string }) =>
     api.post<{ access_token: string; token_type: string }>('/auth/login', credentials),
   me: () => api.get('/auth/me'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post('/auth/change-password', { current_password: currentPassword, new_password: newPassword }),
 }
 
 // ─── ORG ─────────────────────────────────────────────────
@@ -59,7 +61,7 @@ export const envApi = {
 
 // ─── ENG ─────────────────────────────────────────────────
 export const engApi = {
-  list: (params?: { org_id?: number; env_id?: number; q?: string; created_by_me?: boolean; sort_by?: string; sort_dir?: string; page?: number; per_page?: number }) =>
+  list: (params?: { org_id?: number; env_id?: number; teng_id?: number; q?: string; created_by_me?: boolean; sort_by?: string; sort_dir?: string; page?: number; per_page?: number }) =>
     api.get('/eng', { params }),
   get: (id: number) => api.get(`/eng/${id}`),
   create: (data: unknown) => api.post('/eng', data),
@@ -76,6 +78,8 @@ export const eventApi = {
   update: (id: number, data: unknown) => api.put(`/event/${id}`, data),
   delete: (id: number) => api.delete(`/event/${id}`),
   suggest: (engId: number) => api.get('/event/suggest', { params: { eng_id: engId } }),
+  upcoming: (limit = 20) => api.get('/event/upcoming', { params: { limit } }),
+  overdue:  (limit = 20) => api.get('/event/overdue',  { params: { limit } }),
 }
 
 // ─── TORG / TENV ─────────────────────────────────────────
@@ -120,6 +124,10 @@ export const claApi = {
   update: (id: number, data: unknown) => api.put(`/cla/${id}`, data),
   delete: (id: number) => api.delete(`/cla/${id}`),
   propsAll: (claId: number) => api.get(`/cla/${claId}/props-all`),
+  listProps: (claId: number) => api.get(`/cla/${claId}/prop`),
+  addProp: (claId: number, data: unknown) => api.post(`/cla/${claId}/prop`, data),
+  updateProp: (claId: number, propId: number, data: unknown) => api.put(`/cla/${claId}/prop/${propId}`, data),
+  deleteProp: (claId: number, propId: number) => api.delete(`/cla/${claId}/prop/${propId}`),
 }
 
 // ─── Recherche & RAG ─────────────────────────────────────
@@ -135,11 +143,13 @@ export const ragApi = {
 
 // ─── USER ─────────────────────────────────────────────────
 export const userApi = {
-  list:   (params?: { page?: number; per_page?: number }) => api.get('/user', { params }),
-  get:    (id: number) => api.get(`/user/${id}`),
-  create: (data: unknown) => api.post('/user', data),
-  update: (id: number, data: unknown) => api.put(`/user/${id}`, data),
-  delete: (id: number) => api.delete(`/user/${id}`),
+  list:        (params?: { page?: number; per_page?: number }) => api.get('/user', { params }),
+  get:         (id: number) => api.get(`/user/${id}`),
+  create:      (data: unknown) => api.post('/user', data),
+  update:      (id: number, data: unknown) => api.put(`/user/${id}`, data),
+  delete:      (id: number) => api.delete(`/user/${id}`),
+  setPassword: (id: number, password: string) => api.post(`/user/${id}/set-password`, { password }),
+  roles:       () => api.get('/user/roles'),
 }
 
 // ─── CONFIG ───────────────────────────────────────────────

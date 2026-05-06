@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit } from 'lucide-react'
 import { eventApi, teventApi } from '@/services/api'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { useAuthStore } from '@/stores/authStore'
@@ -234,6 +235,7 @@ export default function EventDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
+  const descRef = useAutoResize(descDraft)
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['event', eventId],
@@ -318,10 +320,10 @@ export default function EventDetailPage() {
         <div className="flex items-center gap-2 shrink-0">
           {isEditeur() && (
             <button
-              onClick={() => setShowEditModal(true)}
+              onClick={() => navigate(`/event/${eventId}/edit`)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <Pencil size={13} />
+              <Edit size={14} />
               Modifier
             </button>
           )}
@@ -388,8 +390,8 @@ export default function EventDetailPage() {
           {editingDesc ? (
             <div className="space-y-2">
               <textarea
-                rows={10}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-y"
+                ref={descRef}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-none min-h-[160px]"
                 placeholder="Description en Markdown (Mermaid et syntaxe Obsidian supportés)…"
                 value={descDraft}
                 onChange={(e) => setDescDraft(e.target.value)}
@@ -414,9 +416,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           ) : event.obj.description ? (
-            <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
-              <MarkdownContent>{event.obj.description}</MarkdownContent>
-            </div>
+            <MarkdownContent>{event.obj.description}</MarkdownContent>
           ) : (
             <button
               onClick={() => { setDescDraft(''); setEditingDesc(true) }}

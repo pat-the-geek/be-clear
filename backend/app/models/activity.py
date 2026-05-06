@@ -212,10 +212,15 @@ class Eng(Base, AuditMixin):
     accomplissement: Mapped[Optional[float]] = mapped_column(Numeric(5, 2))  # 0.00 → 100.00
     gantt_mermaid: Mapped[Optional[str]] = mapped_column(Text)               # diagramme généré
 
+    org_principale_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("org.id", ondelete="SET NULL"), nullable=True)
+    env_principale_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("env.id", ondelete="SET NULL"), nullable=True)
+
     obj: Mapped["Obj"] = relationship("Obj")
     teng: Mapped["Teng"] = relationship("Teng", back_populates="engs")
     orgs: Mapped[list["Org"]] = relationship("Org", secondary=eng_org, back_populates="engs")
     envs: Mapped[list["Env"]] = relationship("Env", secondary=eng_env, back_populates="engs")
+    org_principale: Mapped[Optional["Org"]] = relationship("Org", foreign_keys=[org_principale_id])
+    env_principale: Mapped[Optional["Env"]] = relationship("Env", foreign_keys=[env_principale_id])
     events: Mapped[list["Event"]] = relationship(
         "Event", back_populates="eng",
         cascade="all, delete-orphan",

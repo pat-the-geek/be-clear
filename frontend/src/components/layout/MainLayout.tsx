@@ -1,6 +1,6 @@
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Building2, Globe,
+  LayoutDashboard, Building2, Globe, Handshake,
   Search, Bot, Settings, LogOut,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/panel',  label: 'Mon panel',     icon: LayoutDashboard },
   { to: '/org',    label: 'Organisations', icon: Building2 },
   { to: '/env',    label: 'Environnements',icon: Globe },
+  { to: '/eng',    label: 'Engagements',   icon: Handshake },
   { to: '/search', label: 'Recherche',     icon: Search },
   { to: '/rag',    label: 'Terminal IA',   icon: Bot },
 ]

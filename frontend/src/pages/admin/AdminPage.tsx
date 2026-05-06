@@ -4,23 +4,29 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Edit, ChevronRight, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, api } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import type { Cla, Torg, Tenv, Teng, Tevent } from '@/types'
+import type { Cla, ClaDetail, Prop, PropType, Torg, Tenv, Teng, Tevent } from '@/types'
 import { Modal } from '@/components/shared/Modal'
 
 // ─── Types locaux ────────────────────────────────────────────
 
+interface RoleItem {
+  id: number
+  valeur: string
+}
+
 interface UserItem {
   id: number
-  obj: { nom: string }
-  role?: string
-  org_id?: number
+  nom: string
+  role?: RoleItem | null
+  org_id?: number | null
   est_actif: boolean
-  tuser: { valeur: string }
+  tuser: { id: number; valeur: string }
+  auth_uid?: string | null
 }
 
 interface LogEntry {
@@ -181,11 +187,274 @@ function ModalCla({ open, onClose, initialData }: ModalClaProps) {
   )
 }
 
+// ─── Types de PROP ───────────────────────────────────────────
+
+const PROP_TYPES: { value: PropType; label: string; color: string }[] = [
+  { value: 'TEXTE',       label: 'Texte',        color: 'bg-gray-100 text-gray-700' },
+  { value: 'MARKDOWN',    label: 'Markdown',     color: 'bg-gray-100 text-gray-700' },
+  { value: 'ENTIER',      label: 'Entier',       color: 'bg-blue-100 text-blue-700' },
+  { value: 'DECIMAL',     label: 'Décimal',      color: 'bg-blue-100 text-blue-700' },
+  { value: 'MONTANT',     label: 'Montant',      color: 'bg-blue-100 text-blue-700' },
+  { value: 'POURCENTAGE', label: 'Pourcentage',  color: 'bg-blue-100 text-blue-700' },
+  { value: 'BOOLEEN',     label: 'Booléen',      color: 'bg-purple-100 text-purple-700' },
+  { value: 'LISTE',       label: 'Liste',        color: 'bg-orange-100 text-orange-700' },
+  { value: 'DATE',        label: 'Date',         color: 'bg-green-100 text-green-700' },
+  { value: 'HEURE',       label: 'Heure',        color: 'bg-green-100 text-green-700' },
+  { value: 'DATETIME',    label: 'Date + heure', color: 'bg-green-100 text-green-700' },
+  { value: 'DUREE',       label: 'Durée',        color: 'bg-green-100 text-green-700' },
+  { value: 'URL',         label: 'URL',          color: 'bg-cyan-100 text-cyan-700' },
+  { value: 'EMAIL',       label: 'Email',        color: 'bg-cyan-100 text-cyan-700' },
+  { value: 'TELEPHONE',   label: 'Téléphone',    color: 'bg-cyan-100 text-cyan-700' },
+  { value: 'REFERENCE',   label: 'Référence',    color: 'bg-rose-100 text-rose-700' },
+  { value: 'COORDONNEES', label: 'Coordonnées',  color: 'bg-rose-100 text-rose-700' },
+]
+
+function PropTypeBadge({ type }: { type: PropType }) {
+  const def = PROP_TYPES.find((t) => t.value === type)
+  return (
+    <span className={`inline-flex px-1.5 py-0.5 text-[11px] font-medium rounded ${def?.color ?? 'bg-gray-100 text-gray-500'}`}>
+      {def?.label ?? type}
+    </span>
+  )
+}
+
+// ─── Modal gestion des PROP d'une CLA ────────────────────────
+
+interface ModalPropsProps {
+  open: boolean
+  onClose: () => void
+  cla: Cla
+}
+
+function ModalProps({ open, onClose, cla }: ModalPropsProps) {
+  const qc = useQueryClient()
+
+  const { data: detail, isLoading } = useQuery<ClaDetail>({
+    queryKey: ['cla', cla.id, 'detail'],
+    queryFn: () => claApi.get(cla.id).then((r) => r.data),
+    enabled: open,
+  })
+
+  // ── Renommer une prop (inline) ────────────────────────────
+  const [renamingId, setRenamingId] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+
+  const { mutate: saveName, isPending: isSavingName } = useMutation({
+    mutationFn: ({ propId, nom }: { propId: number; nom: string }) =>
+      claApi.updateProp(cla.id, propId, { nom }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cla'] })
+      setRenamingId(null)
+    },
+  })
+
+  function startRename(prop: Prop) {
+    setRenamingId(prop.id)
+    setRenameValue(prop.nom)
+  }
+
+  function commitRename(propId: number) {
+    if (!renameValue.trim()) return
+    saveName({ propId, nom: renameValue.trim() })
+  }
+
+  // ── Supprimer une prop ────────────────────────────────────
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { mutate: deleteProp, isPending: isDeletingProp } = useMutation({
+    mutationFn: (propId: number) => claApi.deleteProp(cla.id, propId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cla'] })
+      setDeletingId(null)
+    },
+  })
+
+  // ── Ajouter une prop ──────────────────────────────────────
+  const [newNom, setNewNom] = useState('')
+  const [newType, setNewType] = useState<PropType>('TEXTE')
+  const [newValeursListe, setNewValeursListe] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+
+  const { mutate: addProp, isPending: isAdding } = useMutation({
+    mutationFn: () => {
+      const valeurs_liste = newType === 'LISTE'
+        ? newValeursListe.split(',').map((v) => v.trim()).filter(Boolean)
+        : undefined
+      return claApi.addProp(cla.id, { nom: newNom.trim(), type: newType, valeurs_liste })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cla'] })
+      setNewNom('')
+      setNewType('TEXTE')
+      setNewValeursListe('')
+      setAddError(null)
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setAddError(detail ?? 'Erreur lors de la création.')
+    },
+  })
+
+  function handleAddProp(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newNom.trim()) return
+    addProp()
+  }
+
+  const ownProps = detail?.props ?? cla.props
+  const inheritedProps = detail?.props_heritees ?? []
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Propriétés — ${cla.nom}`}>
+      <div className="space-y-5 min-w-[480px]">
+
+        {/* ── Props propres ─────────────────────────────── */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+            Propres ({ownProps.length})
+          </h3>
+          {isLoading && (
+            <div className="flex items-center gap-2 py-4 text-gray-400 text-sm">
+              <Loader2 size={14} className="animate-spin" /> Chargement…
+            </div>
+          )}
+          {!isLoading && ownProps.length === 0 && (
+            <p className="text-sm text-gray-400 py-2">Aucune propriété propre.</p>
+          )}
+          {!isLoading && ownProps.length > 0 && (
+            <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+              {ownProps.map((prop) => (
+                <div key={prop.id} className="flex items-center gap-2 px-3 py-2">
+                  <PropTypeBadge type={prop.type} />
+                  {renamingId === prop.id ? (
+                    <input
+                      autoFocus
+                      className="flex-1 text-sm border border-blue-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename(prop.id)
+                        if (e.key === 'Escape') setRenamingId(null)
+                      }}
+                      onBlur={() => commitRename(prop.id)}
+                    />
+                  ) : (
+                    <span className="flex-1 text-sm text-gray-900">{prop.nom}</span>
+                  )}
+                  {renamingId === prop.id ? (
+                    <button onClick={() => setRenamingId(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                      <X size={13} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => startRename(prop)}
+                      disabled={isSavingName}
+                      className="text-gray-400 hover:text-gray-700 transition-colors"
+                      title="Renommer"
+                    >
+                      <Edit size={13} />
+                    </button>
+                  )}
+                  {deletingId === prop.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-red-600">Supprimer ?</span>
+                      <button
+                        onClick={() => deleteProp(prop.id)}
+                        disabled={isDeletingProp}
+                        className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
+                      >
+                        {isDeletingProp ? <Loader2 size={12} className="animate-spin" /> : 'Oui'}
+                      </button>
+                      <button onClick={() => setDeletingId(null)} className="text-xs text-gray-500 hover:text-gray-700">Non</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeletingId(prop.id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Ajouter une prop ──────────────────────────── */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+            Ajouter une propriété
+          </h3>
+          <form onSubmit={handleAddProp} className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nom de la propriété"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={newNom}
+                onChange={(e) => setNewNom(e.target.value)}
+                required
+              />
+              <select
+                className="px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                value={newType}
+                onChange={(e) => setNewType(e.target.value as PropType)}
+              >
+                {PROP_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            {newType === 'LISTE' && (
+              <input
+                type="text"
+                placeholder="Valeurs séparées par des virgules : val1, val2, val3"
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={newValeursListe}
+                onChange={(e) => setNewValeursListe(e.target.value)}
+              />
+            )}
+            {addError && <p className="text-xs text-red-600">{addError}</p>}
+            <button
+              type="submit"
+              disabled={isAdding || !newNom.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {isAdding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              Ajouter
+            </button>
+          </form>
+        </div>
+
+        {/* ── Props héritées ────────────────────────────── */}
+        {inheritedProps.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+              Héritées ({inheritedProps.length})
+            </h3>
+            <div className="bg-gray-50 rounded-lg border border-gray-100 divide-y divide-gray-100">
+              {inheritedProps.map((prop) => (
+                <div key={prop.id} className="flex items-center gap-2 px-3 py-2 opacity-70">
+                  <PropTypeBadge type={prop.type} />
+                  <span className="flex-1 text-sm text-gray-600">{prop.nom}</span>
+                  <span className="text-[11px] text-gray-400 italic">héritée</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Onglet Classes ──────────────────────────────────────────
 
 function TabClasses() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Cla | null>(null)
+  const [propsTarget, setPropsTarget] = useState<Cla | null>(null)
 
   const { data: classes, isLoading, isError } = useQuery<Cla[]>({
     queryKey: ['cla', 'list'],
@@ -201,7 +470,6 @@ function TabClasses() {
   if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
   if (isError) return <div className="text-red-500 py-8 text-center">Erreur de chargement.</div>
 
-  // Build id→nom map for display
   const claMap = Object.fromEntries((classes ?? []).map((c) => [c.id, c.nom]))
 
   return (
@@ -233,13 +501,22 @@ function TabClasses() {
                 <td className="px-4 py-2.5 text-gray-500">
                   {cla.super_classe_id ? (claMap[cla.super_classe_id] ?? `#${cla.super_classe_id}`) : '—'}
                 </td>
-                <td className="px-4 py-2.5 text-gray-500">{cla.props.length}</td>
+                <td className="px-4 py-2.5">
+                  <button
+                    onClick={() => setPropsTarget(cla)}
+                    className="flex items-center gap-1.5 text-gray-500 hover:text-blue-600 transition-colors text-xs"
+                    title="Gérer les propriétés"
+                  >
+                    <List size={13} />
+                    {cla.props.length} prop{cla.props.length !== 1 ? 's' : ''}
+                  </button>
+                </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={() => setEditTarget(cla)}
                       className="text-gray-400 hover:text-gray-700 transition-colors"
-                      title="Modifier"
+                      title="Modifier la classe"
                     >
                       <Edit size={14} />
                     </button>
@@ -262,6 +539,9 @@ function TabClasses() {
 
       <ModalCla open={createOpen} onClose={() => setCreateOpen(false)} />
       <ModalCla open={editTarget !== null} onClose={() => setEditTarget(null)} initialData={editTarget ?? undefined} />
+      {propsTarget && (
+        <ModalProps open={propsTarget !== null} onClose={() => setPropsTarget(null)} cla={propsTarget} />
+      )}
     </div>
   )
 }
@@ -272,8 +552,10 @@ const userSchema = z.object({
   nom: z.string().min(1, 'Le nom est requis'),
   auth_uid: z.string().min(1, 'Le login technique est requis'),
   tuser_id: z.string().min(1, 'Le type est requis'),
-  role: z.string().optional(),
+  role_id: z.string().optional(),
   org_id: z.string().optional(),
+  cla_id: z.string().optional(),
+  password: z.string().optional(),
 })
 type UserFormValues = z.infer<typeof userSchema>
 
@@ -292,19 +574,29 @@ function ModalUser({ open, onClose, initialData }: ModalUserProps) {
     enabled: open,
   })
 
+  const { data: roles } = useQuery<RoleItem[]>({
+    queryKey: ['user', 'roles'],
+    queryFn: () => userApi.roles().then((r) => r.data),
+    enabled: open,
+  })
+
+  const { data: classes } = useClaList()
+
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
-    defaultValues: { nom: '', auth_uid: '', tuser_id: '', role: '', org_id: '' },
+    defaultValues: { nom: '', auth_uid: '', tuser_id: '', role_id: '', org_id: '', cla_id: '', password: '' },
   })
 
   useEffect(() => {
     if (open) {
       reset({
-        nom: initialData?.obj.nom ?? '',
-        auth_uid: '',
-        tuser_id: initialData?.tuser ? String((initialData.tuser as unknown as TuserItem).id ?? '') : '',
-        role: initialData?.role ?? '',
+        nom: initialData?.nom ?? '',
+        auth_uid: initialData?.auth_uid ?? '',
+        tuser_id: initialData?.tuser ? String(initialData.tuser.id) : '',
+        role_id: initialData?.role ? String(initialData.role.id) : '',
         org_id: initialData?.org_id != null ? String(initialData.org_id) : '',
+        cla_id: '',
+        password: '',
       })
     }
   }, [open, initialData, reset])
@@ -315,8 +607,12 @@ function ModalUser({ open, onClose, initialData }: ModalUserProps) {
         nom: values.nom,
         auth_uid: values.auth_uid,
         tuser_id: Number(values.tuser_id),
-        role: values.role || undefined,
+        role_id: values.role_id ? Number(values.role_id) : undefined,
         org_id: values.org_id ? Number(values.org_id) : undefined,
+      }
+      if (!initialData) {
+        payload.cla_id = values.cla_id ? Number(values.cla_id) : undefined
+        if (values.password) payload.password = values.password
       }
       return initialData
         ? userApi.update(initialData.id, payload)
@@ -345,32 +641,125 @@ function ModalUser({ open, onClose, initialData }: ModalUserProps) {
             ))}
           </select>
         </FormField>
-        <FormField label="Rôle" error={errors.role?.message}>
-          <select {...register('role')} className={selectClass}>
+        <FormField label="Rôle" error={errors.role_id?.message}>
+          <select {...register('role_id')} className={selectClass}>
             <option value="">— Aucun (non-humain) —</option>
-            <option value="ADMIN">ADMIN</option>
-            <option value="EDITEUR">EDITEUR</option>
-            <option value="LECTEUR">LECTEUR</option>
+            {roles?.map((r) => (
+              <option key={r.id} value={r.id}>{r.valeur}</option>
+            ))}
           </select>
         </FormField>
         <FormField label="Organisation (ID)" error={errors.org_id?.message}>
           <input {...register('org_id')} type="number" className={inputClass} placeholder="optionnel" />
         </FormField>
+        {!initialData && (
+          <FormField label="Classe (OBJ) *" error={errors.cla_id?.message} hint="Classe utilisée pour l'identité de cet utilisateur">
+            <select {...register('cla_id')} className={selectClass}>
+              <option value="">— Sélectionner —</option>
+              {classes?.map((c) => (
+                <option key={c.id} value={c.id}>{c.nom}</option>
+              ))}
+            </select>
+          </FormField>
+        )}
+        {!initialData && (
+          <FormField label="Mot de passe initial" error={errors.password?.message} hint="Optionnel — peut être défini ou modifié plus tard">
+            <input {...register('password')} type="password" className={inputClass} autoComplete="new-password" />
+          </FormField>
+        )}
         <SubmitRow pending={isPending || isSubmitting} onCancel={onClose} />
       </form>
     </Modal>
   )
 }
 
+// ─── Modal Réinitialisation mot de passe ─────────────────────
+
+interface ModalResetPasswordProps {
+  open: boolean
+  onClose: () => void
+  userId: number
+  userName: string
+}
+
+function ModalResetPassword({ open, onClose, userId, userName }: ModalResetPasswordProps) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [validationError, setValidationError] = useState('')
+
+  const { mutate, isPending, isError, reset: resetMutation } = useMutation({
+    mutationFn: () => userApi.setPassword(userId, password),
+    onSuccess: () => {
+      onClose()
+      setPassword('')
+      setConfirm('')
+      setValidationError('')
+    },
+  })
+
+  function handleClose() {
+    onClose()
+    setPassword('')
+    setConfirm('')
+    setValidationError('')
+    resetMutation()
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (password.length < 6) {
+      setValidationError('Le mot de passe doit contenir au moins 6 caractères.')
+      return
+    }
+    if (password !== confirm) {
+      setValidationError('Les mots de passe ne correspondent pas.')
+      return
+    }
+    setValidationError('')
+    mutate()
+  }
+
+  return (
+    <Modal open={open} onClose={handleClose} title={`Réinitialiser le mot de passe — ${userName}`}>
+      <form onSubmit={handleSubmit} className="space-y-4 min-w-[320px]">
+        <FormField label="Nouveau mot de passe *">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={inputClass}
+            autoComplete="new-password"
+            autoFocus
+          />
+        </FormField>
+        <FormField label="Confirmer le mot de passe *">
+          <input
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            className={inputClass}
+            autoComplete="new-password"
+          />
+        </FormField>
+        {validationError && <p className="text-xs text-red-500">{validationError}</p>}
+        {isError && <p className="text-xs text-red-500">Erreur lors de la mise à jour du mot de passe.</p>}
+        <SubmitRow pending={isPending} label="Enregistrer" onCancel={handleClose} />
+      </form>
+    </Modal>
+  )
+}
+
+
 // ─── Onglet Utilisateurs ─────────────────────────────────────
 
 function TabUsers() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<UserItem | null>(null)
+  const [resetPwdTarget, setResetPwdTarget] = useState<UserItem | null>(null)
 
   const { data: users, isLoading, isError } = useQuery<UserItem[]>({
     queryKey: ['user', 'list'],
-    queryFn: () => userApi.list().then((r) => r.data),
+    queryFn: () => userApi.list().then((r) => (r.data as { items: UserItem[] }).items),
   })
 
   if (isLoading) return <div className="text-gray-400 py-8 text-center">Chargement…</div>
@@ -402,21 +791,21 @@ function TabUsers() {
           <tbody>
             {users?.map((user) => (
               <tr key={user.id} className="border-t border-gray-100">
-                <td className="px-4 py-2.5 font-medium text-gray-900">{user.obj.nom}</td>
+                <td className="px-4 py-2.5 font-medium text-gray-900">{user.nom}</td>
                 <td className="px-4 py-2.5 text-gray-500">{user.tuser.valeur}</td>
                 <td className="px-4 py-2.5">
                   {user.role ? (
                     <span
                       className={cn(
                         'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
-                        user.role === 'ADMIN'
+                        user.role.valeur === 'ADMIN'
                           ? 'bg-red-100 text-red-700'
-                          : user.role === 'EDITEUR'
+                          : user.role.valeur === 'EDITEUR'
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-gray-100 text-gray-600',
                       )}
                     >
-                      {user.role}
+                      {user.role.valeur}
                     </span>
                   ) : (
                     <span className="text-gray-400 text-xs">—</span>
@@ -435,6 +824,13 @@ function TabUsers() {
                 <td className="px-4 py-2.5">
                   <div className="flex items-center justify-end gap-2">
                     <button
+                      onClick={() => setResetPwdTarget(user)}
+                      className="text-gray-400 hover:text-amber-600 transition-colors"
+                      title="Réinitialiser le mot de passe"
+                    >
+                      <KeyRound size={14} />
+                    </button>
+                    <button
                       onClick={() => setEditTarget(user)}
                       className="text-gray-400 hover:text-gray-700 transition-colors"
                       title="Modifier"
@@ -451,6 +847,14 @@ function TabUsers() {
 
       <ModalUser open={createOpen} onClose={() => setCreateOpen(false)} />
       <ModalUser open={editTarget !== null} onClose={() => setEditTarget(null)} initialData={editTarget ?? undefined} />
+      {resetPwdTarget && (
+        <ModalResetPassword
+          open={resetPwdTarget !== null}
+          onClose={() => setResetPwdTarget(null)}
+          userId={resetPwdTarget.id}
+          userName={resetPwdTarget.nom}
+        />
+      )}
     </div>
   )
 }

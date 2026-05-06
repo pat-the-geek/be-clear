@@ -47,6 +47,8 @@ class EngOut(BaseModel):
     orgs: list[OrgRef] = []
     envs: list[EnvRef] = []
     events: list[EventBrief] = []
+    org_principale: Optional[OrgRef] = None
+    env_principale: Optional[EnvRef] = None
     date_debut: Optional[str] = None
     date_debut_prevue: Optional[str] = None
     date_fin: Optional[str] = None
@@ -63,6 +65,8 @@ class EngBrief(BaseModel):
     teng: TengRef
     accomplissement: Optional[float] = None
     nb_events: int = 0
+    org_principale_nom: Optional[str] = None
+    env_principale_nom: Optional[str] = None
     date_debut: Optional[str] = None
     date_debut_prevue: Optional[str] = None
     date_fin: Optional[str] = None
@@ -81,6 +85,8 @@ class EngCreate(BaseModel):
     cla_id: int
     org_ids: list[int] = []
     env_ids: list[int] = []
+    org_principale_id: Optional[int] = None
+    env_principale_id: Optional[int] = None
     date_debut: Optional[str] = None
     date_debut_prevue: Optional[str] = None
     date_fin: Optional[str] = None
@@ -94,6 +100,8 @@ class EngUpdate(BaseModel):
     description: Optional[str] = None
     org_ids: Optional[list[int]] = None
     env_ids: Optional[list[int]] = None
+    org_principale_id: Optional[int] = None
+    env_principale_id: Optional[int] = None
     date_debut: Optional[str] = None
     date_debut_prevue: Optional[str] = None
     date_fin: Optional[str] = None

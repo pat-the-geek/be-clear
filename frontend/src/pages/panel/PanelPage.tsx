@@ -1,12 +1,35 @@
 import { useState, useMemo } from 'react'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Clock, ExternalLink, AlertTriangle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { usePanel } from '@/hooks/usePanel'
 import ObjCard from '@/components/shared/ObjCard'
+import { eventApi } from '@/services/api'
+import { formatDateTime } from '@/lib/utils'
+
+interface UpcomingEvent {
+  id: number
+  nom: string
+  eng_id: number
+  eng_nom: string
+  tevent_nom: string
+  date_heure_prevue: string
+}
 
 export default function PanelPage() {
   const user = useAuthStore((s) => s.user)
   const { data, isLoading, isError } = usePanel()
+
+  const { data: upcoming } = useQuery<UpcomingEvent[]>({
+    queryKey: ['events', 'upcoming'],
+    queryFn: () => eventApi.upcoming(10).then((r) => r.data),
+  })
+
+  const { data: overdue } = useQuery<UpcomingEvent[]>({
+    queryKey: ['events', 'overdue'],
+    queryFn: () => eventApi.overdue(20).then((r) => r.data),
+  })
 
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
@@ -51,6 +74,78 @@ export default function PanelPage() {
           Vos éléments créés — {totalItems} au total
         </p>
       </div>
+
+      {/* Événements en retard */}
+      {overdue && overdue.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold text-red-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <AlertTriangle size={14} />
+            Événements en retard ({overdue.length})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {overdue.map((ev) => (
+              <Link
+                key={ev.id}
+                to={`/event/${ev.id}`}
+                className="flex items-start gap-3 p-3 bg-white border border-red-200 rounded-xl hover:border-red-400 hover:bg-red-50 transition-colors group"
+              >
+                <div className="mt-2 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-red-700">
+                    {ev.nom}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{ev.eng_nom}</p>
+                  <p className="text-xs text-red-400 mt-0.5">
+                    {formatDateTime(ev.date_heure_prevue)}
+                    {ev.tevent_nom && (
+                      <span className="ml-1.5 px-1 py-0.5 bg-red-50 rounded text-[10px] text-red-400">
+                        {ev.tevent_nom}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <ExternalLink size={11} className="text-gray-300 group-hover:text-red-400 shrink-0 mt-1" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Prochains événements */}
+      {upcoming && upcoming.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Clock size={14} />
+            Prochains événements ({upcoming.length})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {upcoming.map((ev) => (
+              <Link
+                key={ev.id}
+                to={`/event/${ev.id}`}
+                className="flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-violet-300 hover:bg-violet-50 transition-colors group"
+              >
+                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0 mt-2" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-violet-700">
+                    {ev.nom}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{ev.eng_nom}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatDateTime(ev.date_heure_prevue)}
+                    {ev.tevent_nom && (
+                      <span className="ml-1.5 px-1 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
+                        {ev.tevent_nom}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <ExternalLink size={11} className="text-gray-300 group-hover:text-violet-400 shrink-0 mt-1" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Filtre par période */}
       {data && (

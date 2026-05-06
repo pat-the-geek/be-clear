@@ -8,6 +8,7 @@
  *  • Toutes les propriétés (values via ValueField)
  */
 import { useState, useEffect } from 'react'
+import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
@@ -71,6 +72,7 @@ export default function EnvEditPage() {
   const [nom, setNom] = useState('')
   const [tenvId, setTenvId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
+  const descRef = useAutoResize(description)
   const [drafts, setDrafts] = useState<Map<number, ValueDraft>>(new Map())
 
   useEffect(() => {
@@ -214,8 +216,8 @@ export default function EnvEditPage() {
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Description</h2>
           <textarea
-            rows={5}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono resize-y"
+            ref={descRef}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono resize-none min-h-[120px]"
             placeholder="Description en Markdown…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}

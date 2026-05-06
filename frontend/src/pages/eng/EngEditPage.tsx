@@ -11,9 +11,10 @@
  *  • Images
  */
 import { useState, useEffect } from 'react'
+import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Star } from 'lucide-react'
 import { engApi, tengApi, orgApi, envApi } from '@/services/api'
 import type { Eng, Teng, OrgBrief, EnvBrief } from '@/types'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
@@ -81,8 +82,11 @@ export default function EngEditPage() {
   const [nom, setNom] = useState('')
   const [tengId, setTengId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
+  const descRef = useAutoResize(description)
   const [selectedOrgIds, setSelectedOrgIds] = useState<Set<number>>(new Set())
   const [selectedEnvIds, setSelectedEnvIds] = useState<Set<number>>(new Set())
+  const [orgPrincipaleId, setOrgPrincipaleId] = useState<number | null>(null)
+  const [envPrincipaleId, setEnvPrincipaleId] = useState<number | null>(null)
   const [dateDebut, setDateDebut] = useState('')
   const [dateDebutPrevue, setDateDebutPrevue] = useState('')
   const [dateFin, setDateFin] = useState('')
@@ -95,6 +99,8 @@ export default function EngEditPage() {
     setDescription(eng.obj.description ?? '')
     setSelectedOrgIds(new Set(eng.orgs.map((o) => o.id)))
     setSelectedEnvIds(new Set(eng.envs.map((e) => e.id)))
+    setOrgPrincipaleId(eng.org_principale?.id ?? null)
+    setEnvPrincipaleId(eng.env_principale?.id ?? null)
     setDateDebut(isoToDateInput(eng.date_debut))
     setDateDebutPrevue(isoToDateInput(eng.date_debut_prevue))
     setDateFin(isoToDateInput(eng.date_fin))
@@ -114,6 +120,8 @@ export default function EngEditPage() {
         description: description || undefined,
         org_ids: [...selectedOrgIds],
         env_ids: [...selectedEnvIds],
+        org_principale_id: orgPrincipaleId,
+        env_principale_id: envPrincipaleId,
         date_debut: dateInputToIso(dateDebut),
         date_debut_prevue: dateInputToIso(dateDebutPrevue),
         date_fin: dateInputToIso(dateFin),
@@ -132,7 +140,12 @@ export default function EngEditPage() {
   const toggleOrg = (id: number) => {
     setSelectedOrgIds((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        if (orgPrincipaleId === id) setOrgPrincipaleId(null)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -140,7 +153,12 @@ export default function EngEditPage() {
   const toggleEnv = (id: number) => {
     setSelectedEnvIds((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        if (envPrincipaleId === id) setEnvPrincipaleId(null)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -236,8 +254,8 @@ export default function EngEditPage() {
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Description</h2>
           <textarea
-            rows={5}
-            className={`${inputClass} font-mono resize-y`}
+            ref={descRef}
+            className={`${inputClass} font-mono resize-none min-h-[120px]`}
             placeholder="Description en Markdown…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -249,27 +267,59 @@ export default function EngEditPage() {
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Organisations</h2>
-            <span className="text-xs text-gray-400">{selectedOrgIds.size} sélectionnée(s)</span>
-          </div>
-          {orgList && orgList.length > 0 ? (
-            <div className="grid grid-cols-2 gap-1 max-h-44 overflow-y-auto">
-              {orgList.map((org) => (
-                <label
-                  key={org.id}
-                  className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-gray-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedOrgIds.has(org.id)}
-                    onChange={() => toggleOrg(org.id)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700 truncate">{org.nom}</span>
-                </label>
-              ))}
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              {selectedOrgIds.size > 0 && <span>{selectedOrgIds.size} sélectionnée(s)</span>}
+              {orgPrincipaleId && orgList && (
+                <span className="text-amber-600 font-medium">
+                  ★ {orgList.find((o) => o.id === orgPrincipaleId)?.nom}
+                </span>
+              )}
             </div>
-          ) : (
+          </div>
+          {!orgList ? (
+            <p className="text-sm text-gray-400">Chargement…</p>
+          ) : orgList.length === 0 ? (
             <p className="text-sm text-gray-400">Aucune organisation disponible</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5 max-h-48 overflow-y-auto">
+              {orgList.map((org) => {
+                const checked = selectedOrgIds.has(org.id)
+                const isPrincipale = orgPrincipaleId === org.id
+                return (
+                  <div
+                    key={org.id}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                  >
+                    <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleOrg(org.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                      />
+                      <span className={`text-sm truncate ${checked ? 'text-blue-800 font-medium' : 'text-gray-700'}`}>
+                        {org.nom}
+                      </span>
+                    </label>
+                    {checked && (
+                      <button
+                        type="button"
+                        onClick={() => setOrgPrincipaleId(isPrincipale ? null : org.id)}
+                        title={isPrincipale ? 'Retirer comme principale' : 'Définir comme principale'}
+                        className={`shrink-0 transition-colors ${isPrincipale ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}
+                      >
+                        <Star size={13} fill={isPrincipale ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {selectedOrgIds.size > 0 && (
+            <p className="text-[11px] text-gray-400">
+              Cliquez sur ★ pour désigner l'ORG principale.
+            </p>
           )}
         </section>
 
@@ -277,27 +327,59 @@ export default function EngEditPage() {
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Environnements</h2>
-            <span className="text-xs text-gray-400">{selectedEnvIds.size} sélectionné(s)</span>
-          </div>
-          {envList && envList.length > 0 ? (
-            <div className="grid grid-cols-2 gap-1 max-h-44 overflow-y-auto">
-              {envList.map((env) => (
-                <label
-                  key={env.id}
-                  className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-gray-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedEnvIds.has(env.id)}
-                    onChange={() => toggleEnv(env.id)}
-                    className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                  />
-                  <span className="text-sm text-gray-700 truncate">{env.nom}</span>
-                </label>
-              ))}
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              {selectedEnvIds.size > 0 && <span>{selectedEnvIds.size} sélectionné(s)</span>}
+              {envPrincipaleId && envList && (
+                <span className="text-amber-600 font-medium">
+                  ★ {envList.find((e) => e.id === envPrincipaleId)?.nom}
+                </span>
+              )}
             </div>
-          ) : (
+          </div>
+          {!envList ? (
+            <p className="text-sm text-gray-400">Chargement…</p>
+          ) : envList.length === 0 ? (
             <p className="text-sm text-gray-400">Aucun environnement disponible</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5 max-h-48 overflow-y-auto">
+              {envList.map((env) => {
+                const checked = selectedEnvIds.has(env.id)
+                const isPrincipale = envPrincipaleId === env.id
+                return (
+                  <div
+                    key={env.id}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${checked ? 'bg-orange-50' : 'hover:bg-gray-50'}`}
+                  >
+                    <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleEnv(env.id)}
+                        className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 shrink-0"
+                      />
+                      <span className={`text-sm truncate ${checked ? 'text-orange-800 font-medium' : 'text-gray-700'}`}>
+                        {env.nom}
+                      </span>
+                    </label>
+                    {checked && (
+                      <button
+                        type="button"
+                        onClick={() => setEnvPrincipaleId(isPrincipale ? null : env.id)}
+                        title={isPrincipale ? 'Retirer comme principal' : 'Définir comme principal'}
+                        className={`shrink-0 transition-colors ${isPrincipale ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}
+                      >
+                        <Star size={13} fill={isPrincipale ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {selectedEnvIds.size > 0 && (
+            <p className="text-[11px] text-gray-400">
+              Cliquez sur ★ pour désigner l'ENV principal.
+            </p>
           )}
         </section>
 

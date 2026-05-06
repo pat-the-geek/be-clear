@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Key, Plus, Trash2, Copy, Check, Eye, EyeOff, CalendarDays, Loader2, AlertCircle } from 'lucide-react'
-import { configApi, orgApi } from '@/services/api'
+import { Key, Plus, Trash2, Copy, Check, Eye, EyeOff, CalendarDays, Loader2, AlertCircle, Lock } from 'lucide-react'
+import { configApi, orgApi, authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
 import type { Org } from '@/types'
@@ -148,6 +148,19 @@ function NewTokenBanner({ token, onDismiss }: { token: string; onDismiss: () => 
   )
 }
 
+// ─── Schéma changement de mot de passe ───────────────────
+
+const changePwdSchema = z.object({
+  current_password: z.string().min(1, 'Requis'),
+  new_password: z.string().min(6, 'Au moins 6 caractères'),
+  confirm_password: z.string().min(1, 'Requis'),
+}).refine((d) => d.new_password === d.confirm_password, {
+  message: 'Les mots de passe ne correspondent pas',
+  path: ['confirm_password'],
+})
+type ChangePwdForm = z.infer<typeof changePwdSchema>
+
+
 // ─── Page principale ──────────────────────────────────────
 
 export default function ProfilePage() {
@@ -156,6 +169,25 @@ export default function ProfilePage() {
 
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newTokenValue, setNewTokenValue] = useState<string | null>(null)
+
+  const [showChangePwd, setShowChangePwd] = useState(false)
+  const [changePwdSuccess, setChangePwdSuccess] = useState(false)
+
+  const pwdForm = useForm<ChangePwdForm>({
+    resolver: zodResolver(changePwdSchema),
+    defaultValues: { current_password: '', new_password: '', confirm_password: '' },
+  })
+
+  const changePwdMutation = useMutation({
+    mutationFn: (data: ChangePwdForm) =>
+      authApi.changePassword(data.current_password, data.new_password),
+    onSuccess: () => {
+      setChangePwdSuccess(true)
+      setShowChangePwd(false)
+      pwdForm.reset()
+      setTimeout(() => setChangePwdSuccess(false), 4000)
+    },
+  })
 
   const { data: tokens, isLoading: loadingTokens } = useQuery({
     queryKey: ['api-tokens'],
@@ -334,6 +366,98 @@ export default function ProfilePage() {
                 Authorization: Bearer &lt;token&gt;
               </code>
             </p>
+          </div>
+        )}
+      </section>
+
+      {/* ─── Changer le mot de passe ────────────────────────── */}
+      <section className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Lock size={16} className="text-gray-400" />
+            <h2 className="text-base font-semibold text-gray-900">Mot de passe</h2>
+          </div>
+          {!showChangePwd && (
+            <button
+              onClick={() => { setShowChangePwd(true); setChangePwdSuccess(false) }}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            >
+              Modifier
+            </button>
+          )}
+        </div>
+
+        {changePwdSuccess && (
+          <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 mb-4">
+            <Check size={14} className="shrink-0" />
+            Mot de passe mis à jour avec succès.
+          </div>
+        )}
+
+        {showChangePwd && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <form onSubmit={pwdForm.handleSubmit((d) => changePwdMutation.mutate(d))} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Mot de passe actuel *</label>
+                <input
+                  {...pwdForm.register('current_password')}
+                  type="password"
+                  className={inputClass}
+                  autoComplete="current-password"
+                  autoFocus
+                />
+                {pwdForm.formState.errors.current_password && (
+                  <p className="mt-1 text-xs text-red-500">{pwdForm.formState.errors.current_password.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nouveau mot de passe *</label>
+                <input
+                  {...pwdForm.register('new_password')}
+                  type="password"
+                  className={inputClass}
+                  autoComplete="new-password"
+                />
+                {pwdForm.formState.errors.new_password && (
+                  <p className="mt-1 text-xs text-red-500">{pwdForm.formState.errors.new_password.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Confirmer le nouveau mot de passe *</label>
+                <input
+                  {...pwdForm.register('confirm_password')}
+                  type="password"
+                  className={inputClass}
+                  autoComplete="new-password"
+                />
+                {pwdForm.formState.errors.confirm_password && (
+                  <p className="mt-1 text-xs text-red-500">{pwdForm.formState.errors.confirm_password.message}</p>
+                )}
+              </div>
+              {changePwdMutation.isError && (
+                <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {(changePwdMutation.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                    ?? 'Erreur lors du changement de mot de passe.'}
+                </p>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowChangePwd(false); pwdForm.reset() }}
+                  className="px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={changePwdMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {changePwdMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+                  Enregistrer
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </section>
