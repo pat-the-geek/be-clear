@@ -154,7 +154,12 @@ function GanttDiagram({ id, code }: GanttDiagramProps) {
     if (!isFullscreen) return
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false) }
     window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      document.body.style.overflow = prev
+    }
   }, [isFullscreen])
 
   return (
