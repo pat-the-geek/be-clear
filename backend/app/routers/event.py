@@ -193,18 +193,47 @@ async def overdue_events(
 
 @router.get("")
 async def list_events(
-    eng_id: int = Query(..., description="Filtre obligatoire — ID de l'ENG"),
+    eng_id: int | None = Query(None, description="Filtre par ENG (optionnel)"),
+    tevent_id: int | None = Query(None, description="Filtre par type TEVENT"),
+    accompli: bool | None = Query(None, description="True = accomplis, False = en attente, None = tous"),
+    date_from: str | None = Query(None, description="Date prévue ≥ (ISO date)"),
+    date_to: str | None = Query(None, description="Date prévue ≤ (ISO date)"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(Event)
-        .options(*_event_options())
-        .where(Event.eng_id == eng_id)
-        .order_by(Event.date_heure_prevue)
-    )
-    events = result.unique().scalars().all()
-    return [_event_to_out(e) for e in events]
+    from datetime import timezone as _tz
+    from sqlalchemy import func
+
+    q = select(Event).options(*_event_options())
+    if eng_id is not None:
+        q = q.where(Event.eng_id == eng_id)
+    if tevent_id is not None:
+        q = q.where(Event.tevent_id == tevent_id)
+    if accompli is True:
+        q = q.where(Event.date_heure_reelle.is_not(None))
+    elif accompli is False:
+        q = q.where(Event.date_heure_reelle.is_(None))
+    if date_from:
+        dt_from = datetime.fromisoformat(date_from).replace(tzinfo=_tz.utc)
+        q = q.where(Event.date_heure_prevue >= dt_from)
+    if date_to:
+        dt_to = datetime.fromisoformat(date_to).replace(tzinfo=_tz.utc)
+        q = q.where(Event.date_heure_prevue <= dt_to)
+
+    total_result = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = total_result.scalar_one()
+
+    q = q.order_by(Event.date_heure_prevue).offset((page - 1) * per_page).limit(per_page)
+    events = (await db.execute(q)).unique().scalars().all()
+
+    return {
+        "items": [_event_to_out(e) for e in events],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 
 # ─── GET /event/{id} ─────────────────────────────────────────

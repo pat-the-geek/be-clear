@@ -1,6 +1,6 @@
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Building2, Globe, Handshake,
+  LayoutDashboard, Building2, Globe, Handshake, CalendarClock,
   Search, Bot, Settings, LogOut,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/org',    label: 'Organisations', icon: Building2 },
   { to: '/env',    label: 'Environnements',icon: Globe },
   { to: '/eng',    label: 'Engagements',   icon: Handshake },
+  { to: '/events', label: 'Événements',    icon: CalendarClock },
   { to: '/search', label: 'Recherche',     icon: Search },
   { to: '/rag',    label: 'Terminal IA',   icon: Bot },
 ]

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { CalendarDays, Clock, ExternalLink, AlertTriangle } from 'lucide-react'
+import { CalendarDays, Clock, ExternalLink, AlertTriangle, TrendingUp, CheckCircle2, BarChart3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -63,6 +63,20 @@ export default function PanelPage() {
   const totalItems =
     (data?.orgs.length ?? 0) + (data?.envs.length ?? 0) + (data?.engs.length ?? 0)
 
+  // ── KPIs calculés depuis les données du panel ──────────────
+  const kpis = useMemo(() => {
+    if (!data) return null
+    const engs = data.engs
+    const total = engs.length
+    const termines = engs.filter((e) => (e.accomplissement ?? 0) >= 100).length
+    const enCours = engs.filter((e) => (e.accomplissement ?? 0) > 0 && (e.accomplissement ?? 0) < 100).length
+    const nonDemarres = total - termines - enCours
+    const avgPct = total > 0
+      ? Math.round(engs.reduce((sum, e) => sum + (e.accomplissement ?? 0), 0) / total)
+      : 0
+    return { total, termines, enCours, nonDemarres, avgPct }
+  }, [data])
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* En-tête */}
@@ -74,6 +88,59 @@ export default function PanelPage() {
           Vos éléments créés — {totalItems} au total
         </p>
       </div>
+
+      {/* KPIs */}
+      {kpis && kpis.total > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <BarChart3 size={14} className="text-gray-400" />
+              <span className="text-xs text-gray-500 font-medium">Engagements</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{kpis.total}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 size={14} className="text-green-500" />
+              <span className="text-xs text-gray-500 font-medium">Terminés</span>
+            </div>
+            <p className="text-2xl font-bold text-green-700">{kpis.termines}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock size={14} className="text-amber-500" />
+              <span className="text-xs text-gray-500 font-medium">En cours</span>
+            </div>
+            <p className="text-2xl font-bold text-amber-700">{kpis.enCours}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp size={14} className="text-blue-500" />
+              <span className="text-xs text-gray-500 font-medium">Avancement moy.</span>
+            </div>
+            <div className="flex items-end gap-1">
+              <p className="text-2xl font-bold text-blue-700">{kpis.avgPct}</p>
+              <span className="text-sm text-blue-500 mb-0.5">%</span>
+            </div>
+            <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-blue-400 transition-all" style={{ width: `${kpis.avgPct}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alertes rapides */}
+      {(overdue?.length ?? 0) > 0 && (
+        <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-red-700">
+            <AlertTriangle size={15} />
+            <span><strong>{overdue!.length}</strong> événement{overdue!.length > 1 ? 's' : ''} en retard</span>
+          </div>
+          <Link to="/events?accompli=false" className="text-xs text-red-600 hover:underline font-medium">
+            Voir tous →
+          </Link>
+        </div>
+      )}
 
       {/* Événements en retard */}
       {overdue && overdue.length > 0 && (

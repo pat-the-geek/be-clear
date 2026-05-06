@@ -31,7 +31,16 @@ function datetimeLocalToIso(val: string): string {
 function parseApiError(error: unknown): string | null {
   const raw = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
   if (!raw) return null
-  if (typeof raw === 'string') return raw
+  if (typeof raw === 'string') {
+    if (raw.startsWith('RF-15')) {
+      const match = raw.match(/date_debut de l'ENG \(([^)]+)\)/)
+      const dateDebut = match?.[1]
+      return dateDebut
+        ? `La date prévue ne peut pas être antérieure au début de l'engagement (${dateDebut}).`
+        : "La date prévue ne peut pas être antérieure à la date de début de l'engagement."
+    }
+    return raw
+  }
   if (Array.isArray(raw)) return (raw as { msg?: string }[]).map((e) => e.msg ?? JSON.stringify(e)).join(' · ')
   return JSON.stringify(raw)
 }

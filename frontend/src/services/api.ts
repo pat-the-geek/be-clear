@@ -72,7 +72,9 @@ export const engApi = {
 
 // ─── EVENT ───────────────────────────────────────────────
 export const eventApi = {
-  list: (engId: number) => api.get('/event', { params: { eng_id: engId } }),
+  list: (params?: { eng_id?: number; tevent_id?: number; accompli?: boolean; date_from?: string; date_to?: string; page?: number; per_page?: number }) =>
+    api.get('/event', { params }),
+  listByEng: (engId: number) => api.get('/event', { params: { eng_id: engId } }),
   get: (id: number) => api.get(`/event/${id}`),
   create: (data: unknown) => api.post('/event', data),
   update: (id: number, data: unknown) => api.put(`/event/${id}`, data),

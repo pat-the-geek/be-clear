@@ -13,7 +13,7 @@ export function useEng(id: number) {
 export function useEvents(engId: number) {
   return useQuery<Event[]>({
     queryKey: ['event', 'list', engId],
-    queryFn: async () => (await eventApi.list(engId)).data,
+    queryFn: async () => (await eventApi.listByEng(engId)).data,
     enabled: !!engId,
   })
 }
