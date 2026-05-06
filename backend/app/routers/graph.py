@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 from pydantic import BaseModel
 from typing import Literal
 
@@ -44,6 +44,46 @@ def _add_edge(edges: list[GraphEdge], src: str, tgt: str) -> None:
         edges.append(GraphEdge(source=src, target=tgt))
 
 
+async def _engs_for_org(org_id: int, db: AsyncSession) -> list[Eng]:
+    res = await db.execute(
+        select(Eng)
+        .join(eng_org, Eng.id == eng_org.c.eng_id)
+        .where(eng_org.c.org_id == org_id)
+        .options(joinedload(Eng.obj))
+    )
+    return res.unique().scalars().all()
+
+
+async def _engs_for_env(env_id: int, db: AsyncSession) -> list[Eng]:
+    res = await db.execute(
+        select(Eng)
+        .join(eng_env, Eng.id == eng_env.c.eng_id)
+        .where(eng_env.c.env_id == env_id)
+        .options(joinedload(Eng.obj))
+    )
+    return res.unique().scalars().all()
+
+
+async def _orgs_for_eng(eng_id: int, db: AsyncSession) -> list[Org]:
+    res = await db.execute(
+        select(Org)
+        .join(eng_org, Org.id == eng_org.c.org_id)
+        .where(eng_org.c.eng_id == eng_id)
+        .options(joinedload(Org.obj))
+    )
+    return res.unique().scalars().all()
+
+
+async def _envs_for_eng(eng_id: int, db: AsyncSession) -> list[Env]:
+    res = await db.execute(
+        select(Env)
+        .join(eng_env, Env.id == eng_env.c.env_id)
+        .where(eng_env.c.eng_id == eng_id)
+        .options(joinedload(Env.obj))
+    )
+    return res.unique().scalars().all()
+
+
 @router.get("/org/{org_id}", response_model=GraphResponse)
 async def graph_org(
     org_id: int,
@@ -58,22 +98,14 @@ async def graph_org(
     if not org:
         raise HTTPException(status_code=404, detail="ORG introuvable")
 
-    eng_res = await db.execute(
-        select(Eng)
-        .join(eng_org, Eng.id == eng_org.c.eng_id)
-        .where(eng_org.c.org_id == org_id)
-        .options(
-            joinedload(Eng.obj),
-            selectinload(Eng.orgs).joinedload(Org.obj),
-            selectinload(Eng.envs).joinedload(Env.obj),
-        )
-    )
-    engs = eng_res.unique().scalars().all()
+    engs = await _engs_for_org(org_id, db)
 
     nodes: dict[str, GraphNode] = {}
     edges: list[GraphEdge] = []
 
-    nodes[f"org-{org.id}"] = GraphNode(id=f"org-{org.id}", type="org", nom=org.obj.nom, entity_id=org.id)
+    nodes[f"org-{org.id}"] = GraphNode(
+        id=f"org-{org.id}", type="org", nom=org.obj.nom, entity_id=org.id
+    )
 
     for eng in engs:
         eid = f"eng-{eng.id}"
@@ -81,14 +113,14 @@ async def graph_org(
             nodes[eid] = GraphNode(id=eid, type="eng", nom=eng.obj.nom, entity_id=eng.id)
         _add_edge(edges, f"org-{org.id}", eid)
 
-        for o in eng.orgs:
+        for o in await _orgs_for_eng(eng.id, db):
             nid = f"org-{o.id}"
             if nid not in nodes:
                 nodes[nid] = GraphNode(id=nid, type="org", nom=o.obj.nom, entity_id=o.id)
             if o.id != org.id:
                 _add_edge(edges, nid, eid)
 
-        for e in eng.envs:
+        for e in await _envs_for_eng(eng.id, db):
             nid = f"env-{e.id}"
             if nid not in nodes:
                 nodes[nid] = GraphNode(id=nid, type="env", nom=e.obj.nom, entity_id=e.id)
@@ -112,22 +144,14 @@ async def graph_env(
     if not env:
         raise HTTPException(status_code=404, detail="ENV introuvable")
 
-    eng_res = await db.execute(
-        select(Eng)
-        .join(eng_env, Eng.id == eng_env.c.eng_id)
-        .where(eng_env.c.env_id == env_id)
-        .options(
-            joinedload(Eng.obj),
-            selectinload(Eng.orgs).joinedload(Org.obj),
-            selectinload(Eng.envs).joinedload(Env.obj),
-        )
-    )
-    engs = eng_res.unique().scalars().all()
+    engs = await _engs_for_env(env_id, db)
 
     nodes: dict[str, GraphNode] = {}
     edges: list[GraphEdge] = []
 
-    nodes[f"env-{env.id}"] = GraphNode(id=f"env-{env.id}", type="env", nom=env.obj.nom, entity_id=env.id)
+    nodes[f"env-{env.id}"] = GraphNode(
+        id=f"env-{env.id}", type="env", nom=env.obj.nom, entity_id=env.id
+    )
 
     for eng in engs:
         eid = f"eng-{eng.id}"
@@ -135,13 +159,13 @@ async def graph_env(
             nodes[eid] = GraphNode(id=eid, type="eng", nom=eng.obj.nom, entity_id=eng.id)
         _add_edge(edges, f"env-{env.id}", eid)
 
-        for o in eng.orgs:
+        for o in await _orgs_for_eng(eng.id, db):
             nid = f"org-{o.id}"
             if nid not in nodes:
                 nodes[nid] = GraphNode(id=nid, type="org", nom=o.obj.nom, entity_id=o.id)
             _add_edge(edges, nid, eid)
 
-        for e in eng.envs:
+        for e in await _envs_for_eng(eng.id, db):
             nid = f"env-{e.id}"
             if nid not in nodes:
                 nodes[nid] = GraphNode(id=nid, type="env", nom=e.obj.nom, entity_id=e.id)

@@ -297,6 +297,16 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
     if (tip.current) tip.current.style.display = 'none'
   }
 
+  const zoomBy = (factor: number) => {
+    if (!cvs.current) return
+    const W = cvs.current.offsetWidth, H = height
+    const cx = W / 2, cy = H / 2
+    const ns = Math.max(0.25, Math.min(4, tf.current.sc * factor))
+    tf.current.x = cx - (cx - tf.current.x) * ns / tf.current.sc
+    tf.current.y = cy - (cy - tf.current.y) * ns / tf.current.sc
+    tf.current.sc = ns
+  }
+
   if (nodes.length === 0) {
     return (
       <div className="w-full rounded-xl flex items-center justify-center text-sm text-gray-500"
@@ -339,10 +349,33 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         ))}
       </div>
 
-      {/* Hint zoom */}
-      <div className="absolute top-3 right-3 text-[10px] pointer-events-none"
-        style={{ color: 'rgba(255,255,255,0.18)' }}>
-        Scroll: zoom · Drag: déplacer · Clic: ouvrir
+      {/* Zoom buttons + hint */}
+      <div className="absolute top-3 right-3 flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => zoomBy(1.25)}
+            style={{
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+              color: 'rgba(255,255,255,0.7)', width: 24, height: 24, borderRadius: 6,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, lineHeight: 1, cursor: 'pointer',
+            }}
+            title="Zoom +"
+          >+</button>
+          <button
+            onClick={() => zoomBy(0.8)}
+            style={{
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+              color: 'rgba(255,255,255,0.7)', width: 24, height: 24, borderRadius: 6,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, lineHeight: 1, cursor: 'pointer',
+            }}
+            title="Zoom −"
+          >−</button>
+        </div>
+        <span className="text-[10px] pointer-events-none" style={{ color: 'rgba(255,255,255,0.18)' }}>
+          Scroll: zoom · Drag: déplacer · Clic: ouvrir
+        </span>
       </div>
     </div>
   )
