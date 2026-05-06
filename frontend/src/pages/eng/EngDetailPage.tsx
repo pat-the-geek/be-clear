@@ -101,6 +101,12 @@ function GanttDiagram({ id, code }: GanttDiagramProps) {
             const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
             style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
             svgEl.appendChild(style)
+            const h = svgEl.getBoundingClientRect().height || parseFloat(svgEl.getAttribute('height') ?? '0')
+            svgEl.style.transform = 'scale(0.5)'
+            svgEl.style.transformOrigin = 'top left'
+            svgEl.style.display = 'block'
+            containerRef.current.style.height = `${h / 2}px`
+            containerRef.current.style.overflow = 'hidden'
           }
         }
       } catch {
