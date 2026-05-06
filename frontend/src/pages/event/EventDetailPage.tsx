@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit, AlertTriangle, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit, AlertTriangle, Trash2, ChevronRight } from 'lucide-react'
 import { eventApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import MarkdownContent from '@/components/shared/MarkdownContent'
@@ -80,6 +80,13 @@ export default function EventDetailPage() {
     queryKey: ['event', eventId],
     queryFn: () => eventApi.get(eventId).then((r) => r.data as AppEvent),
     enabled: !isNaN(eventId),
+  })
+
+  const { data: siblings } = useQuery({
+    queryKey: ['events', 'byEng', event?.eng_id],
+    queryFn: () => eventApi.listByEng(event!.eng_id).then((r) => (r.data.items ?? r.data) as AppEvent[]),
+    enabled: !!event?.eng_id,
+    staleTime: 1000 * 60 * 2,
   })
 
   const { mutate: marquerAccompli, isPending } = useMutation({
@@ -237,6 +244,44 @@ export default function EventDetailPage() {
           </div>
         </div>
       </section>
+
+      {/* ─── Contexte ENG (siblings) ──────────── */}
+      {siblings && siblings.length > 1 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <ChevronRight size={14} />
+            Dans l'engagement ({siblings.length} événements)
+          </h2>
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {siblings.map((sib, idx) => {
+              const isCurrent = sib.id === eventId
+              const isAccompli = !!sib.date_heure_reelle
+              const isLate = !isAccompli && new Date(sib.date_heure_prevue) < new Date()
+              return (
+                <Link
+                  key={sib.id}
+                  to={`/event/${sib.id}`}
+                  className={`flex-shrink-0 flex flex-col gap-1 px-3 py-2 rounded-lg border text-xs transition-colors min-w-[120px] max-w-[160px] ${
+                    isCurrent
+                      ? 'bg-violet-100 border-violet-300 text-violet-800 font-semibold'
+                      : isAccompli
+                      ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                      : isLate
+                      ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-[10px] text-gray-400 font-normal">#{idx + 1}</span>
+                  <span className="truncate font-medium leading-tight">{sib.obj.nom}</span>
+                  <span className="text-[10px] opacity-70 truncate">
+                    {isAccompli ? '✓ Accompli' : isLate ? '⚠ En retard' : formatDateTime(sib.date_heure_prevue).slice(0, 10)}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ─── Durée prévue ─────────────────────── */}
       {dureeValeur !== undefined && (

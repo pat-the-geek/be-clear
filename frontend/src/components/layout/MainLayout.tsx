@@ -1,13 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Globe, Handshake, CalendarClock,
-  Search, Bot, Settings, LogOut, Menu, X, Network,
+  Search, Bot, Settings, LogOut, Menu, X, Network, Bell, AlertTriangle, Clock,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { eventApi } from '@/services/api'
+import { formatDateTime } from '@/lib/utils'
 import iconSvg from '@/assets/icon.svg'
+
+interface EventAlert {
+  id: number; nom: string; eng_nom: string; tevent_nom: string; date_heure_prevue: string
+}
 
 const navItems = [
   { to: '/panel',  label: 'Mon panel',     icon: LayoutDashboard },
@@ -24,13 +29,30 @@ export default function MainLayout() {
   const { user, logout, isAdmin } = useAuthStore()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [bellOpen, setBellOpen] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
 
   const { data: overdueData } = useQuery({
     queryKey: ['events', 'overdue', 'sidebar'],
-    queryFn: () => eventApi.overdue(500).then((r) => r.data as unknown[]),
+    queryFn: () => eventApi.overdue(500).then((r) => r.data as EventAlert[]),
+    staleTime: 1000 * 60 * 2,
+  })
+  const { data: upcomingData } = useQuery({
+    queryKey: ['events', 'upcoming', 'sidebar'],
+    queryFn: () => eventApi.upcoming(5).then((r) => r.data as EventAlert[]),
     staleTime: 1000 * 60 * 2,
   })
   const overdueCount = overdueData?.length ?? 0
+  const totalAlerts = overdueCount + (upcomingData?.length ?? 0)
+
+  useEffect(() => {
+    if (!bellOpen) return
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [bellOpen])
 
   function handleLogout() {
     logout()
@@ -100,6 +122,56 @@ export default function MainLayout() {
 
       {/* Footer utilisateur */}
       <div className="p-3 border-t border-gray-100">
+        {totalAlerts > 0 && (
+          <div ref={bellRef} className="relative mb-2">
+            <button
+              onClick={() => setBellOpen((v) => !v)}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-lg transition-colors ${bellOpen ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            >
+              <Bell size={13} />
+              <span className="flex-1 text-left">{overdueCount > 0 ? `${overdueCount} en retard` : `${totalAlerts} à venir`}</span>
+              {overdueCount > 0 && <span className="w-2 h-2 rounded-full bg-red-500" />}
+            </button>
+            {bellOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden max-h-72 overflow-y-auto">
+                {(overdueData ?? []).length > 0 && (
+                  <div>
+                    <p className="px-3 py-2 text-[10px] font-semibold text-red-500 uppercase tracking-wide bg-red-50 border-b border-red-100">
+                      En retard ({overdueData!.length})
+                    </p>
+                    {overdueData!.slice(0, 5).map((ev) => (
+                      <Link key={ev.id} to={`/event/${ev.id}`} onClick={() => setBellOpen(false)}
+                        className="flex items-start gap-2 px-3 py-2 hover:bg-red-50 transition-colors border-b border-gray-100 last:border-0">
+                        <AlertTriangle size={11} className="text-red-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-900 truncate">{ev.nom}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{ev.eng_nom}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {(upcomingData ?? []).length > 0 && (
+                  <div>
+                    <p className="px-3 py-2 text-[10px] font-semibold text-violet-500 uppercase tracking-wide bg-violet-50 border-b border-violet-100">
+                      À venir ({upcomingData!.length})
+                    </p>
+                    {upcomingData!.slice(0, 5).map((ev) => (
+                      <Link key={ev.id} to={`/event/${ev.id}`} onClick={() => setBellOpen(false)}
+                        className="flex items-start gap-2 px-3 py-2 hover:bg-violet-50 transition-colors border-b border-gray-100 last:border-0">
+                        <Clock size={11} className="text-violet-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-900 truncate">{ev.nom}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{formatDateTime(ev.date_heure_prevue)}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <Link to="/profile" onClick={closeMobile} className="flex items-center gap-2 mb-2 px-1 rounded-lg hover:bg-gray-50 transition-colors py-1">
           <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium shrink-0">
             {user?.obj?.nom?.[0]?.toUpperCase() ?? '?'}
@@ -151,7 +223,18 @@ export default function MainLayout() {
             <Menu size={20} />
           </button>
           <img src={iconSvg} alt="" className="w-6 h-6" />
-          <span className="font-bold text-gray-900">be.CLEAR</span>
+          <span className="font-bold text-gray-900 flex-1">be.CLEAR</span>
+          {totalAlerts > 0 && (
+            <button
+              onClick={() => navigate('/panel')}
+              className="relative p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
+            >
+              <Bell size={18} />
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold bg-red-500 text-white rounded-full px-0.5">
+                {totalAlerts > 99 ? '99+' : totalAlerts}
+              </span>
+            </button>
+          )}
         </div>
 
         <main className="flex-1 overflow-y-auto">

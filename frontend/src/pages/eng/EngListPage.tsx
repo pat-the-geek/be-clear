@@ -16,6 +16,7 @@ export default function EngListPage() {
   const [selectedTengId, setSelectedTengId] = useState<number | null>(null)
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
   const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null)
+  const [selectedStatus, setSelectedStatus] = useState<'non_demarre' | 'en_cours' | 'termine' | null>(null)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -66,6 +67,30 @@ export default function EngListPage() {
               <X size={13} />
             </button>
           )}
+        </div>
+
+        {/* Filtre statut */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {([
+            { value: null,           label: 'Tous', color: 'amber' },
+            { value: 'non_demarre',  label: 'Non démarré', color: 'gray' },
+            { value: 'en_cours',     label: 'En cours', color: 'blue' },
+            { value: 'termine',      label: 'Terminé', color: 'green' },
+          ] as const).map(({ value, label, color }) => {
+            const active = selectedStatus === value
+            const styles: Record<string, string> = {
+              amber: active ? 'bg-amber-100 text-amber-800 border-amber-200 font-medium' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
+              gray:  active ? 'bg-gray-200 text-gray-800 border-gray-300 font-medium'   : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
+              blue:  active ? 'bg-blue-100 text-blue-800 border-blue-200 font-medium'   : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
+              green: active ? 'bg-green-100 text-green-800 border-green-200 font-medium': 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
+            }
+            return (
+              <button key={label} onClick={() => setSelectedStatus(value)}
+                className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${styles[color]}`}>
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Filtre TENG */}
@@ -135,6 +160,7 @@ export default function EngListPage() {
           tengId={selectedTengId ?? undefined}
           orgId={selectedOrgId ?? undefined}
           envId={selectedEnvId ?? undefined}
+          status={selectedStatus ?? undefined}
           defaultSortBy="created_at"
           defaultSortDir="desc"
           fillHeight

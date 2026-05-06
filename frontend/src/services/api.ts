@@ -61,7 +61,7 @@ export const envApi = {
 
 // ─── ENG ─────────────────────────────────────────────────
 export const engApi = {
-  list: (params?: { org_id?: number; env_id?: number; teng_id?: number; q?: string; created_by_me?: boolean; sort_by?: string; sort_dir?: string; page?: number; per_page?: number }) =>
+  list: (params?: { org_id?: number; env_id?: number; teng_id?: number; q?: string; created_by_me?: boolean; status?: string; sort_by?: string; sort_dir?: string; page?: number; per_page?: number }) =>
     api.get('/eng', { params }),
   get: (id: number) => api.get(`/eng/${id}`),
   create: (data: unknown) => api.post('/eng', data),

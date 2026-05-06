@@ -171,6 +171,7 @@ interface EngTableProps {
   q?: string
   tengId?: number
   createdByMe?: boolean
+  status?: 'non_demarre' | 'en_cours' | 'termine'
   defaultSortBy?: SortBy
   defaultSortDir?: SortDir
   /** Remplit toute la hauteur du parent flex au lieu du plafond 480 px */
@@ -178,7 +179,7 @@ interface EngTableProps {
 }
 
 export default function EngTable({
-  orgId, envId, q, tengId, createdByMe,
+  orgId, envId, q, tengId, createdByMe, status,
   defaultSortBy = 'nom',
   defaultSortDir = 'asc',
   fillHeight = false,
@@ -206,7 +207,7 @@ export default function EngTable({
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ['engs', 'table', orgId, envId, q, tengId, createdByMe, sortBy, sortDir],
+    queryKey: ['engs', 'table', orgId, envId, q, tengId, createdByMe, status, sortBy, sortDir],
     queryFn: async ({ pageParam = 1 }) => {
       const res = await engApi.list({
         org_id: orgId,
@@ -214,6 +215,7 @@ export default function EngTable({
         q: q || undefined,
         teng_id: tengId || undefined,
         created_by_me: createdByMe,
+        status,
         sort_by: sortBy,
         sort_dir: sortDir,
         page: pageParam as number,

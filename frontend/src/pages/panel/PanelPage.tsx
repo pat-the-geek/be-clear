@@ -1,12 +1,19 @@
 import { useState, useMemo } from 'react'
-import { CalendarDays, Clock, ExternalLink, AlertTriangle, TrendingUp, CheckCircle2, BarChart3 } from 'lucide-react'
+import { CalendarDays, Clock, ExternalLink, AlertTriangle, TrendingUp, CheckCircle2, BarChart3, Building2, Globe, Handshake, CalendarClock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { usePanel } from '@/hooks/usePanel'
 import ObjCard from '@/components/shared/ObjCard'
-import { eventApi } from '@/services/api'
+import { eventApi, statsApi } from '@/services/api'
 import { formatDateTime } from '@/lib/utils'
+
+interface StatsData {
+  nb_orgs: number; nb_envs: number; nb_engs: number; nb_events: number
+  nb_events_retard: number; nb_events_accomplis: number
+  nb_engs_termines: number; nb_engs_en_cours: number; nb_engs_non_demarres: number
+  nb_recents_7j: number
+}
 
 interface UpcomingEvent {
   id: number
@@ -20,6 +27,12 @@ interface UpcomingEvent {
 export default function PanelPage() {
   const user = useAuthStore((s) => s.user)
   const { data, isLoading, isError } = usePanel()
+
+  const { data: globalStats } = useQuery<StatsData>({
+    queryKey: ['stats', 'global'],
+    queryFn: () => statsApi.get().then((r) => r.data as StatsData),
+    staleTime: 1000 * 60 * 5,
+  })
 
   const { data: upcoming } = useQuery<UpcomingEvent[]>({
     queryKey: ['events', 'upcoming'],
@@ -88,6 +101,48 @@ export default function PanelPage() {
           Vos éléments créés — {totalItems} au total
         </p>
       </div>
+
+      {/* Stats globales */}
+      {globalStats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <Link to="/org" className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors group">
+            <div className="flex items-center gap-2 mb-1">
+              <Building2 size={14} className="text-blue-400 group-hover:text-blue-600" />
+              <span className="text-xs text-gray-500 font-medium">Organisations</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{globalStats.nb_orgs}</p>
+          </Link>
+          <Link to="/env" className="bg-white border border-gray-200 rounded-xl p-4 hover:border-orange-300 hover:bg-orange-50 transition-colors group">
+            <div className="flex items-center gap-2 mb-1">
+              <Globe size={14} className="text-orange-400 group-hover:text-orange-600" />
+              <span className="text-xs text-gray-500 font-medium">Environnements</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{globalStats.nb_envs}</p>
+          </Link>
+          <Link to="/eng" className="bg-white border border-gray-200 rounded-xl p-4 hover:border-amber-300 hover:bg-amber-50 transition-colors group">
+            <div className="flex items-center gap-2 mb-1">
+              <Handshake size={14} className="text-amber-500 group-hover:text-amber-700" />
+              <span className="text-xs text-gray-500 font-medium">Engagements</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{globalStats.nb_engs}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {globalStats.nb_engs_en_cours} en cours · {globalStats.nb_engs_termines} terminés
+            </p>
+          </Link>
+          <Link to="/events" className="bg-white border border-gray-200 rounded-xl p-4 hover:border-violet-300 hover:bg-violet-50 transition-colors group">
+            <div className="flex items-center gap-2 mb-1">
+              <CalendarClock size={14} className="text-violet-400 group-hover:text-violet-600" />
+              <span className="text-xs text-gray-500 font-medium">Événements</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{globalStats.nb_events}</p>
+            {globalStats.nb_events_retard > 0 && (
+              <p className="text-[11px] text-red-500 mt-0.5 font-medium">
+                {globalStats.nb_events_retard} en retard
+              </p>
+            )}
+          </Link>
+        </div>
+      )}
 
       {/* KPIs */}
       {kpis && kpis.total > 0 && (

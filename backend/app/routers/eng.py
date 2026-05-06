@@ -95,6 +95,7 @@ async def list_engs(
     teng_id: int | None = Query(None),
     q: str | None = Query(None, description="Recherche sur le nom (insensible à la casse)"),
     created_by_me: bool = Query(False),
+    status: str | None = Query(None, description="non_demarre | en_cours | termine"),
     sort_by: str = Query("nom", description="Champ de tri"),
     sort_dir: str = Query("asc", description="Direction : asc ou desc"),
     page: int = Query(1, ge=1),
@@ -115,6 +116,12 @@ async def list_engs(
         ))
     if created_by_me:
         stmt = stmt.where(Eng.created_by_id == current_user.id)
+    if status == "non_demarre":
+        stmt = stmt.where((Eng.accomplissement == None) | (Eng.accomplissement == 0))
+    elif status == "en_cours":
+        stmt = stmt.where(Eng.accomplissement > 0, Eng.accomplissement < 100)
+    elif status == "termine":
+        stmt = stmt.where(Eng.accomplissement >= 100)
 
     total_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = total_result.scalar_one()
