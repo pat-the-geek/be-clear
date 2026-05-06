@@ -1,29 +1,17 @@
-import { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit } from 'lucide-react'
-import { eventApi, teventApi } from '@/services/api'
+import { eventApi } from '@/services/api'
 import MarkdownContent from '@/components/shared/MarkdownContent'
+import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
-import { Modal } from '@/components/shared/Modal'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
-import type { Event as AppEvent, Value, Tevent } from '@/types'
-
-// ─── Helpers ─────────────────────────────────────────────────
-
-function isoToDatetimeLocal(iso?: string): string {
-  if (!iso) return ''
-  return iso.slice(0, 16)
-}
-
-function datetimeLocalToIso(local: string): string {
-  if (!local) return ''
-  return new Date(local).toISOString()
-}
+import type { Event as AppEvent, Value } from '@/types'
 
 // ─── Composant local : ligne PROP / VALUE ────────────────────
 
@@ -34,7 +22,7 @@ interface PropValueRowProps {
 
 function PropValueRow({ label, value }: PropValueRowProps) {
   const type = value.prop.type
-  let display = '—'
+  let display: React.ReactNode = '—'
 
   if (type === 'DATE' && value.valeur_date) {
     display = formatDateTime(value.valeur_date)
@@ -48,178 +36,27 @@ function PropValueRow({ label, value }: PropValueRowProps) {
     display = `${value.valeur_nombre} %`
   } else if (value.valeur_nombre !== undefined) {
     display = String(value.valeur_nombre)
+  } else if (type === 'MARKDOWN' && value.valeur_texte) {
+    display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
+  } else if (type === 'URL' && value.valeur_texte) {
+    display = <UrlValueDisplay url={value.valeur_texte} />
+  } else if (type === 'EMAIL' && value.valeur_texte) {
+    display = <a href={`mailto:${value.valeur_texte}`} className="text-blue-600 hover:underline">{value.valeur_texte}</a>
   } else if (value.valeur_texte) {
     display = value.valeur_texte
   }
 
+  const isWide = type === 'MARKDOWN' || type === 'TEXTE' || type === 'URL'
+
   return (
     <tr className="border-t border-gray-100">
-      <td className="py-2 pr-4 text-sm font-medium text-gray-500 whitespace-nowrap w-1/3">
+      <td className={`py-2 pr-4 text-sm font-medium text-gray-500 whitespace-nowrap ${isWide ? 'align-top w-1/3' : 'w-1/3'}`}>
         {label}
       </td>
       <td className="py-2 text-sm text-gray-900">
-        {type === 'URL' && value.valeur_texte ? (
-          <a href={value.valeur_texte} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-            {value.valeur_texte}
-          </a>
-        ) : type === 'EMAIL' && value.valeur_texte ? (
-          <a href={`mailto:${value.valeur_texte}`} className="text-blue-600 hover:underline">
-            {value.valeur_texte}
-          </a>
-        ) : (
-          <span>{display}</span>
-        )}
+        {display}
       </td>
     </tr>
-  )
-}
-
-// ─── Modal d'édition d'EVENT ─────────────────────────────────
-
-interface EditModalProps {
-  open: boolean
-  onClose: () => void
-  event: AppEvent
-  onUpdated: () => void
-}
-
-function EditModal({ open, onClose, event, onUpdated }: EditModalProps) {
-  const queryClient = useQueryClient()
-  const [nom, setNom] = useState(event.obj.nom)
-  const [teventId, setTeventId] = useState<number>(event.tevent.id)
-  const [dateHeurePrevue, setDateHeurePrevue] = useState(isoToDatetimeLocal(event.date_heure_prevue))
-  const [dateHeureReelle, setDateHeureReelle] = useState(isoToDatetimeLocal(event.date_heure_reelle))
-
-  const { data: tevents } = useQuery<Tevent[]>({
-    queryKey: ['tevents'],
-    queryFn: () => teventApi.list().then((r) => r.data),
-    enabled: open,
-  })
-
-  useEffect(() => {
-    if (open) {
-      setNom(event.obj.nom)
-      setTeventId(event.tevent.id)
-      setDateHeurePrevue(isoToDatetimeLocal(event.date_heure_prevue))
-      setDateHeureReelle(isoToDatetimeLocal(event.date_heure_reelle))
-    }
-  }, [open, event])
-
-  const { mutate: save, isPending, error, reset } = useMutation({
-    mutationFn: () =>
-      eventApi.update(event.id, {
-        nom: nom.trim(),
-        tevent_id: teventId,
-        date_heure_prevue: datetimeLocalToIso(dateHeurePrevue),
-        date_heure_reelle: dateHeureReelle ? datetimeLocalToIso(dateHeureReelle) : null,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['event', event.id] })
-      queryClient.invalidateQueries({ queryKey: ['eng', event.eng_id] })
-      onUpdated()
-      onClose()
-      reset()
-    },
-  })
-
-  const canSubmit = nom.trim() && teventId && dateHeurePrevue
-
-  return (
-    <Modal open={open} onClose={onClose} title="Modifier l'évènement">
-      <div className="space-y-4 p-1">
-        {/* Nom */}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Nom</label>
-          <input
-            value={nom}
-            onChange={(e) => setNom(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-            placeholder="Nom de l'évènement"
-          />
-        </div>
-
-        {/* Type */}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Type (TEVENT)</label>
-          <select
-            value={teventId}
-            onChange={(e) => setTeventId(Number(e.target.value))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-          >
-            {tevents?.map((t) => (
-              <option key={t.id} value={t.id}>{t.nom}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Date prévue */}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Date et heure prévues</label>
-          <input
-            type="datetime-local"
-            value={dateHeurePrevue}
-            onChange={(e) => setDateHeurePrevue(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-          />
-        </div>
-
-        {/* Date réelle */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium text-gray-500">Date et heure réelles</label>
-            {!dateHeureReelle && (
-              <button
-                type="button"
-                onClick={() => setDateHeureReelle(isoToDatetimeLocal(new Date().toISOString()))}
-                className="text-xs text-green-600 hover:underline font-medium"
-              >
-                Maintenant
-              </button>
-            )}
-          </div>
-          <input
-            type="datetime-local"
-            value={dateHeureReelle}
-            onChange={(e) => setDateHeureReelle(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-          />
-          {dateHeureReelle && (
-            <button
-              type="button"
-              onClick={() => setDateHeureReelle('')}
-              className="mt-1 text-xs text-red-500 hover:underline"
-            >
-              Effacer (marquer non accompli)
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {(error as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? 'Erreur lors de la sauvegarde'}
-          </p>
-        )}
-
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => { onClose(); reset() }}
-            className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Annuler
-          </button>
-          <button
-            type="button"
-            onClick={() => save()}
-            disabled={!canSubmit || isPending}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-            Enregistrer
-          </button>
-        </div>
-      </div>
-    </Modal>
   )
 }
 
@@ -232,7 +69,6 @@ export default function EventDetailPage() {
   const isEditeur = useAuthStore((s) => s.isEditeur)
 
   const eventId = Number(id)
-  const [showEditModal, setShowEditModal] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState('')
   const descRef = useAutoResize(descDraft)
@@ -474,15 +310,6 @@ export default function EventDetailPage() {
         </section>
       )}
 
-      {/* ─── Modal d'édition ──────────────────── */}
-      {event && (
-        <EditModal
-          open={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          event={event}
-          onUpdated={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
-        />
-      )}
     </div>
   )
 }

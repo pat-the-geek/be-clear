@@ -388,6 +388,27 @@ async def update_event(
     if body.date_heure_reelle is not None:
         event.date_heure_reelle = datetime.fromisoformat(body.date_heure_reelle)
 
+    # ── Mise à jour des VALUES ──────────────────────────────────
+    if body.values:
+        value_map = {v.prop_id: v for v in event.obj.values}
+        for vin in body.values:
+            value = value_map.get(vin.prop_id)
+            if value is None:
+                value = Value(obj_id=event.obj_id, prop_id=vin.prop_id,
+                              created_by_id=current_user.id, updated_by_id=current_user.id)
+                db.add(value)
+            value.valeur_texte = vin.valeur_texte
+            if vin.valeur_date is not None:
+                from datetime import datetime as dt
+                value.valeur_date = dt.fromisoformat(vin.valeur_date)
+            else:
+                value.valeur_date = None
+            value.valeur_nombre = vin.valeur_nombre
+            value.valeur_bool = vin.valeur_bool
+            value.valeur_json = vin.valeur_json
+            value.valeur_ref_obj_id = vin.valeur_ref_obj_id
+            value.updated_by_id = current_user.id
+
     event.obj.updated_by_id = current_user.id
 
     await write_log(db, user_id=current_user.id, operation="UPDATE",
