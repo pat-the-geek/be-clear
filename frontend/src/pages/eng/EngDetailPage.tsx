@@ -3,7 +3,7 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, AlertTriangle } from 'lucide-react'
 import mermaid from 'mermaid'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi, claApi } from '@/services/api'
@@ -707,23 +707,34 @@ interface EventRowProps {
 
 function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting, isAccomplishing }: EventRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const isOverdue = !event.est_accompli && new Date(event.date_heure_prevue) < new Date()
 
   return (
     <div className="group flex items-center gap-2">
       <Link
         to={`/event/${event.id}`}
-        className="flex-1 flex items-center gap-3 p-3 bg-violet-50 border border-violet-100 rounded-lg hover:border-violet-300 hover:shadow-sm transition-all min-w-0"
+        className={`flex-1 flex items-center gap-3 p-3 border rounded-lg hover:shadow-sm transition-all min-w-0 ${
+          event.est_accompli
+            ? 'bg-green-50 border-green-100 hover:border-green-300'
+            : isOverdue
+            ? 'bg-red-50 border-red-200 hover:border-red-400'
+            : 'bg-violet-50 border-violet-100 hover:border-violet-300'
+        }`}
       >
         {event.est_accompli ? (
           <CheckCircle2 size={18} className="text-green-500 shrink-0" />
+        ) : isOverdue ? (
+          <AlertTriangle size={18} className="text-red-400 shrink-0" />
         ) : (
           <Circle size={18} className="text-gray-300 shrink-0" />
         )}
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{event.obj_nom}</p>
+          <p className={`text-sm font-medium truncate ${isOverdue ? 'text-red-700' : 'text-gray-900'}`}>
+            {event.obj_nom}
+          </p>
           <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-violet-100 text-violet-700'}`}>
               {event.tevent_nom}
             </span>
             · Prévu : {formatDateTime(event.date_heure_prevue)}
@@ -734,6 +745,10 @@ function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting,
           {event.date_heure_reelle ? (
             <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
               {formatDateTime(event.date_heure_reelle)}
+            </span>
+          ) : isOverdue ? (
+            <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+              En retard
             </span>
           ) : (
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
@@ -854,8 +869,12 @@ export default function EngDetailPage() {
   if (isError || !eng) return <div className="p-6 text-center text-red-500 py-16">Impossible de charger cet engagement.</div>
 
   const pct = eng.accomplissement ?? 0
+  const now = new Date()
   const sortedEvents = [...(eng.events ?? [])].sort(
     (a, b) => new Date(a.date_heure_prevue).getTime() - new Date(b.date_heure_prevue).getTime(),
+  )
+  const overdueEvents = sortedEvents.filter(
+    (e) => !e.est_accompli && new Date(e.date_heure_prevue) < now,
   )
 
   return (
@@ -868,6 +887,16 @@ export default function EngDetailPage() {
         <ArrowLeft size={15} />
         Retour
       </button>
+
+      {/* Alerte EVENTs en retard */}
+      {overdueEvents.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-3 mb-5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <AlertTriangle size={15} className="shrink-0" />
+          <span>
+            <strong>{overdueEvents.length}</strong> événement{overdueEvents.length > 1 ? 's' : ''} en retard dans cet engagement
+          </span>
+        </div>
+      )}
 
       {/* ─── En-tête ──────────────────────────── */}
       <div className="mb-6">

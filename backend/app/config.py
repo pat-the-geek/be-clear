@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     MEDIA_PATH: str = "/media"
     OBSIDIAN_VAULT_PATH: str = "/vault"
 
+    # URL publique du serveur (utilisée dans les rapports pour les liens d'images)
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
+
     # Environnement
     ENV: str = "production"
 

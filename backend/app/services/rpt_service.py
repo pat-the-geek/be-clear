@@ -42,7 +42,9 @@ def _md_prop_table(values: list[Value]) -> str:
 
 
 def _md_image(img: Img) -> str:
-    return f"![{img.nom_original or 'image'}]({img.chemin})\n\n"
+    from app.config import settings
+    url = f"{settings.PUBLIC_BASE_URL}/api/media/files/{img.chemin}"
+    return f"![{img.nom_original or 'image'}]({url})\n\n"
 
 
 # ─── Génération du rapport ────────────────────────────────────

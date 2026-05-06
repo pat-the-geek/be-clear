@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Pencil, Loader2, Check, X, Edit, AlertTriangle } from 'lucide-react'
 import { eventApi } from '@/services/api'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
@@ -105,6 +105,7 @@ export default function EventDetailPage() {
   }
 
   const accompli = !!event.date_heure_reelle
+  const overdue = !accompli && new Date(event.date_heure_prevue) < new Date()
   const dureeValeur = event.tevent.duree_prevue_valeur
   const dureeUnite = event.tevent.duree_prevue_unite
 
@@ -145,9 +146,21 @@ export default function EventDetailPage() {
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
                 {event.tevent.nom}
               </span>
+              {overdue && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                  <AlertTriangle size={11} />
+                  En retard
+                </span>
+              )}
+              {accompli && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  <CheckCircle2 size={11} />
+                  Accompli
+                </span>
+              )}
             </div>
             <Link to={`/eng/${event.eng_id}`} className="text-sm text-blue-600 hover:underline">
-              Voir l'engagement parent
+              {event.eng_nom ? `↑ ${event.eng_nom}` : "Voir l'engagement parent"}
             </Link>
           </div>
         </div>

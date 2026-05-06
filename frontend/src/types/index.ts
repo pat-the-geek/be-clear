@@ -231,6 +231,7 @@ export interface Event {
   id: number
   obj: Obj
   eng_id: number
+  eng_nom?: string
   tevent: Tevent
   date_heure_prevue: string   // ISO 8601 — NOT NULL
   date_heure_reelle?: string  // NULL = non accompli
