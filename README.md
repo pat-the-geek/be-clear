@@ -86,7 +86,7 @@ docker compose up --build
 | 🔶 Moyen | **Graphe global** | La page Graphe existe mais n'affiche que les relations autour d'une entité ; une vue globale de tout le réseau ORG↔ENG↔ENV est à consolider |
 | 🔵 Bas | **Tests automatisés** | Aucune suite de tests (unit/integration) — à mettre en place pour sécuriser les évolutions |
 | 🔵 Bas | **Pagination côté serveur** | Quelques listes charges toutes les données en mémoire — à vérifier pour les gros volumes |
-| 🔵 Bas | **Chiffrement clés LLM** | Les clés API LLM sont stockées en clair (`api_key_chiffree` = TODO dans le code) |
+| ✅ Fait | **Chiffrement clés LLM** | Chiffrement Fernet (AES-128-CBC) au repos — clé dérivée du SECRET_KEY |
 
 ## Documents produits
 

@@ -5,6 +5,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text as sa_text
 from app.models.system import Config, LlmConfig
+from app.services.crypto_service import decrypt_secret as _decrypt
 
 logger = logging.getLogger("beclear.rag")
 
@@ -45,7 +46,7 @@ async def list_available_llms(db: AsyncSession) -> list[dict]:
             "nom": llm.nom,
             "fournisseur": llm.fournisseur,
             "modele": llm.modele,
-            "api_key": llm.api_key_chiffree,  # utilisé directement (non chiffré pour l'instant)
+            "api_key": _decrypt(llm.api_key_chiffree),
             "api_url": api_url,
             "type": "distant",
         })

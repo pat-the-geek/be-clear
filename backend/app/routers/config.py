@@ -13,6 +13,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.models.activity import User
 from app.models.system import Config, LlmConfig, ApiToken
 from app.services.log import write_log
+from app.services.crypto_service import encrypt_secret
 
 router = APIRouter()
 
@@ -181,7 +182,7 @@ async def create_llm(
         nom=body.nom,
         fournisseur=body.fournisseur,
         modele=body.modele,
-        api_key_chiffree=body.api_key,  # TODO : chiffrer au repos
+        api_key_chiffree=encrypt_secret(body.api_key),
         est_actif=True,
         parametres=params or None,
         created_by_id=current_user.id,
@@ -222,7 +223,7 @@ async def update_llm(
     if body.modele is not None:
         llm.modele = body.modele
     if body.api_key is not None:
-        llm.api_key_chiffree = body.api_key  # TODO : chiffrer au repos
+        llm.api_key_chiffree = encrypt_secret(body.api_key)
     if body.est_actif is not None:
         llm.est_actif = body.est_actif
     # Fusionne api_url dans parametres si fournie
