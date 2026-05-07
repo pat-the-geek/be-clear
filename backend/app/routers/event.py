@@ -420,6 +420,8 @@ async def update_event(
         # RF-15 : vérifier la cohérence avec date_debut de l'ENG
         eng = await db.get(Eng, eng_id)
         eng_date_debut = eng.date_debut if eng else None
+        if eng_date_debut is not None and eng_date_debut.tzinfo is None:
+            eng_date_debut = eng_date_debut.replace(tzinfo=_tz.utc)
         if eng and eng_date_debut is not None and new_date < eng_date_debut:
             raise HTTPException(
                 status_code=400,

@@ -15,6 +15,21 @@ from app.services.cla_service import refresh_sous_classes
 router = APIRouter()
 
 
+async def _has_cycle(db: AsyncSession, cla_id: int, proposed_super_id: int) -> bool:
+    """RF-03 : vérifie qu'assigner proposed_super_id comme parent de cla_id ne crée pas de cycle."""
+    current: int | None = proposed_super_id
+    visited: set[int] = set()
+    while current is not None:
+        if current == cla_id:
+            return True
+        if current in visited:
+            break
+        visited.add(current)
+        row = await db.execute(select(Cla.super_classe_id).where(Cla.id == current))
+        current = row.scalar_one_or_none()
+    return False
+
+
 # ─── Schémas ─────────────────────────────────────────────
 
 class PropOut(BaseModel):
@@ -192,6 +207,7 @@ async def create_cla(
             raise HTTPException(status_code=400, detail="Super-classe introuvable")
 
     cla = Cla(
+
         nom=body.nom,
         comportement=body.comportement,
         visuel_type=body.visuel_type,
@@ -248,6 +264,12 @@ async def update_cla(
         super_cla = await db.get(Cla, body.super_classe_id)
         if super_cla is None:
             raise HTTPException(status_code=400, detail="Super-classe introuvable")
+        # RF-03 : détecter les cycles
+        if await _has_cycle(db, cla_id, body.super_classe_id):
+            raise HTTPException(
+                status_code=400,
+                detail="RF-03 : assigner cette super-classe crée un cycle d'héritage"
+            )
         cla.super_classe_id = body.super_classe_id
 
     cla.updated_by_id = current_user.id
@@ -287,10 +309,22 @@ async def delete_cla(
             detail=f"RF-02 : impossible de supprimer — {count} objet(s) rattaché(s) à cette classe"
         )
 
+    # RF-04 : récupérer les sous-classes directes avant suppression pour rafraîchir leur cache
+    children_result = await db.execute(
+        select(Cla.id).where(Cla.super_classe_id == cla_id)
+    )
+    child_ids = [r[0] for r in children_result.all()]
+
     await write_log(db, user_id=current_user.id, operation="DELETE",
                     table_name="cla", entite_id=cla_id,
                     avant={"nom": cla.nom})
     await db.delete(cla)
+    await db.flush()
+
+    # RF-04 : rafraîchir le cache sous_classes_ids des anciennes sous-classes (maintenant racines)
+    for child_id in child_ids:
+        await refresh_sous_classes(db, child_id)
+
     await db.commit()
 
 

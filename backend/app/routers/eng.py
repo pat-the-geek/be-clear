@@ -388,7 +388,32 @@ async def update_eng(
             raise HTTPException(status_code=400, detail="TENG introuvable")
         eng.teng_id = body.teng_id
     if body.date_debut is not None:
-        eng.date_debut = datetime.fromisoformat(body.date_debut)
+        new_date_debut = datetime.fromisoformat(body.date_debut)
+        from datetime import timezone as _tz
+        if new_date_debut.tzinfo is None:
+            new_date_debut = new_date_debut.replace(tzinfo=_tz.utc)
+        # RF-13 : vérifier que tous les EVENTs existants restent cohérents avec la nouvelle date_debut
+        events_result = await db.execute(
+            select(Event).where(Event.eng_id == eng_id)
+        )
+        violating = []
+        for ev in events_result.scalars().all():
+            if ev.date_heure_prevue is not None:
+                ev_dt = ev.date_heure_prevue
+                if ev_dt.tzinfo is None:
+                    ev_dt = ev_dt.replace(tzinfo=_tz.utc)
+                if ev_dt < new_date_debut:
+                    violating.append(ev.id)
+        if violating:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"RF-13 : la nouvelle date_debut est postérieure à la date_heure_prevue "
+                    f"de {len(violating)} EVENT(s) existant(s) (id: {violating}). "
+                    "Modifiez d'abord les EVENTs concernés."
+                ),
+            )
+        eng.date_debut = new_date_debut
     if body.date_debut_prevue is not None:
         eng.date_debut_prevue = datetime.fromisoformat(body.date_debut_prevue)
     if body.date_fin is not None:
