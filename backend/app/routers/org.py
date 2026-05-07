@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
-from app.models.activity import Org, User, Torg
+from app.models.activity import Org, OrgTorgHistory, User, Torg
 from app.models.object import Obj, Cla, Value, Img, Doc
 from app.schemas.org import OrgOut, OrgBrief, OrgCreate, OrgUpdate
 from app.schemas.common import Paginated
@@ -137,6 +137,16 @@ async def create_org(
     db.add(org)
     await db.flush()
 
+    # RF-11 : enregistrer l'entrée initiale dans l'historique TORG
+    from datetime import datetime as _dt, timezone as _tz
+    history_entry = OrgTorgHistory(
+        org_id=org.id,
+        torg_id=body.torg_id,
+        date_debut=_dt.now(_tz.utc),
+        changed_by_id=current_user.id,
+    )
+    db.add(history_entry)
+
     await write_log(db, user_id=current_user.id, operation="INSERT",
                     table_name="org", entite_id=org.id,
                     apres={"nom": body.nom, "torg_id": body.torg_id})
@@ -200,7 +210,19 @@ async def update_org(
         org.obj.nom = body.nom
     if body.description is not None:
         org.obj.description = body.description
-    if body.torg_id is not None:
+    if body.torg_id is not None and body.torg_id != org.torg_id:
+        from datetime import datetime as _dt, timezone as _tz
+        from sqlalchemy import update as _sa_update
+        now = _dt.now(_tz.utc)
+        await db.execute(
+            _sa_update(OrgTorgHistory)
+            .where(OrgTorgHistory.org_id == org_id, OrgTorgHistory.date_fin.is_(None))
+            .values(date_fin=now)
+        )
+        db.add(OrgTorgHistory(org_id=org_id, torg_id=body.torg_id,
+                              date_debut=now, changed_by_id=current_user.id))
+        org.torg_id = body.torg_id
+    elif body.torg_id is not None:
         org.torg_id = body.torg_id
     org.obj.updated_by_id = current_user.id
 

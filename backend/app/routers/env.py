@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
-from app.models.activity import Env, User, Tenv
+from app.models.activity import Env, EnvTenvHistory, User, Tenv
 from app.models.object import Obj, Cla, Value, Img, Doc
 from app.schemas.env import EnvOut, EnvBrief, EnvCreate, EnvUpdate
 from app.schemas.common import Paginated
@@ -140,6 +140,15 @@ async def create_env(
     db.add(env)
     await db.flush()
 
+    # RF-11 : enregistrer l'entrée initiale dans l'historique TENV
+    from datetime import datetime as _dt, timezone as _tz
+    db.add(EnvTenvHistory(
+        env_id=env.id,
+        tenv_id=body.tenv_id,
+        date_debut=_dt.now(_tz.utc),
+        changed_by_id=current_user.id,
+    ))
+
     await write_log(db, user_id=current_user.id, operation="INSERT",
                     table_name="env", entite_id=env.id,
                     apres={"nom": body.nom, "tenv_id": body.tenv_id})
@@ -203,7 +212,19 @@ async def update_env(
         env.obj.nom = body.nom
     if body.description is not None:
         env.obj.description = body.description
-    if body.tenv_id is not None:
+    if body.tenv_id is not None and body.tenv_id != env.tenv_id:
+        from datetime import datetime as _dt, timezone as _tz
+        from sqlalchemy import update as _sa_update
+        now = _dt.now(_tz.utc)
+        await db.execute(
+            _sa_update(EnvTenvHistory)
+            .where(EnvTenvHistory.env_id == env_id, EnvTenvHistory.date_fin.is_(None))
+            .values(date_fin=now)
+        )
+        db.add(EnvTenvHistory(env_id=env_id, tenv_id=body.tenv_id,
+                              date_debut=now, changed_by_id=current_user.id))
+        env.tenv_id = body.tenv_id
+    elif body.tenv_id is not None:
         env.tenv_id = body.tenv_id
     env.obj.updated_by_id = current_user.id
 
