@@ -10,6 +10,8 @@ Ces interactions sont formalisées sous forme d'**engagements** (**ENG**) — ch
 
 be.CLEAR offre ainsi une vision complète du cycle de vie des interactions : de la définition des acteurs (ORG) et de leurs contextes (ENV) jusqu'au suivi opérationnel des engagements (ENG) et de leurs jalons (EVENT), avec un tableau de bord de progression de type Gantt.
 
+Le stockage des données est organisé selon les principes de la **programmation orientée objet** : chaque entité du système (ORG, ENV, ENG, EVENT…) est une instance d'une **classe** (**CLA**). Les classes peuvent être organisées en hiérarchies — une sous-classe hérite automatiquement de toutes les **propriétés** (**PROP**) de ses classes parentes — et peuvent en définir de nouvelles. Ce schéma dynamique permet d'adapter finement la structure des données à chaque contexte sans modifier le modèle de base.
+
 ## Structure du projet
 
 ```
