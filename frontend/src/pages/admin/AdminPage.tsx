@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound, BarChart3, CheckCircle2, Clock, AlertTriangle, Users, Handshake, Leaf, Building2, CalendarClock, Activity } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, statsApi, api } from '@/services/api'
+import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, statsApi, searchApi, api } from '@/services/api'
+import { toast } from '@/lib/toast'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import type { Cla, ClaDetail, Prop, PropType, Torg, Tenv, Teng, Tevent } from '@/types'
@@ -1765,6 +1766,44 @@ function TabConfig() {
 
       <ModalLlm open={llmCreateOpen} onClose={() => setLlmCreateOpen(false)} />
       <ModalLlm open={llmEditTarget !== null} onClose={() => setLlmEditTarget(null)} initialData={llmEditTarget ?? undefined} />
+
+      {/* Meilisearch — réindexation */}
+      <ReindexSection />
+    </div>
+  )
+}
+
+// ─── Section réindexation Meilisearch ────────────────────────
+
+function ReindexSection() {
+  const [result, setResult] = useState<{ reindexed: number } | null>(null)
+  const { mutate: reindex, isPending } = useMutation({
+    mutationFn: () => searchApi.reindex().then((r) => r.data as { reindexed: number }),
+    onSuccess: (data) => setResult(data),
+    onError: () => toast.error('Erreur lors de la réindexation'),
+  })
+
+  return (
+    <div>
+      <h3 className="text-base font-semibold text-gray-800 mb-2">Recherche full-text (Meilisearch)</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        Ré-indexe toutes les entités (ORG, ENV, ENG, EVENT) dans Meilisearch.
+        À utiliser après une migration ou une importation de données.
+      </p>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => reindex()}
+          disabled={isPending}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 transition-colors"
+        >
+          {isPending ? <><Loader2 size={14} className="animate-spin" /> Réindexation…</> : 'Réindexer tout'}
+        </button>
+        {result && (
+          <span className="text-sm text-green-700 font-medium">
+            ✓ {result.reindexed} entité{result.reindexed !== 1 ? 's' : ''} réindexée{result.reindexed !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

@@ -144,6 +144,7 @@ export const claApi = {
 export const searchApi = {
   search: (q: string, params?: { offset?: number; limit?: number; entity_type?: string }) =>
     api.get('/search', { params: { q, ...params } }),
+  reindex: () => api.post('/search/reindex'),
 }
 
 export const ragApi = {
