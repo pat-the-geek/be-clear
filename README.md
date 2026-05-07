@@ -103,6 +103,22 @@ docker compose up --build
 | [Terminal IA — Architecture RAG](design/architecture/terminal-ia-rag.md) | Architecture | ✅ Rédigé |
 | [UX / GUI](design/ux/ux-gui.md) | UX | ✅ Rédigé |
 
+## Menu principal
+
+L'interface est organisée autour d'un menu latéral permanent donnant accès à toutes les fonctionnalités :
+
+| Entrée de menu | Description |
+|----------------|-------------|
+| **Mon panel** | Tableau de bord personnel — liste les OBJ créés par l'utilisateur connecté, avec accès rapide aux dernières modifications |
+| **Organisations** | Navigation dans l'arborescence des types d'ORG (TORG) et accès à la liste des ORG de chaque type — création, consultation, modification, suppression |
+| **Environnements** | Navigation dans l'arborescence des types d'ENV (TENV) et accès à la liste des ENV de chaque type — création, consultation, modification, suppression |
+| **Engagements** | Liste filtrée et triable de tous les ENG — filtres par statut (non démarré / en cours / terminé), par TENG, par ORG, par ENV — vue Gantt et accomplissement par engagement |
+| **Évènements** | Liste et calendrier de tous les EVENT — vue mensuelle, semaine ou liste — filtres par ENG, par TEVENT, par statut d'accomplissement |
+| **Recherche** | Recherche full-text Meilisearch sur tous les OBJ (nom, description, VALUE textuelles) avec mise en évidence des occurrences et filtres par type d'entité |
+| **Graphe** | Visualisation force-directed des relations ORG ↔ ENG ↔ ENV — filtrable par type, zoomable, avec recherche de nœud |
+| **Terminal IA** | Interface RAG — interrogation du système en langage naturel (ex. : *"Quels engagements d'Acme Corp sont en retard ?"*) avec choix du modèle LLM |
+| **Administration** | Gestion des CLA et PROP, des types (TORG, TENV, TENG, TEVENT), des utilisateurs (USER), de la configuration globale (Obsidian, LLM, OIDC) et consultation du journal LOG |
+
 ## Fonctionnalités transverses
 
 ### Navigation et accès aux données
@@ -227,6 +243,64 @@ Authorization: Bearer <clé-api>
 ```
 
 À l'issue de ces quatre appels, l'ENG est visible dans be.CLEAR avec son diagramme Gantt, ses ORG et ENV liées, et ses EVENTs planifiés — sans aucune action manuelle dans l'interface.
+
+#### Exemple de scénario — tableau de bord externe en lecture seule
+
+> **Contexte** : Un tableau de bord de direction (PowerBI, Grafana, application maison) doit afficher en temps réel l'état d'avancement de tous les engagements en cours et les alertes sur les EVENTs en retard, sans accès à l'interface be.CLEAR.
+
+**Récupérer les ENG en cours (accomplissement entre 1 % et 99 %)**
+
+```http
+GET /api/eng?status=en_cours&per_page=100
+Authorization: Bearer <clé-api-lecteur>
+```
+
+```json
+{
+  "items": [
+    {
+      "id": 201, "nom": "Déploiement Acme Corp", "accomplissement": 42.5,
+      "nb_events": 6, "date_fin_prevue": "2026-07-15T00:00:00Z",
+      "org_principale_nom": "Acme Corp", "env_principale_nom": "Production"
+    },
+    ...
+  ],
+  "total": 14
+}
+```
+
+**Récupérer les EVENTs en retard**
+
+```http
+GET /api/event/overdue
+Authorization: Bearer <clé-api-lecteur>
+```
+
+```json
+[
+  { "id": 88, "nom": "Recette technique", "eng_id": 201,
+    "date_heure_prevue": "2026-05-20T09:00:00Z", "est_accompli": false }
+]
+```
+
+**Interroger le système en langage naturel (RAG)**
+
+```http
+POST /api/rag/query
+Authorization: Bearer <clé-api-lecteur>
+Content-Type: application/json
+
+{ "question": "Quels engagements impliquant Acme Corp sont en retard ?" }
+```
+
+```json
+{
+  "reponse": "Deux engagements impliquant Acme Corp ont des EVENTs en retard : ...",
+  "sources": [{ "type": "eng", "id": 201, "nom": "Déploiement Acme Corp" }]
+}
+```
+
+Le tableau de bord se rafraîchit en interrogeant ces trois endpoints à intervalle régulier — aucune synchronisation de base de données, aucun accès direct au backend.
 
 ### Terminal IA
 
