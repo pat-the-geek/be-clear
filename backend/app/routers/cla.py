@@ -281,7 +281,8 @@ async def update_cla(
     # Recalculer sous_classes_ids (la hiérarchie a peut-être changé)
     await refresh_sous_classes(db, cla_id)
     await db.commit()
-    await db.refresh(cla)
+    result = await db.execute(select(Cla).options(*_cla_options()).where(Cla.id == cla_id))
+    cla = result.unique().scalar_one()
     return _cla_to_out(cla)
 
 

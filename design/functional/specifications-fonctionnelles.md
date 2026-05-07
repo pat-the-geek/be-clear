@@ -10,13 +10,32 @@
 
 ## Module 1 — Authentification et accès
 
-### F01 — Connexion
+### F01 — Connexion locale
 **Acteurs** : tous les USER humains
 
-- L'utilisateur s'authentifie via un annuaire externe (LDAP, OAuth...)
-- Le système récupère l'identité et charge le USER correspondant
+- L'utilisateur s'authentifie avec identifiant + mot de passe (hash bcrypt)
+- Le système génère un JWT signé (SECRET_KEY) valable 24 h
 - Le ROLE et l'ORG de rattachement sont chargés en session
 - RF-01 : un USER sans ROLE valide ne peut pas accéder à l'application
+
+### F01b — Connexion SSO (OIDC)
+**Acteurs** : tous les USER humains
+
+- Le système supporte le flux Authorization Code d'OpenID Connect
+- L'administrateur configure dans CONFIG : issuer URL, client_id, client_secret (chiffré Fernet), scopes
+- Le frontend redirige l'utilisateur vers l'IdP (Keycloak, Google, GitHub, Authentik…)
+- Un state signé HMAC-SHA256 (`{ts}:{nonce}:{sig}`) protège contre le CSRF
+- Après retour du callback, le système échange le code contre un access_token, appelle userinfo et charge ou crée le USER correspondant (provisionnement automatique avec ROLE LECTEUR)
+- Si `oidc_allow_local_login = false`, la connexion par mot de passe est désactivée
+- RF-01b : le provisionnement OIDC crée un USER actif avec ROLE LECTEUR ; l'ADMIN peut modifier son ROLE ensuite
+
+### F01c — Tokens API
+**Acteurs** : `EDITEUR`, `ADMIN`, `LECTEUR`
+
+- Chaque USER peut générer 0..n tokens API nommés depuis son profil
+- Le token est présenté en en-tête `Authorization: Bearer <token>`
+- Les appels API héritent du ROLE du USER propriétaire du token
+- Un token peut être révoqué à tout moment
 
 ### F02 — Panel personnel
 **Acteurs** : `EDITEUR`, `ADMIN`, `LECTEUR`
@@ -122,6 +141,7 @@ Identique à F05, appliqué aux ENV.
 - Fiche détaillée : OBJ (nom, description, images, documents), PROP/VALUE, TORG courant
 - Liste des ENG auxquels cette ORG participe
 - Liste des USER de cette ORG
+- RF-11b : section *Historique des types* affichée si l'ORG a changé de TORG au moins une fois — tableau avec le TORG, la date de début et la date de fin (ou *actuel*)
 
 ---
 
@@ -147,6 +167,7 @@ Identique à F12, appliqué aux ENV.
 
 - Fiche détaillée : OBJ, PROP/VALUE, TENV courant
 - Liste des ENG impliquant cet ENV
+- RF-11b : section *Historique des types* affichée si l'ENV a changé de TENV au moins une fois
 
 ---
 
@@ -158,9 +179,17 @@ Identique à F12, appliqué aux ENV.
 - Sélectionner un TENG
 - Saisir les champs OBJ : nom, description
 - Renseigner les VALUE (PROP du TENG)
-- Associer 1..n ORG et 1..n ENV
+- Associer 1..n ORG et 1..n ENV ; désigner une ORG principale et un ENV principal (affichés dans la liste)
 - Saisir les dates : `date_début`, `date_début_prévue`
 - RF-12 : au moins 1 ORG et 1 ENV doivent être associés
+
+### F18b — Dupliquer un Engagement
+**Acteurs** : `ADMIN`, `EDITEUR`
+
+- Créer une copie d'un ENG avec tous ses EVENTs
+- Paramètre optionnel `offset_days` : décaler toutes les dates de N jours
+- L'ENG copie hérite des mêmes ORG, ENV et TENG que l'original
+- Le nom est suffixé *(copie)*
 
 ### F19 — Modifier un Engagement
 **Acteurs** : `ADMIN`, `EDITEUR`
@@ -331,8 +360,9 @@ Identique à F35 pour un ENV.
 ### F38 — Authentification API
 **Acteurs** : applications externes, scripts
 
-- Chaque appel API est authentifié par token
-- Le token est associé à un USER — les permissions ROLE s'appliquent
+- Chaque appel API est authentifié par token Bearer (`Authorization: Bearer <token>`)
+- Deux types de tokens acceptés : JWT de session (24 h) ou token API permanent (généré depuis le profil)
+- Le token hérite du ROLE du USER propriétaire — les permissions s'appliquent identiquement
 
 ### F39 — Endpoints CRUD
 **Acteurs** : applications externes selon ROLE
@@ -341,21 +371,28 @@ Le système expose des endpoints REST pour toutes les entités du domaine :
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| GET | `/api/org` | Liste des ORG |
-| GET | `/api/org/{id}` | Détail d'une ORG |
-| POST | `/api/org` | Créer une ORG |
-| PUT | `/api/org/{id}` | Modifier une ORG |
-| DELETE | `/api/org/{id}` | Supprimer une ORG |
-| GET | `/api/env` | Liste des ENV |
-| GET | `/api/eng` | Liste des ENG |
+| GET/POST/PUT/DELETE | `/api/org` | CRUD ORG — inclut `torg_history` dans le détail |
+| GET/POST/PUT/DELETE | `/api/env` | CRUD ENV — inclut `tenv_history` dans le détail |
+| GET/POST/PUT/DELETE | `/api/eng` | CRUD ENG + filtres statut/TENG/ORG/ENV + tri multi-colonnes |
+| POST | `/api/eng/{id}/duplicate` | Dupliquer un ENG (+ `?offset_days=N`) |
 | GET | `/api/eng/{id}/gantt` | Gantt Mermaid d'un ENG |
-| GET | `/api/event` | Liste des EVENT |
-| GET | `/api/search?q=` | Recherche full-text |
-| POST | `/api/rpt/org/{id}` | Générer un rapport ORG |
-| POST | `/api/rpt/env/{id}` | Générer un rapport ENV |
+| GET/POST/PUT/DELETE | `/api/event` | CRUD EVENT |
+| GET | `/api/event/upcoming` | EVENTs à venir |
+| GET | `/api/event/overdue` | EVENTs en retard |
+| GET | `/api/event/suggest` | Suggérer une date pour un nouvel EVENT |
+| GET | `/api/search?q=` | Recherche full-text Meilisearch |
+| POST | `/api/rag/query` | Requête RAG en langage naturel |
+| POST | `/api/rpt/org/{id}` | Générer + sauvegarder un rapport ORG |
+| GET | `/api/rpt/org/{id}/download` | Télécharger le rapport ORG |
+| POST | `/api/rpt/env/{id}` | Générer + sauvegarder un rapport ENV |
+| GET | `/api/rpt/env/{id}/download` | Télécharger le rapport ENV |
+| GET | `/api/graph/all` | Graphe global ORG↔ENG↔ENV |
+| GET | `/api/graph/org/{id}` | Graphe filtré par ORG |
+| GET | `/api/graph/env/{id}` | Graphe filtré par ENV |
 | GET | `/api/log` | Consultation du journal (ADMIN) |
+| GET | `/api/stats` | Statistiques globales (ADMIN) |
 
-> Documentation complète générée automatiquement par FastAPI (Swagger/OpenAPI).
+> Documentation interactive complète générée automatiquement par FastAPI à `/docs` (Swagger/OpenAPI).
 
 ---
 

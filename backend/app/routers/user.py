@@ -221,7 +221,11 @@ async def create_user(
         updated_by_id=current_user.id,
     )
     db.add(new_user)
-    await db.flush()
+    try:
+        await db.flush()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Un utilisateur avec cet auth_uid existe déjà")
 
     await write_log(db, user_id=current_user.id, operation="INSERT",
                     table_name="user", entite_id=new_user.id,
