@@ -322,20 +322,3 @@ async def delete_env(
                     avant={"env_id": env_id})
     await db.delete(env)
     await db.commit()
-
-
-# ─── POST /env/{id}/rpt ──────────────────────────────────────
-
-@router.post("/{env_id}/rpt", status_code=status.HTTP_200_OK)
-async def generate_rpt_env(
-    env_id: int,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_editeur),
-):
-    # Vérifier que l'ENV existe
-    result = await db.execute(select(Env).where(Env.id == env_id))
-    env = result.scalar_one_or_none()
-    if env is None:
-        raise HTTPException(status_code=404, detail="Environnement introuvable")
-
-    return {"status": "not_implemented"}

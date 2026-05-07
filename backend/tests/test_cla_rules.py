@@ -80,3 +80,31 @@ async def test_rf02_cannot_delete_cla_with_obj(client: AsyncClient, admin_token:
     r2 = await client.delete(f"/api/cla/{seed['id']}", headers={"Authorization": f"Bearer {admin_token}"})
     assert r2.status_code == 409
     assert "RF-02" in r2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_rf04_delete_cla_orphans_subclasses(client: AsyncClient, admin_token: str):
+    """RF-04 : supprimer une CLA parente rend ses sous-classes racines (super_classe_id = NULL)."""
+    # Créer une hiérarchie Parent → Enfant
+    r_parent = await client.post("/api/cla", json={"nom": "ParentRF04"},
+                                 headers={"Authorization": f"Bearer {admin_token}"})
+    assert r_parent.status_code == 201
+    parent_id = r_parent.json()["id"]
+
+    r_enfant = await client.post("/api/cla",
+                                 json={"nom": "EnfantRF04", "super_classe_id": parent_id},
+                                 headers={"Authorization": f"Bearer {admin_token}"})
+    assert r_enfant.status_code == 201
+    enfant_id = r_enfant.json()["id"]
+    assert r_enfant.json()["super_classe_id"] == parent_id
+
+    # Supprimer le parent (aucun OBJ rattaché → 204)
+    r_del = await client.delete(f"/api/cla/{parent_id}",
+                                headers={"Authorization": f"Bearer {admin_token}"})
+    assert r_del.status_code == 204
+
+    # L'enfant doit maintenant être racine
+    r_enfant2 = await client.get(f"/api/cla/{enfant_id}",
+                                 headers={"Authorization": f"Bearer {admin_token}"})
+    assert r_enfant2.status_code == 200
+    assert r_enfant2.json()["super_classe_id"] is None
