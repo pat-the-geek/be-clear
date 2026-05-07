@@ -112,15 +112,119 @@ docker compose up --build
 | **Navigation TENV → ENV** | Parcours de l'arborescence des types d'ENV avec leurs ENV |
 | **Recherche full-text** | Recherche sur les champs textuels des OBJ (nom, description, VALUE de type TEXTE/MARKDOWN) — DOC exclus |
 
-### API — Web Services
+### API — Accès par des systèmes externes
 
-| Élément | Description |
-|---------|-------------|
-| **Format** | REST (JSON) |
-| **Sécurité** | Authentification par token / clé API |
-| **Périmètre** | CRUD complet sur toutes les entités du domaine |
-| **Permissions** | Respecte les ROLE du USER associé au token |
-| **Usage** | Scripts externes, applications compagnon |
+be.CLEAR expose une **API REST/JSON complète** qui permet à tout système externe (script, application compagnon, automate, CRM, ERP…) d'interagir avec les données du système sans passer par l'interface web.
+
+#### Authentification
+
+Un utilisateur ADMIN génère une **clé API** depuis son profil (section *Tokens*). La clé est transmise en en-tête HTTP à chaque requête :
+
+```http
+Authorization: Bearer <votre-clé-api>
+```
+
+La clé hérite des droits du USER auquel elle est rattachée (LECTEUR, EDITEUR ou ADMIN). Un token peut être révoqué à tout moment depuis l'interface.
+
+La documentation interactive complète (Swagger UI) est disponible à l'adresse :
+
+```
+http://<hôte>:8000/docs
+```
+
+#### Endpoints disponibles
+
+| Groupe | Préfixe | Opérations principales |
+|--------|---------|------------------------|
+| **ORG** | `/api/org` | Lister, créer, lire, modifier, supprimer une organisation |
+| **ENV** | `/api/env` | Lister, créer, lire, modifier, supprimer un environnement |
+| **ENG** | `/api/eng` | Lister, créer, lire, modifier, supprimer un engagement ; Gantt Mermaid |
+| **EVENT** | `/api/event` | Lister, créer, lire, modifier, supprimer un évènement ; vue calendrier |
+| **Types** | `/api/torg`, `/api/tenv`, `/api/teng`, `/api/tevent` | Lister et consulter les types |
+| **Recherche** | `/api/search` | Recherche full-text Meilisearch (ORG, ENV, ENG, EVENT) |
+| **RAG / IA** | `/api/rag` | Interroger le système en langage naturel (RAG + LLM) |
+| **RPT** | `/api/rpt` | Déclencher la génération d'un rapport Markdown ORG ou ENV |
+| **Médias** | `/api/media` | Accéder aux images et documents attachés aux OBJ |
+| **Graphe** | `/api/graph` | Récupérer le graphe global ou filtré par ORG/ENV |
+| **Utilisateurs** | `/api/user` | Lister et consulter les USER (ADMIN uniquement pour les modifications) |
+| **Auth** | `/api/auth` | Connexion, profil, gestion des tokens API, flux OIDC |
+
+#### Exemple de scénario — intégration CRM → be.CLEAR
+
+> **Contexte** : Un CRM enregistre la signature d'un contrat avec un client. Il doit automatiquement créer dans be.CLEAR un ENG *Déploiement* liant l'organisation cliente et l'environnement *Production*, puis planifier les étapes d'onboarding.
+
+**Étape 1 — Récupérer les identifiants ORG et ENV du client**
+
+```http
+GET /api/org?q=Acme+Corp
+Authorization: Bearer <clé-api>
+```
+
+```json
+{ "items": [{ "id": 42, "nom": "Acme Corp", ... }], "total": 1 }
+```
+
+**Étape 2 — Récupérer l'identifiant de l'ENV cible**
+
+```http
+GET /api/env?q=Production
+Authorization: Bearer <clé-api>
+```
+
+```json
+{ "items": [{ "id": 7, "nom": "Production", ... }], "total": 1 }
+```
+
+**Étape 3 — Créer l'ENG**
+
+```http
+POST /api/eng
+Authorization: Bearer <clé-api>
+Content-Type: application/json
+
+{
+  "nom": "Déploiement Acme Corp — Contrat 2026-05",
+  "teng_id": 3,
+  "date_debut": "2026-06-01T08:00:00Z",
+  "org_ids": [42],
+  "env_ids": [7],
+  "values": []
+}
+```
+
+```json
+{ "id": 201, "nom": "Déploiement Acme Corp — Contrat 2026-05", ... }
+```
+
+**Étape 4 — Ajouter les EVENTs d'onboarding**
+
+```http
+POST /api/event
+Authorization: Bearer <clé-api>
+Content-Type: application/json
+
+{
+  "nom": "Réunion de lancement",
+  "tevent_id": 11,
+  "eng_id": 201,
+  "date_heure_prevue": "2026-06-01T09:00:00Z"
+}
+```
+
+```http
+POST /api/event
+Content-Type: application/json
+Authorization: Bearer <clé-api>
+
+{
+  "nom": "Formation utilisateurs",
+  "tevent_id": 12,
+  "eng_id": 201,
+  "date_heure_prevue": "2026-06-08T09:00:00Z"
+}
+```
+
+À l'issue de ces quatre appels, l'ENG est visible dans be.CLEAR avec son diagramme Gantt, ses ORG et ENV liées, et ses EVENTs planifiés — sans aucune action manuelle dans l'interface.
 
 ### Terminal IA
 
