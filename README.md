@@ -47,6 +47,47 @@ docker compose up --build
 #    API docs  →  http://localhost:8000/docs
 ```
 
+## État d'implémentation
+
+### Fonctionnalités implémentées
+
+| Module | Fonctionnalité | Backend | Frontend |
+|--------|----------------|:-------:|:--------:|
+| **Auth** | Connexion JWT (login/logout) | ✅ | ✅ |
+| **Auth** | API publique — clé API (Bearer token externe) | ✅ | ✅ profil |
+| **Panel** | Panel personnel (OBJ créés par l'utilisateur) | ✅ | ✅ |
+| **Admin** | Gestion CLA + PROP (création, modification, suppression) | ✅ | ✅ |
+| **Admin** | Gestion TORG, TENV, TENG, TEVENT | ✅ | ✅ |
+| **Admin** | Gestion des utilisateurs (USER) | ✅ | ✅ |
+| **Admin** | Configuration globale (Obsidian, Ollama, LLM distants) | ✅ | ✅ |
+| **Admin** | Journal LOG (consultation, filtres) | ✅ | ✅ |
+| **Admin** | Réindexation Meilisearch | ✅ | ✅ |
+| **ORG** | CRUD complet + navigation TORG → ORG | ✅ | ✅ |
+| **ORG** | Détail : description, propriétés, images, documents, ENG, EVENT, graphe, RPT, timeline | ✅ | ✅ |
+| **ENV** | CRUD complet + navigation TENV → ENV | ✅ | ✅ |
+| **ENV** | Détail : description, propriétés, images, documents, ENG, EVENT, calendrier, RPT, timeline | ✅ | ✅ |
+| **ENG** | CRUD complet + filtres (statut, TENG, ORG, ENV, recherche) | ✅ | ✅ |
+| **ENG** | Détail : Gantt Mermaid, accomplissement, ORG/ENV liées, EVENTs, images, documents, timeline | ✅ | ✅ |
+| **ENG** | Duplication d'engagement | ✅ | ✅ |
+| **EVENT** | CRUD complet + calendrier + vue liste | ✅ | ✅ |
+| **EVENT** | Détail : dates prévues/effectives, propriétés, images, documents, timeline | ✅ | ✅ |
+| **IMG** | Upload, suppression, désignation image principale | ✅ | ✅ |
+| **DOC** | Upload, téléchargement, suppression | ✅ | ✅ |
+| **Recherche** | Full-text Meilisearch (ORG, ENV, ENG, EVENT) avec highlight et filtres | ✅ | ✅ |
+| **Graphe** | Visualisation force-directed globale + par ORG/ENV | ✅ | ✅ |
+| **Terminal IA** | RAG : embedding pgvector + génération LLM (Ollama, OpenAI, Anthropic) | ✅ | ✅ |
+| **RPT** | Rapport Markdown ORG et ENV — téléchargement ou export filesystem/Obsidian | ✅ | ✅ |
+
+### Travaux restants
+
+| Priorité | Sujet | Description |
+|----------|-------|-------------|
+| 🔶 Moyen | **Auth externe** | F01 prévoit LDAP/OAuth — actuellement login direct (username/password) sans annuaire externe |
+| 🔶 Moyen | **Graphe global** | La page Graphe existe mais n'affiche que les relations autour d'une entité ; une vue globale de tout le réseau ORG↔ENG↔ENV est à consolider |
+| 🔵 Bas | **Tests automatisés** | Aucune suite de tests (unit/integration) — à mettre en place pour sécuriser les évolutions |
+| 🔵 Bas | **Pagination côté serveur** | Quelques listes charges toutes les données en mémoire — à vérifier pour les gros volumes |
+| 🔵 Bas | **Chiffrement clés LLM** | Les clés API LLM sont stockées en clair (`api_key_chiffree` = TODO dans le code) |
+
 ## Documents produits
 
 | Document | Type | Statut |
