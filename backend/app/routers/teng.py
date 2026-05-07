@@ -85,11 +85,14 @@ async def create_teng(
     teng = Teng(nom=body.nom, cla_id=body.cla_id, created_by_id=current_user.id, updated_by_id=current_user.id)
     db.add(teng)
     await db.flush()
-    await db.refresh(teng, ["cla"])
-    await write_log(db, "teng", teng.id, "CREATE", current_user.id)
+    await write_log(db, user_id=current_user.id, operation="INSERT",
+                    table_name="teng", entite_id=teng.id,
+                    apres={"nom": body.nom, "cla_id": body.cla_id})
     await db.commit()
-    await db.refresh(teng, ["cla"])
-    return _teng_to_dict(teng)
+    result = await db.execute(
+        select(Teng).options(joinedload(Teng.cla)).where(Teng.id == teng.id)
+    )
+    return _teng_to_dict(result.unique().scalar_one())
 
 
 # ─── PUT /teng/{id} ──────────────────────────────────────────
@@ -112,11 +115,14 @@ async def update_teng(
     if body.cla_id is not None:
         teng.cla_id = body.cla_id
     teng.updated_by_id = current_user.id
-    await db.flush()
-    await write_log(db, "teng", teng.id, "UPDATE", current_user.id)
+    await write_log(db, user_id=current_user.id, operation="UPDATE",
+                    table_name="teng", entite_id=teng_id,
+                    apres={"nom": teng.nom, "cla_id": teng.cla_id})
     await db.commit()
-    await db.refresh(teng, ["cla"])
-    return _teng_to_dict(teng)
+    result = await db.execute(
+        select(Teng).options(joinedload(Teng.cla)).where(Teng.id == teng_id)
+    )
+    return _teng_to_dict(result.unique().scalar_one())
 
 
 # ─── DELETE /teng/{id} ───────────────────────────────────────
@@ -131,6 +137,8 @@ async def delete_teng(
     teng = result.scalar_one_or_none()
     if teng is None:
         raise HTTPException(status_code=404, detail="TENG introuvable")
-    await write_log(db, "teng", teng_id, "DELETE", current_user.id)
+    await write_log(db, user_id=current_user.id, operation="DELETE",
+                    table_name="teng", entite_id=teng_id,
+                    avant={"nom": teng.nom, "cla_id": teng.cla_id})
     await db.delete(teng)
     await db.commit()

@@ -98,13 +98,14 @@ async def create_tevent(
     )
     db.add(tevent)
     await db.flush()
-    await db.refresh(tevent, ["cla"])
     await write_log(db, user_id=current_user.id, operation="INSERT",
                     table_name="tevent", entite_id=tevent.id,
                     apres={"nom": body.nom, "cla_id": body.cla_id})
     await db.commit()
-    await db.refresh(tevent, ["cla"])
-    return _tevent_to_dict(tevent)
+    result = await db.execute(
+        select(Tevent).options(joinedload(Tevent.cla)).where(Tevent.id == tevent.id)
+    )
+    return _tevent_to_dict(result.unique().scalar_one())
 
 
 # ─── PUT /tevent/{id} ────────────────────────────────────���───
@@ -136,8 +137,10 @@ async def update_tevent(
                     table_name="tevent", entite_id=tevent_id,
                     avant=avant, apres={"nom": tevent.nom})
     await db.commit()
-    await db.refresh(tevent, ["cla"])
-    return _tevent_to_dict(tevent)
+    result = await db.execute(
+        select(Tevent).options(joinedload(Tevent.cla)).where(Tevent.id == tevent_id)
+    )
+    return _tevent_to_dict(result.unique().scalar_one())
 
 
 # ─── DELETE /tevent/{id} ──────────────────────────���──────────
