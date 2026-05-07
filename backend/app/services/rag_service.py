@@ -174,6 +174,24 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
             """), {"oid": obj_id})
             src = {**src, "engs": [row[0] for row in r.fetchall()]}
 
+        elif etype == "event":
+            # ENG parent + dates
+            r = await db.execute(sa_text("""
+                SELECT ev.date_heure_prevue, ev.date_heure_reelle, ob.nom
+                FROM event ev
+                JOIN eng e ON e.id = ev.eng_id
+                JOIN obj ob ON ob.id = e.obj_id
+                WHERE ev.obj_id = :oid
+            """), {"oid": obj_id})
+            row = r.fetchone()
+            if row:
+                src = {
+                    **src,
+                    "date_prevue": str(row[0]) if row[0] else None,
+                    "date_reelle": str(row[1]) if row[1] else None,
+                    "eng_nom": row[2],
+                }
+
         enriched.append(src)
     return enriched
 
@@ -194,6 +212,12 @@ def _build_context(sources: list[dict]) -> str:
                 part += f"\n   Engagements : {', '.join(engs)}"
             else:
                 part += "\n   Engagements : aucun"
+        if src.get("eng_nom"):
+            part += f"\n   Engagement : {src['eng_nom']}"
+        if src.get("date_prevue"):
+            part += f"\n   Date prévue : {src['date_prevue']}"
+        if src.get("date_reelle"):
+            part += f"\n   Date réelle : {src['date_reelle']}"
         parts.append(part)
     return "\n\n".join(parts)
 
