@@ -66,6 +66,7 @@ docker compose up --build
 | **ORG** | Détail : description, propriétés, images, documents, ENG, EVENT, graphe, RPT, timeline | ✅ | ✅ |
 | **ENV** | CRUD complet + navigation TENV → ENV | ✅ | ✅ |
 | **ENV** | Détail : description, propriétés, images, documents, ENG, EVENT, calendrier, RPT, timeline | ✅ | ✅ |
+| **Auth** | SSO OIDC (OpenID Connect) — bouton login, callback, provisionnement USER, config admin | ✅ | ✅ |
 | **ENG** | CRUD complet + filtres (statut, TENG, ORG, ENV, recherche) | ✅ | ✅ |
 | **ENG** | Détail : Gantt Mermaid, accomplissement, ORG/ENV liées, EVENTs, images, documents, timeline | ✅ | ✅ |
 | **ENG** | Duplication d'engagement | ✅ | ✅ |
@@ -82,7 +83,7 @@ docker compose up --build
 
 | Priorité | Sujet | Description |
 |----------|-------|-------------|
-| 🔶 Moyen | **Auth externe** | F01 prévoit LDAP/OAuth — actuellement login direct (username/password) sans annuaire externe |
+| ✅ Fait | **Auth externe OIDC** | Login SSO via OpenID Connect (Keycloak, Google, GitHub, Authentik…) — découverte automatique, state HMAC, provisionnement USER, secret chiffré Fernet |
 | ✅ Fait | **Graphe global** | Vue globale ORG↔ENG↔ENV avec filtres par type, recherche de nœud et optimisation N+1 (selectinload) |
 | ✅ Fait | **Tests automatisés** | Suite pytest-asyncio (SQLite in-memory) : 26 tests — auth (JWT + ApiToken), CRUD ORG/ENV, règles métier RF-12/RF-15, crypto |
 | ✅ Fait | **Pagination côté serveur** | Vérifiée : ORG, ENV, ENG, EVENT ont tous un `page`/`per_page` côté serveur |

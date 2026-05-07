@@ -5,6 +5,7 @@ import AuthLayout from '@/components/layout/AuthLayout'
 
 // Pages
 import LoginPage from '@/pages/auth/LoginPage'
+import OidcCallbackPage from '@/pages/auth/OidcCallbackPage'
 import PanelPage from '@/pages/panel/PanelPage'
 import OrgListPage from '@/pages/org/OrgListPage'
 import OrgDetailPage from '@/pages/org/OrgDetailPage'
@@ -41,6 +42,7 @@ export default function App() {
       {/* Auth */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/oidc-callback" element={<OidcCallbackPage />} />
       </Route>
 
       {/* Application (protégée) */}

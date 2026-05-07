@@ -35,6 +35,13 @@ export const authApi = {
   me: () => api.get('/auth/me'),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post('/auth/change-password', { current_password: currentPassword, new_password: newPassword }),
+  oidcConfig: () => api.get<{ enabled: boolean; allow_local_login: boolean }>('/auth/oidc/config'),
+  oidcAuthorizeUrl: (redirectUri: string) =>
+    api.post<{ url: string; state: string }>('/auth/oidc/authorize-url', { redirect_uri: redirectUri }),
+  oidcCallback: (code: string, state: string, redirectUri: string) =>
+    api.post<{ access_token: string; token_type: string }>('/auth/oidc/callback', {
+      code, state, redirect_uri: redirectUri,
+    }),
 }
 
 // ─── ORG ─────────────────────────────────────────────────

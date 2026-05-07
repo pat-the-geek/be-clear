@@ -22,6 +22,14 @@ class Config(Base, AuditMixin):
     ollama_url: Mapped[Optional[str]] = mapped_column(String(500))
     ollama_modele: Mapped[Optional[str]] = mapped_column(String(255))
 
+    # Auth externe OIDC
+    oidc_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    oidc_issuer_url: Mapped[Optional[str]] = mapped_column(String(500))
+    oidc_client_id: Mapped[Optional[str]] = mapped_column(String(255))
+    oidc_client_secret_chiffre: Mapped[Optional[str]] = mapped_column(Text)
+    oidc_scopes: Mapped[Optional[str]] = mapped_column(String(255), default="openid email profile")
+    oidc_allow_local_login: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
+
     __table_args__ = (
         CheckConstraint("id = 1", name="ck_config_singleton"),
     )

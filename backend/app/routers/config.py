@@ -25,6 +25,11 @@ class ConfigOut(BaseModel):
     obsidian_vault_path: str | None = None
     ollama_url: str | None = None
     ollama_modele: str | None = None
+    oidc_enabled: bool = False
+    oidc_issuer_url: str | None = None
+    oidc_client_id: str | None = None
+    oidc_scopes: str | None = None
+    oidc_allow_local_login: bool = True
     model_config = {"from_attributes": True}
 
 
@@ -32,6 +37,12 @@ class ConfigUpdate(BaseModel):
     obsidian_vault_path: str | None = None
     ollama_url: str | None = None
     ollama_modele: str | None = None
+    oidc_enabled: bool | None = None
+    oidc_issuer_url: str | None = None
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None   # en clair → chiffré au stockage
+    oidc_scopes: str | None = None
+    oidc_allow_local_login: bool | None = None
 
 
 class LlmConfigOut(BaseModel):
@@ -130,6 +141,7 @@ async def update_config(
         "obsidian_vault_path": config.obsidian_vault_path,
         "ollama_url": config.ollama_url,
         "ollama_modele": config.ollama_modele,
+        "oidc_enabled": config.oidc_enabled,
     }
 
     if body.obsidian_vault_path is not None:
@@ -138,6 +150,18 @@ async def update_config(
         config.ollama_url = body.ollama_url
     if body.ollama_modele is not None:
         config.ollama_modele = body.ollama_modele
+    if body.oidc_enabled is not None:
+        config.oidc_enabled = body.oidc_enabled
+    if body.oidc_issuer_url is not None:
+        config.oidc_issuer_url = body.oidc_issuer_url
+    if body.oidc_client_id is not None:
+        config.oidc_client_id = body.oidc_client_id
+    if body.oidc_client_secret is not None:
+        config.oidc_client_secret_chiffre = encrypt_secret(body.oidc_client_secret)
+    if body.oidc_scopes is not None:
+        config.oidc_scopes = body.oidc_scopes
+    if body.oidc_allow_local_login is not None:
+        config.oidc_allow_local_login = body.oidc_allow_local_login
 
     config.updated_by_id = current_user.id
 
@@ -147,6 +171,8 @@ async def update_config(
                         "obsidian_vault_path": config.obsidian_vault_path,
                         "ollama_url": config.ollama_url,
                         "ollama_modele": config.ollama_modele,
+                        "oidc_enabled": config.oidc_enabled,
+                        "oidc_issuer_url": config.oidc_issuer_url,
                     })
     await db.commit()
     await db.refresh(config)

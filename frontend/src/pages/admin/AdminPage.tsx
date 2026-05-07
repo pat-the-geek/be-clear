@@ -43,6 +43,11 @@ interface AppConfig {
   obsidian_vault_path?: string
   ollama_url?: string
   ollama_modele?: string
+  oidc_enabled?: boolean
+  oidc_issuer_url?: string
+  oidc_client_id?: string
+  oidc_scopes?: string
+  oidc_allow_local_login?: boolean
 }
 
 interface LlmDistant {
@@ -1620,6 +1625,12 @@ interface ConfigFormValues {
   obsidian_vault_path: string
   ollama_url: string
   ollama_modele: string
+  oidc_enabled: boolean
+  oidc_issuer_url: string
+  oidc_client_id: string
+  oidc_client_secret: string
+  oidc_scopes: string
+  oidc_allow_local_login: boolean
 }
 
 function TabConfig() {
@@ -1637,9 +1648,16 @@ function TabConfig() {
     queryFn: () => configApi.listLlm().then((r) => r.data),
   })
 
-  const { register, handleSubmit, reset, formState: { isDirty, isSubmitting } } = useForm<ConfigFormValues>({
-    defaultValues: { obsidian_vault_path: '', ollama_url: '', ollama_modele: '' },
+  const { register, handleSubmit, reset, watch, formState: { isDirty, isSubmitting } } = useForm<ConfigFormValues>({
+    defaultValues: {
+      obsidian_vault_path: '', ollama_url: '', ollama_modele: '',
+      oidc_enabled: false, oidc_issuer_url: '', oidc_client_id: '',
+      oidc_client_secret: '', oidc_scopes: 'openid email profile',
+      oidc_allow_local_login: true,
+    },
   })
+
+  const oidcEnabled = watch('oidc_enabled')
 
   useEffect(() => {
     if (config) {
@@ -1647,12 +1665,23 @@ function TabConfig() {
         obsidian_vault_path: config.obsidian_vault_path ?? '',
         ollama_url: config.ollama_url ?? '',
         ollama_modele: config.ollama_modele ?? '',
+        oidc_enabled: config.oidc_enabled ?? false,
+        oidc_issuer_url: config.oidc_issuer_url ?? '',
+        oidc_client_id: config.oidc_client_id ?? '',
+        oidc_client_secret: '',
+        oidc_scopes: config.oidc_scopes ?? 'openid email profile',
+        oidc_allow_local_login: config.oidc_allow_local_login ?? true,
       })
     }
   }, [config, reset])
 
   const { mutate: updateConfig, isPending } = useMutation({
-    mutationFn: (data: ConfigFormValues) => configApi.update(data),
+    mutationFn: (data: ConfigFormValues) => {
+      // N'envoyer oidc_client_secret que s'il est renseigné
+      const payload: Record<string, unknown> = { ...data }
+      if (!payload.oidc_client_secret) delete payload.oidc_client_secret
+      return configApi.update(payload)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['config'] }),
   })
 
@@ -1702,6 +1731,62 @@ function TabConfig() {
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
+          {/* ── Section OIDC ── */}
+          <div className="border-t border-gray-100 pt-4 mt-2">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-gray-800">Authentification SSO (OIDC)</label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" {...register('oidc_enabled')} className="accent-blue-600" />
+                <span className="text-sm text-gray-600">Activer</span>
+              </label>
+            </div>
+            {oidcEnabled && (
+              <div className="space-y-3 pl-1">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">URL Issuer OIDC</label>
+                  <input
+                    {...register('oidc_issuer_url')}
+                    type="url"
+                    placeholder="https://accounts.google.com"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  <p className="text-xs text-gray-400 mt-0.5">Base URL du provider — la découverte se fait via <code>{'/.well-known/openid-configuration'}</code></p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+                  <input
+                    {...register('oidc_client_id')}
+                    type="text"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Client Secret</label>
+                  <input
+                    {...register('oidc_client_secret')}
+                    type="password"
+                    placeholder="Laisser vide pour conserver l'existant"
+                    autoComplete="new-password"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Scopes</label>
+                  <input
+                    {...register('oidc_scopes')}
+                    type="text"
+                    placeholder="openid email profile"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" {...register('oidc_allow_local_login')} className="accent-blue-600" />
+                  <span className="text-sm text-gray-700">Conserver la connexion locale (identifiant + mot de passe) en parallèle du SSO</span>
+                </label>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end">
             <button
               type="submit"
