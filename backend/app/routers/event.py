@@ -291,9 +291,11 @@ async def create_event(
     # RF-15 : date_heure_prevue >= eng.date_debut
     from datetime import timezone as _tz
     date_heure_prevue = datetime.fromisoformat(body.date_heure_prevue)
-    # Rendre le datetime aware si nécessaire pour comparer avec DateTime(timezone=True)
     if date_heure_prevue.tzinfo is None:
         date_heure_prevue = date_heure_prevue.replace(tzinfo=_tz.utc)
+    if eng_date_debut is not None:
+        if eng_date_debut.tzinfo is None:
+            eng_date_debut = eng_date_debut.replace(tzinfo=_tz.utc)
     if eng_date_debut is not None and date_heure_prevue < eng_date_debut:
         raise HTTPException(
             status_code=400,

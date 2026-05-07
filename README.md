@@ -83,9 +83,9 @@ docker compose up --build
 | Priorité | Sujet | Description |
 |----------|-------|-------------|
 | 🔶 Moyen | **Auth externe** | F01 prévoit LDAP/OAuth — actuellement login direct (username/password) sans annuaire externe |
-| 🔶 Moyen | **Graphe global** | La page Graphe existe mais n'affiche que les relations autour d'une entité ; une vue globale de tout le réseau ORG↔ENG↔ENV est à consolider |
-| 🔵 Bas | **Tests automatisés** | Aucune suite de tests (unit/integration) — à mettre en place pour sécuriser les évolutions |
-| 🔵 Bas | **Pagination côté serveur** | Quelques listes charges toutes les données en mémoire — à vérifier pour les gros volumes |
+| ✅ Fait | **Graphe global** | Vue globale ORG↔ENG↔ENV avec filtres par type, recherche de nœud et optimisation N+1 (selectinload) |
+| ✅ Fait | **Tests automatisés** | Suite pytest-asyncio (SQLite in-memory) : 26 tests — auth (JWT + ApiToken), CRUD ORG/ENV, règles métier RF-12/RF-15, crypto |
+| ✅ Fait | **Pagination côté serveur** | Vérifiée : ORG, ENV, ENG, EVENT ont tous un `page`/`per_page` côté serveur |
 | ✅ Fait | **Chiffrement clés LLM** | Chiffrement Fernet (AES-128-CBC) au repos — clé dérivée du SECRET_KEY |
 
 ## Documents produits

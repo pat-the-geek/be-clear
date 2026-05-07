@@ -56,32 +56,33 @@ async def upsert_embedding(db, obj_id: int, text: str) -> None:
     vec_str = "[" + ",".join(f"{v:.8f}" for v in vec) + "]"
 
     try:
-        result = await db.execute(
-            sa_text("SELECT id FROM embedding WHERE obj_id = :oid"),
-            {"oid": obj_id},
-        )
-        exists = result.scalar_one_or_none()
+        async with db.begin_nested():
+            result = await db.execute(
+                sa_text("SELECT id FROM embedding WHERE obj_id = :oid"),
+                {"oid": obj_id},
+            )
+            exists = result.scalar_one_or_none()
 
-        if exists:
-            await db.execute(
-                sa_text(
-                    "UPDATE embedding SET vecteur = CAST(:v AS vector), updated_at = :t "
-                    "WHERE obj_id = :oid"
-                ),
-                {"v": vec_str, "t": now, "oid": obj_id},
-            )
-        else:
-            await db.execute(
-                sa_text(
-                    "INSERT INTO embedding (obj_id, vecteur, created_at, updated_at) "
-                    "VALUES (:oid, CAST(:v AS vector), :t, :t)"
-                ),
-                {"v": vec_str, "t": now, "oid": obj_id},
-            )
-        await db.commit()
+            if exists:
+                await db.execute(
+                    sa_text(
+                        "UPDATE embedding SET vecteur = CAST(:v AS vector), updated_at = :t "
+                        "WHERE obj_id = :oid"
+                    ),
+                    {"v": vec_str, "t": now, "oid": obj_id},
+                )
+            else:
+                await db.execute(
+                    sa_text(
+                        "INSERT INTO embedding (obj_id, vecteur, created_at, updated_at) "
+                        "VALUES (:oid, CAST(:v AS vector), :t, :t)"
+                    ),
+                    {"v": vec_str, "t": now, "oid": obj_id},
+                )
+        # Le savepoint est commité — on propage via le commit de l'appelant
     except Exception as exc:
         logger.warning("upsert_embedding failed for obj_id=%s: %s", obj_id, exc)
-        await db.rollback()
+        # Le savepoint est rollbacké automatiquement — session principale intacte
 
 
 async def delete_embedding(db, obj_id: int) -> None:
