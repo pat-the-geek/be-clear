@@ -19,6 +19,7 @@ interface Props {
   edges: GEdge[]
   focalId?: string
   height?: number
+  highlightQuery?: string   // met en avant les nœuds dont le nom contient cette chaîne
 }
 
 const COL: Record<string, string> = {
@@ -43,7 +44,7 @@ interface SNode extends GNode {
   fx?: number; fy?: number
 }
 
-export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Props) {
+export default function ForceGraph({ nodes, edges, focalId, height = 420, highlightQuery = '' }: Props) {
   const cvs = useRef<HTMLCanvasElement>(null)
   const tip = useRef<HTMLDivElement>(null)
   const raf = useRef(0)
@@ -53,7 +54,11 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
   const drag = useRef<{ nd: SNode; moved: boolean } | null>(null)
   const pan = useRef({ on: false, mx: 0, my: 0, ox: 0, oy: 0 })
   const hover = useRef<SNode | null>(null)
+  const hlQuery = useRef(highlightQuery)
   const nav = useNavigate()
+
+  // Sync highlightQuery sans re-initialiser la simulation
+  useEffect(() => { hlQuery.current = highlightQuery }, [highlightQuery])
 
   // ── Init simulation ──────────────────────────────────────
   useEffect(() => {
@@ -73,6 +78,9 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
     se.current = edges
       .map(e => ({ s: nm.get(e.source)!, t: nm.get(e.target)! }))
       .filter(e => e.s && e.t)
+
+    // Recentrer la vue à chaque nouveau jeu de données
+    tf.current = { x: 0, y: 0, sc: 1 }
   }, [nodes, edges, focalId, height])
 
   // ── Animation loop ───────────────────────────────────────
@@ -89,7 +97,6 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
       const REP = 6000, SPRING = 0.04, REST = 130
       const GRAV = 0.014, FGRAV = 0.09, DAMP = 0.72, NOISE = 0.32
 
-      // Repulsion
       for (let i = 0; i < ns.length; i++) {
         for (let j = i + 1; j < ns.length; j++) {
           const a = ns[i], b = ns[j]
@@ -103,7 +110,6 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         }
       }
 
-      // Spring
       for (const { s, t } of es) {
         const dx = t.x - s.x, dy = t.y - s.y
         const d = Math.sqrt(dx * dx + dy * dy) || 1
@@ -113,7 +119,6 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         if (t.fx === undefined) { t.vx -= fx; t.vy -= fy }
       }
 
-      // Gravity + noise + damping + clamp
       for (const n of ns) {
         if (n.fx !== undefined) { n.x = n.fx; n.y = n.fy!; continue }
         const g = n.id === focalId ? FGRAV : GRAV
@@ -148,6 +153,10 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
       ctx.scale(tf.current.sc, tf.current.sc)
 
       const hov = hover.current
+      const q = hlQuery.current.trim().toLowerCase()
+      const hasQuery = q.length >= 2
+
+      // Ensemble de connexions du nœud survolé
       const conn = hov
         ? new Set([hov.id, ...se.current
             .filter(e => e.s.id === hov.id || e.t.id === hov.id)
@@ -170,29 +179,37 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         const r = nodeR(n.degree, focal)
         const col = COL[n.type] ?? '#888'
         const isHov = hov?.id === n.id
-        const dim = conn && !conn.has(n.id)
+        const dimByHover = conn && !conn.has(n.id)
+        const matchesQuery = hasQuery && n.nom.toLowerCase().includes(q)
+        const dimByQuery = hasQuery && !matchesQuery
 
         ctx.save()
-        ctx.globalAlpha = dim ? 0.18 : 1
+        ctx.globalAlpha = (dimByHover || dimByQuery) ? 0.15 : 1
         ctx.shadowColor = col
-        ctx.shadowBlur = isHov ? 36 : focal ? 26 : 15
+        ctx.shadowBlur = isHov ? 36 : focal ? 26 : matchesQuery ? 32 : 15
 
         ctx.beginPath()
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
-        ctx.fillStyle = isHov || focal ? col : col + 'bb'
+        ctx.fillStyle = isHov || focal || matchesQuery ? col : col + 'bb'
         ctx.fill()
 
+        // Anneau blanc pour le nœud focal
         if (focal) {
           ctx.strokeStyle = 'rgba(255,255,255,0.28)'
           ctx.lineWidth = 2; ctx.stroke()
         }
 
+        // Anneau blanc pour les nœuds trouvés par la recherche
+        if (matchesQuery && !focal) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)'
+          ctx.lineWidth = 2; ctx.stroke()
+        }
+
         ctx.shadowBlur = 0
 
-        // Name below node (short)
         const fsize = Math.max(10, Math.min(13, r * 0.85))
-        ctx.font = `${focal || isHov ? 700 : 500} ${fsize}px Inter,system-ui,sans-serif`
-        ctx.fillStyle = focal || isHov ? '#fff' : 'rgba(255,255,255,0.88)'
+        ctx.font = `${focal || isHov || matchesQuery ? 700 : 500} ${fsize}px Inter,system-ui,sans-serif`
+        ctx.fillStyle = focal || isHov || matchesQuery ? '#fff' : 'rgba(255,255,255,0.88)'
         ctx.textAlign = 'center'; ctx.textBaseline = 'top'
         const lbl = n.nom.length > 22 ? n.nom.slice(0, 20) + '…' : n.nom
         ctx.fillText(lbl, n.x, n.y + r + 4)
@@ -307,6 +324,8 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
     tf.current.sc = ns
   }
 
+  const resetView = () => { tf.current = { x: 0, y: 0, sc: 1 } }
+
   if (nodes.length === 0) {
     return (
       <div className="w-full rounded-xl flex items-center justify-center text-sm text-gray-500"
@@ -314,6 +333,13 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         Aucune relation à afficher
       </div>
     )
+  }
+
+  const btnStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+    color: 'rgba(255,255,255,0.9)', height: 24, borderRadius: 6,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', padding: '0 7px', fontSize: 12, lineHeight: 1,
   }
 
   return (
@@ -349,29 +375,12 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         ))}
       </div>
 
-      {/* Zoom buttons + hint */}
+      {/* Contrôles zoom + recentrer + hint */}
       <div className="absolute top-3 right-3 flex items-center gap-2">
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => zoomBy(1.25)}
-            style={{
-              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
-              color: 'rgba(255,255,255,0.9)', width: 24, height: 24, borderRadius: 6,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, lineHeight: 1, cursor: 'pointer',
-            }}
-            title="Zoom +"
-          >+</button>
-          <button
-            onClick={() => zoomBy(0.8)}
-            style={{
-              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
-              color: 'rgba(255,255,255,0.9)', width: 24, height: 24, borderRadius: 6,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, lineHeight: 1, cursor: 'pointer',
-            }}
-            title="Zoom −"
-          >−</button>
+          <button onClick={() => zoomBy(1.25)} style={{ ...btnStyle, width: 24 }} title="Zoom +">+</button>
+          <button onClick={() => zoomBy(0.8)}  style={{ ...btnStyle, width: 24 }} title="Zoom −">−</button>
+          <button onClick={resetView} style={btnStyle} title="Recentrer la vue">⌖ Recentrer</button>
         </div>
         <span className="text-[11px] pointer-events-none" style={{ color: 'rgba(255,255,255,0.5)' }}>
           Scroll: zoom · Drag: déplacer · Clic: ouvrir
