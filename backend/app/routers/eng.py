@@ -616,7 +616,7 @@ async def duplicate_eng(
     await db.commit()
 
     res = await db.execute(select(Eng).options(*_eng_options()).where(Eng.id == new_eng.id))
-    return _to_eng_out(res.unique().scalar_one())
+    return _eng_to_out(res.unique().scalar_one())
 
 
 # ─── GET /eng/{id}/gantt ─────────────────────────────────────
