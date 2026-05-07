@@ -22,6 +22,7 @@ router = APIRouter()
 # ─── Chargement complet d'un ENG ─────────────────────────────
 
 def _eng_options():
+    """Options complètes — utilisées uniquement pour GET /eng/{id} et les mutations."""
     return [
         joinedload(Eng.teng).joinedload(Teng.cla),
         joinedload(Eng.obj).options(
@@ -32,14 +33,30 @@ def _eng_options():
             joinedload(Obj.created_by).joinedload(User.obj),
             joinedload(Obj.updated_by).joinedload(User.obj),
         ),
-        selectinload(Eng.orgs).joinedload(Org.obj),
-        selectinload(Eng.envs).joinedload(Env.obj),
-        joinedload(Eng.org_principale).joinedload(Org.obj),
-        joinedload(Eng.env_principale).joinedload(Env.obj),
+        selectinload(Eng.orgs).options(joinedload(Org.obj), joinedload(Org.torg)),
+        selectinload(Eng.envs).options(joinedload(Env.obj), joinedload(Env.tenv)),
+        joinedload(Eng.org_principale).options(joinedload(Org.obj), joinedload(Org.torg)),
+        joinedload(Eng.env_principale).options(joinedload(Env.obj), joinedload(Env.tenv)),
         selectinload(Eng.events).options(
             joinedload(Event.tevent),
             joinedload(Event.obj),
         ),
+    ]
+
+
+def _eng_list_options():
+    """Options allégées pour GET /eng (liste) — EngBrief n'a besoin que du strict minimum."""
+    return [
+        joinedload(Eng.teng).joinedload(Teng.cla),
+        joinedload(Eng.obj).options(
+            joinedload(Obj.created_by).joinedload(User.obj),
+            joinedload(Obj.updated_by).joinedload(User.obj),
+        ),
+        # Seulement les principales pour org/env_principale_nom dans EngBrief
+        joinedload(Eng.org_principale).joinedload(Org.obj),
+        joinedload(Eng.env_principale).joinedload(Env.obj),
+        # Events : chargement minimal pour len(eng.events) = nb_events
+        selectinload(Eng.events),
     ]
 
 
@@ -53,10 +70,10 @@ def _dt_to_str(dt) -> str | None:
 
 def _eng_to_out(eng: Eng) -> EngOut:
     """Construit un EngOut à partir du modèle SQLAlchemy."""
-    orgs = [OrgRef(id=o.id, nom=o.obj.nom) for o in eng.orgs]
-    envs = [EnvRef(id=e.id, nom=e.obj.nom) for e in eng.envs]
-    org_principale = OrgRef(id=eng.org_principale.id, nom=eng.org_principale.obj.nom) if eng.org_principale else None
-    env_principale = EnvRef(id=eng.env_principale.id, nom=eng.env_principale.obj.nom) if eng.env_principale else None
+    orgs = [OrgRef(id=o.id, nom=o.obj.nom, torg_id=o.torg_id, torg_nom=o.torg.nom if o.torg else None) for o in eng.orgs]
+    envs = [EnvRef(id=e.id, nom=e.obj.nom, tenv_id=e.tenv_id, tenv_nom=e.tenv.nom if e.tenv else None) for e in eng.envs]
+    org_principale = OrgRef(id=eng.org_principale.id, nom=eng.org_principale.obj.nom, torg_id=eng.org_principale.torg_id, torg_nom=eng.org_principale.torg.nom if eng.org_principale.torg else None) if eng.org_principale else None
+    env_principale = EnvRef(id=eng.env_principale.id, nom=eng.env_principale.obj.nom, tenv_id=eng.env_principale.tenv_id, tenv_nom=eng.env_principale.tenv.nom if eng.env_principale.tenv else None) if eng.env_principale else None
     events = [
         EventBrief(
             id=ev.id,
@@ -99,11 +116,11 @@ async def list_engs(
     sort_by: str = Query("nom", description="Champ de tri"),
     sort_dir: str = Query("asc", description="Direction : asc ou desc"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Eng).options(*_eng_options())
+    stmt = select(Eng).options(*_eng_list_options())
     if org_id:
         stmt = stmt.join(eng_org, Eng.id == eng_org.c.eng_id).where(eng_org.c.org_id == org_id)
     if env_id:
@@ -170,15 +187,19 @@ async def list_engs(
         except Exception:
             pass
 
+        org_principale_id: int | None = None
         org_principale_nom: str | None = None
+        env_principale_id: int | None = None
         env_principale_nom: str | None = None
         try:
             if eng.org_principale is not None:
+                org_principale_id = eng.org_principale.id
                 org_principale_nom = eng.org_principale.obj.nom
         except Exception:
             pass
         try:
             if eng.env_principale is not None:
+                env_principale_id = eng.env_principale.id
                 env_principale_nom = eng.env_principale.obj.nom
         except Exception:
             pass
@@ -189,7 +210,9 @@ async def list_engs(
             teng=eng.teng,
             accomplissement=float(eng.accomplissement) if eng.accomplissement is not None else None,
             nb_events=len(eng.events),
+            org_principale_id=org_principale_id,
             org_principale_nom=org_principale_nom,
+            env_principale_id=env_principale_id,
             env_principale_nom=env_principale_nom,
             date_debut=_dt_to_str(eng.date_debut),
             date_debut_prevue=_dt_to_str(eng.date_debut_prevue),

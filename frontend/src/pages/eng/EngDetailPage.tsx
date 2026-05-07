@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, AlertTriangle, Copy, Square, CheckSquare } from 'lucide-react'
-import mermaid from 'mermaid'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi, claApi } from '@/services/api'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -76,60 +75,41 @@ function DateGrid({ dateDebut, dateDebutPrevue, dateFin, dateFinPrevue }: DateGr
   )
 }
 
-// ─── Composant : diagramme Mermaid ───────────────────────────
+// ─── Composant : timeline à la demande (plein écran) ─────────
 
-interface GanttDiagramProps {
+interface TimelineModalProps {
+  open: boolean
+  onClose: () => void
   id: number
   code: string
 }
 
-function GanttDiagram({ id, code }: GanttDiagramProps) {
+function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const fsContainerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const [isRendering, setIsRendering] = useState(false)
 
   useEffect(() => {
+    if (!open) return
     let cancelled = false
+    setIsRendering(true)
+
+    const cleanCode = code.replace(/^%%\{[\s\S]*?\}%%\s*/m, '')
+
     async function render() {
-      if (!containerRef.current) return
-      mermaid.initialize({ startOnLoad: false })
+      document.getElementById(`dgantt-tl-${id}`)?.remove()
+      document.getElementById(`igantt-tl-${id}`)?.remove()
       try {
-        const { svg } = await mermaid.render(`gantt-${id}`, code)
+        const { default: mermaid } = await import('mermaid')
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', suppressErrorRendering: true })
+        const { svg } = await mermaid.render(`gantt-tl-${id}`, cleanCode)
+        // Toujours nettoyer les éléments temporaires Mermaid après le rendu
+        document.getElementById(`dgantt-tl-${id}`)?.remove()
+        document.getElementById(`igantt-tl-${id}`)?.remove()
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg
           const svgEl = containerRef.current.querySelector('svg')
-          if (svgEl) {
-            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-            style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
-            svgEl.appendChild(style)
-            const h = svgEl.getBoundingClientRect().height || parseFloat(svgEl.getAttribute('height') ?? '0')
-            svgEl.style.transform = 'scale(0.5)'
-            svgEl.style.transformOrigin = 'top left'
-            svgEl.style.display = 'block'
-            containerRef.current.style.height = `${h / 2}px`
-            containerRef.current.style.overflow = 'hidden'
-          }
-        }
-      } catch {
-        if (!cancelled && containerRef.current)
-          containerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
-      }
-    }
-    render()
-    return () => { cancelled = true }
-  }, [id, code])
-
-  useEffect(() => {
-    if (!isFullscreen || !fsContainerRef.current) return
-    let cancelled = false
-    async function renderFs() {
-      mermaid.initialize({ startOnLoad: false })
-      document.getElementById(`dgantt-fs-${id}`)?.remove()
-      try {
-        const { svg } = await mermaid.render(`gantt-fs-${id}`, code)
-        if (!cancelled && fsContainerRef.current) {
-          fsContainerRef.current.innerHTML = svg
-          const svgEl = fsContainerRef.current.querySelector('svg')
           if (svgEl) {
             const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
             style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
@@ -142,57 +122,65 @@ function GanttDiagram({ id, code }: GanttDiagramProps) {
           }
         }
       } catch {
-        if (!cancelled && fsContainerRef.current)
-          fsContainerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu.</p>'
+        document.getElementById(`dgantt-tl-${id}`)?.remove()
+        document.getElementById(`igantt-tl-${id}`)?.remove()
+        if (!cancelled && containerRef.current)
+          containerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
+      } finally {
+        if (!cancelled) setIsRendering(false)
       }
     }
-    renderFs()
-    return () => { cancelled = true }
-  }, [isFullscreen, id, code])
+
+    render()
+
+    return () => {
+      cancelled = true
+      document.getElementById(`dgantt-tl-${id}`)?.remove()
+      document.getElementById(`igantt-tl-${id}`)?.remove()
+    }
+  }, [open, id, code])
 
   useEffect(() => {
-    if (!isFullscreen) return
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false) }
-    window.addEventListener('keydown', handleKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = prev
-    }
-  }, [isFullscreen])
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open])
 
-  return (
-    <>
+  if (!open) return null
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
+      onClick={() => onCloseRef.current()}
+    >
       <div
-        ref={containerRef}
-        className="overflow-x-auto rounded-lg border border-gray-200 bg-white p-4 cursor-zoom-in"
-        onClick={() => setIsFullscreen(true)}
-        title="Cliquer pour agrandir"
-      />
-      {isFullscreen && createPortal(
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
-          onClick={() => setIsFullscreen(false)}
+        className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8 min-h-[160px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => onCloseRef.current()}
+          className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
         >
-          <div
-            className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-            >
-              <X size={18} />
-            </button>
-            <div ref={fsContainerRef} className="overflow-x-auto" />
+          <X size={18} />
+        </button>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Timeline</h3>
+        {isRendering && (
+          <div className="flex items-center justify-center gap-2 py-12 text-gray-400">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm">Génération du diagramme…</span>
           </div>
-        </div>,
-        document.body
-      )}
-    </>
+        )}
+        <div ref={containerRef} className={`overflow-x-auto ${isRendering ? 'hidden' : ''}`} />
+      </div>
+    </div>,
+    document.body
   )
 }
+
+// Référence stable pour éviter qu'un `= []` inline recrée un tableau à chaque render
+// et déclenche une boucle infinie dans les useEffect qui dépendent de claProps.
+const EMPTY_PROPS: Prop[] = []
 
 // ─── Composant : modal création EVENT ────────────────────────
 
@@ -221,7 +209,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
   const selectedTevent = tevents?.find((t) => t.id === teventId)
   const claId = selectedTevent?.cla?.id ?? null
 
-  const { data: claProps = [], isFetching: propsLoading } = useQuery({
+  const { data: claProps = EMPTY_PROPS, isFetching: propsLoading } = useQuery({
     queryKey: ['cla-props-all', claId],
     queryFn: () => claApi.propsAll(claId!).then((r) => r.data as Prop[]),
     enabled: !!claId,
@@ -443,7 +431,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
   })
 
   const claId = fullEvent?.obj?.cla?.id ?? null
-  const { data: claProps = [] } = useQuery({
+  const { data: claProps = EMPTY_PROPS } = useQuery({
     queryKey: ['cla-props-all', claId],
     queryFn: () => claApi.propsAll(claId!).then((r) => r.data as Prop[]),
     enabled: !!claId,
@@ -784,7 +772,7 @@ function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting,
       </Link>
 
       {isEditeur && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pointer-events-none group-hover:pointer-events-auto">
           {confirmDelete ? (
             <>
               <button
@@ -853,6 +841,7 @@ export default function EngDetailPage() {
   const [descDraft, setDescDraft] = useState('')
   const descRef = useAutoResize(descDraft)
   const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
+  const [showTimeline, setShowTimeline] = useState(false)
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -960,8 +949,8 @@ export default function EngDetailPage() {
       )}
 
       {/* ─── En-tête ──────────────────────────── */}
-      <div className="mb-6">
-        <div className="flex items-start gap-4 mb-2">
+      <div className="mb-4">
+        <div className="flex items-start gap-4">
           <EntityAvatar
             type="eng"
             nom={eng.obj.nom}
@@ -977,117 +966,169 @@ export default function EngDetailPage() {
                     {eng.teng.nom}
                   </span>
                 </div>
-
-                {/* Barre de progression */}
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-gray-500">Accomplissement</span>
-                    <span className={`text-xs font-medium ${pct >= 100 ? 'text-green-700' : pct > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
-                      {pct}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all ${pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-gray-300'}`}
-                      style={{ width: `${Math.min(100, pct)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* ORGs et ENVs */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {eng.orgs.map((org) => {
-                    const isPrincipale = eng.org_principale?.id === org.id
-                    return (
-                      <Link
-                        key={org.id}
-                        to={`/org/${org.id}`}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                          isPrincipale
-                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                        }`}
-                        title={isPrincipale ? 'ORG principale' : undefined}
-                      >
-                        {isPrincipale && <span>★</span>}
-                        {org.nom}
-                      </Link>
-                    )
-                  })}
-                  {eng.envs.map((env) => {
-                    const isPrincipal = eng.env_principale?.id === env.id
-                    return (
-                      <Link
-                        key={env.id}
-                        to={`/env/${env.id}`}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                          isPrincipal
-                            ? 'bg-orange-600 text-white hover:bg-orange-700'
-                            : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
-                        }`}
-                        title={isPrincipal ? 'ENV principal' : undefined}
-                      >
-                        {isPrincipal && <span>★</span>}
-                        {env.nom}
-                      </Link>
-                    )
-                  })}
-                </div>
               </div>
 
               {/* Boutons d'action */}
-              {isEditeur() && (
-                <div className="flex items-center gap-2 shrink-0">
-                  {showDeleteConfirm ? (
-                    <>
-                      <span className="text-sm text-red-600 font-medium">Supprimer ?</span>
-                      <button
-                        onClick={() => deleteEng()}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isDeleting ? 'Suppression…' : 'Confirmer'}
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(false)}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Annuler
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => duplicate()}
-                        disabled={isDuplicating}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                        title="Dupliquer cet engagement"
-                      >
-                        {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-                        Dupliquer
-                      </button>
-                      <button
-                        onClick={() => navigate(`/eng/${engId}/edit`)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <Edit size={14} />
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                        Supprimer
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {eng.gantt_mermaid && (
+                  <button
+                    onClick={() => setShowTimeline(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                  >
+                    <CalendarDays size={14} />
+                    Timeline
+                  </button>
+                )}
+                {isEditeur() && (
+                  <>
+                    {showDeleteConfirm ? (
+                      <>
+                        <span className="text-sm text-red-600 font-medium">Supprimer ?</span>
+                        <button
+                          onClick={() => deleteEng()}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isDeleting ? 'Suppression…' : 'Confirmer'}
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => duplicate()}
+                          disabled={isDuplicating}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                          title="Dupliquer cet engagement"
+                        >
+                          {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                          Dupliquer
+                        </button>
+                        <button
+                          onClick={() => navigate(`/eng/${engId}/edit`)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <Edit size={14} />
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          Supprimer
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Barre de progression */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-gray-500">Accomplissement</span>
+          <span className={`text-xs font-medium ${pct >= 100 ? 'text-green-700' : pct > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
+            {pct}%
+          </span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all ${pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-gray-300'}`}
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* ORGs et ENVs */}
+      {(eng.orgs.length > 0 || eng.envs.length > 0) && (
+        <div className="mb-6 flex flex-col gap-4">
+          {eng.orgs.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Organisations</p>
+              <table className="w-full text-sm border border-gray-100 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-blue-50 text-left text-xs text-gray-500">
+                    <th className="px-3 py-1.5 font-medium w-6"></th>
+                    <th className="px-3 py-1.5 font-medium w-1/2">Nom</th>
+                    <th className="px-3 py-1.5 font-medium">Type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {[...eng.orgs].sort((a, b) => {
+                    const aPrinc = eng.org_principale?.id === a.id ? 0 : 1
+                    const bPrinc = eng.org_principale?.id === b.id ? 0 : 1
+                    if (aPrinc !== bPrinc) return aPrinc - bPrinc
+                    return a.nom.localeCompare(b.nom)
+                  }).map((org) => {
+                    const isPrincipale = eng.org_principale?.id === org.id
+                    return (
+                      <tr key={org.id} className="hover:bg-blue-50/40 transition-colors">
+                        <td className="px-3 py-1.5 text-amber-500 text-center">
+                          {isPrincipale ? '★' : ''}
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          <Link to={`/org/${org.id}`} className="text-blue-700 hover:underline font-medium">
+                            {org.nom}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{org.torg_nom ?? '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {eng.envs.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Environnements</p>
+              <table className="w-full text-sm border border-gray-100 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-orange-50 text-left text-xs text-gray-500">
+                    <th className="px-3 py-1.5 font-medium w-6"></th>
+                    <th className="px-3 py-1.5 font-medium w-1/2">Nom</th>
+                    <th className="px-3 py-1.5 font-medium">Type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {[...eng.envs].sort((a, b) => {
+                    const aPrinc = eng.env_principale?.id === a.id ? 0 : 1
+                    const bPrinc = eng.env_principale?.id === b.id ? 0 : 1
+                    if (aPrinc !== bPrinc) return aPrinc - bPrinc
+                    return a.nom.localeCompare(b.nom)
+                  }).map((env) => {
+                    const isPrincipal = eng.env_principale?.id === env.id
+                    return (
+                      <tr key={env.id} className="hover:bg-orange-50/40 transition-colors">
+                        <td className="px-3 py-1.5 text-amber-500 text-center">
+                          {isPrincipal ? '★' : ''}
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          <Link to={`/env/${env.id}`} className="text-orange-700 hover:underline font-medium">
+                            {env.nom}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{env.tenv_nom ?? '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ─── Dates ────────────────────────────── */}
       <section className="mb-6">
@@ -1239,18 +1280,6 @@ export default function EngDetailPage() {
         </section>
       )}
 
-      {/* ─── Timeline ─────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Timeline</h2>
-        {eng.gantt_mermaid ? (
-          <GanttDiagram id={engId} code={eng.gantt_mermaid} />
-        ) : (
-          <div className="text-center text-gray-400 py-8 bg-gray-50 rounded-lg border border-gray-200">
-            Aucun évènement
-          </div>
-        )}
-      </section>
-
       {/* ─── Évènements ───────────────────────── */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -1371,6 +1400,15 @@ export default function EngDetailPage() {
         eventId={editingEventId}
         onUpdated={handleEventMutated}
       />
+
+      {eng.gantt_mermaid && (
+        <TimelineModal
+          open={showTimeline}
+          onClose={() => setShowTimeline(false)}
+          id={engId}
+          code={eng.gantt_mermaid}
+        />
+      )}
     </div>
   )
 }

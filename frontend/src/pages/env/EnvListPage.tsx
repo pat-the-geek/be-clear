@@ -201,15 +201,22 @@ function EngTable({ envId }: { envId: number }) {
   const engs = useMemo(() => data?.pages.flatMap(p => p.items) ?? [], [data])
   const total = data?.pages[0]?.total ?? 0
 
+  const engHasNextPageRef = useRef(hasNextPage)
+  const engIsFetchingRef = useRef(isFetchingNextPage)
+  const engFetchNextRef = useRef(fetchNextPage)
+  engHasNextPageRef.current = hasNextPage
+  engIsFetchingRef.current = isFetchingNextPage
+  engFetchNextRef.current = fetchNextPage
+
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage()
+      if (entries[0].isIntersecting && engHasNextPageRef.current && !engIsFetchingRef.current) engFetchNextRef.current()
     }, { threshold: 0.1 })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [engs.length])
 
   const th = (col: string, label: string, align: 'left' | 'center' = 'left') => {
     const active = sortBy === col
@@ -384,15 +391,22 @@ export default function EnvListPage() {
     overscan: 5,
   })
 
+  const envHasNextPageRef = useRef(hasNextPage)
+  const envIsFetchingRef = useRef(isFetchingNextPage)
+  const envFetchNextRef = useRef(fetchNextPage)
+  envHasNextPageRef.current = hasNextPage
+  envIsFetchingRef.current = isFetchingNextPage
+  envFetchNextRef.current = fetchNextPage
+
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage()
+      if (entries[0].isIntersecting && envHasNextPageRef.current && !envIsFetchingRef.current) envFetchNextRef.current()
     }, { threshold: 0.1 })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [allEnvs.length])
 
   // Reset sélection si le TENV ou la recherche change (skip on mount to preserve URL-restored state)
   const isMountedRef = useRef(false)

@@ -176,7 +176,9 @@ export interface EngBrief {
   teng: Teng
   accomplissement?: number
   nb_events?: number
+  org_principale_id?: number | null
   org_principale_nom?: string | null
+  env_principale_id?: number | null
   env_principale_nom?: string | null
   date_debut?: string
   date_debut_prevue?: string
@@ -192,12 +194,16 @@ export interface EngBrief {
 export interface OrgRef {
   id: number
   nom: string
+  torg_id?: number
+  torg_nom?: string
 }
 
 /** Référence légère ENV dans un ENG (vue liste) */
 export interface EnvRef {
   id: number
   nom: string
+  tenv_id?: number
+  tenv_nom?: string
 }
 
 /** Event résumé tel que retourné dans EngOut */

@@ -201,15 +201,22 @@ function EngTable({ orgId }: { orgId: number }) {
   const total = data?.pages[0]?.total ?? 0
 
   // Infinite scroll via IntersectionObserver
+  const hasNextPageRef = useRef(hasNextPage)
+  const isFetchingNextPageRef = useRef(isFetchingNextPage)
+  const fetchNextPageRef = useRef(fetchNextPage)
+  hasNextPageRef.current = hasNextPage
+  isFetchingNextPageRef.current = isFetchingNextPage
+  fetchNextPageRef.current = fetchNextPage
+
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage()
+      if (entries[0].isIntersecting && hasNextPageRef.current && !isFetchingNextPageRef.current) fetchNextPageRef.current()
     }, { threshold: 0.1 })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [engs.length])
 
   const th = (col: string, label: string, align: 'left' | 'center' = 'left') => {
     const active = sortBy === col
@@ -387,17 +394,24 @@ export default function OrgListPage() {
   })
 
   // Infinite scroll : charger la page suivante quand le sentinel est visible
+  const orgHasNextPageRef = useRef(hasNextPage)
+  const orgIsFetchingRef = useRef(isFetchingNextPage)
+  const orgFetchNextRef = useRef(fetchNextPage)
+  orgHasNextPageRef.current = hasNextPage
+  orgIsFetchingRef.current = isFetchingNextPage
+  orgFetchNextRef.current = fetchNextPage
+
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage()
+      if (entries[0].isIntersecting && orgHasNextPageRef.current && !orgIsFetchingRef.current) {
+        orgFetchNextRef.current()
       }
     }, { threshold: 0.1 })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [allOrgs.length])
 
   // Reset sélection si le TORG ou la recherche change (skip on mount to preserve URL-restored state)
   const isMountedRef = useRef(false)

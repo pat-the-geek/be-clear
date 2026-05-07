@@ -52,20 +52,6 @@ def _sanitize(s: str) -> str:
     return (s or "").replace(":", " -").replace("\n", " ").strip()
 
 
-_TIMELINE_INIT = (
-    "%%{init: {'theme': 'base', 'themeVariables': {"
-    "'cScale0': '#2563eb', 'cScale1': '#b45309', 'cScale2': '#7c3aed', 'cScale3': '#ea580c',"
-    "'cScale4': '#1d4ed8', 'cScale5': '#92400e', 'cScale6': '#6d28d9', 'cScale7': '#c2410c',"
-    "'cScale8': '#3b82f6', 'cScale9': '#d97706', 'cScale10': '#8b5cf6', 'cScale11': '#f97316',"
-    "'cScaleLabel0': '#ffffff', 'cScaleLabel1': '#ffffff', 'cScaleLabel2': '#ffffff', 'cScaleLabel3': '#ffffff',"
-    "'cScaleLabel4': '#ffffff', 'cScaleLabel5': '#ffffff', 'cScaleLabel6': '#ffffff', 'cScaleLabel7': '#ffffff',"
-    "'cScaleLabel8': '#ffffff', 'cScaleLabel9': '#ffffff', 'cScaleLabel10': '#ffffff', 'cScaleLabel11': '#ffffff',"
-    "'lineColor': '#000000', 'primaryBorderColor': '#000000',"
-    "'titleColor': '#1e293b', 'edgeLabelBackground': '#f8fafc'"
-    "}}}%%"
-)
-
-
 def _build_timeline(events: list, nom_eng: str) -> str:
     """Génère un diagramme Mermaid Timeline pour les EVENTs d'un ENG."""
     if not events:
@@ -88,7 +74,7 @@ def _build_timeline(events: list, nom_eng: str) -> str:
         def section(dt): return dt.strftime("%d/%m/%Y")
         def label(dt): return dt.strftime("%Hh")
 
-    lines = [_TIMELINE_INIT, "timeline", f"    title {_sanitize(nom_eng)}"]
+    lines = ["timeline", f"    title {_sanitize(nom_eng)}"]
 
     current_section = None
     current_key = None

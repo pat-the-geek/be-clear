@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X } from 'lucide-react'
@@ -7,6 +7,98 @@ import { useAuthStore } from '@/stores/authStore'
 import EngTable from '@/components/shared/EngTable'
 import { useDebounce } from '@/hooks/useDebounce'
 import type { Teng, OrgBrief, EnvBrief, PaginatedResponse } from '@/types'
+
+// ─── Combobox de sélection ORG / ENV ────────────────────────────
+
+interface ComboItem { id: number; nom: string }
+
+function EntityCombobox({
+  items,
+  selectedId,
+  placeholder,
+  colorClass,
+  onSelect,
+  onClear,
+}: {
+  items: ComboItem[]
+  selectedId: number | null
+  placeholder: string
+  colorClass: string
+  onSelect: (id: number) => void
+  onClear: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = selectedId ? items.find((i) => i.id === selectedId) : null
+
+  const filtered = useMemo(() => {
+    if (!query) return items.slice(0, 10)
+    const q = query.toLowerCase()
+    return items.filter((i) => i.nom.toLowerCase().includes(q)).slice(0, 10)
+  }, [items, query])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  if (selected) {
+    return (
+      <div className={`flex items-center gap-1 pl-2.5 pr-1.5 py-1 text-xs font-medium rounded-lg border ${colorClass}`}>
+        <span>{selected.nom}</span>
+        <button onClick={onClear} className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity">
+          <X size={11} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="relative">
+        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 w-44"
+        />
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-56 overflow-y-auto min-w-full">
+          {filtered.map((item) => (
+            <button
+              key={item.id}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                onSelect(item.id)
+                setOpen(false)
+                setQuery('')
+              }}
+              className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-amber-50 hover:text-amber-800 transition-colors first:rounded-t-xl last:rounded-b-xl"
+            >
+              {item.nom}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Page principale ─────────────────────────────────────────────
 
 export default function EngListPage() {
   const isEditeur = useAuthStore((s) => s.isEditeur)
@@ -117,38 +209,26 @@ export default function EngListPage() {
         </div>
 
         {/* Filtres ORG et ENV */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {orgList && orgList.length > 0 && (
-            <select
-              value={selectedOrgId ?? ''}
-              onChange={(e) => setSelectedOrgId(e.target.value ? Number(e.target.value) : null)}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-gray-700"
-            >
-              <option value="">Toutes les ORG</option>
-              {orgList.map((o) => (
-                <option key={o.id} value={o.id}>{o.nom}</option>
-              ))}
-            </select>
+            <EntityCombobox
+              items={orgList}
+              selectedId={selectedOrgId}
+              placeholder="Rechercher une ORG…"
+              colorClass="bg-blue-50 text-blue-700 border-blue-200"
+              onSelect={setSelectedOrgId}
+              onClear={() => setSelectedOrgId(null)}
+            />
           )}
           {envList && envList.length > 0 && (
-            <select
-              value={selectedEnvId ?? ''}
-              onChange={(e) => setSelectedEnvId(e.target.value ? Number(e.target.value) : null)}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-gray-700"
-            >
-              <option value="">Tous les ENV</option>
-              {envList.map((e) => (
-                <option key={e.id} value={e.id}>{e.nom}</option>
-              ))}
-            </select>
-          )}
-          {(selectedOrgId != null || selectedEnvId != null) && (
-            <button
-              onClick={() => { setSelectedOrgId(null); setSelectedEnvId(null) }}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X size={12} /> Réinitialiser
-            </button>
+            <EntityCombobox
+              items={envList}
+              selectedId={selectedEnvId}
+              placeholder="Rechercher un ENV…"
+              colorClass="bg-orange-50 text-orange-700 border-orange-200"
+              onSelect={setSelectedEnvId}
+              onClear={() => setSelectedEnvId(null)}
+            />
           )}
         </div>
       </div>

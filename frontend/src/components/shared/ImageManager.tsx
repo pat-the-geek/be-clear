@@ -49,16 +49,20 @@ function Lightbox({ images, index, onClose, onChange }: LightboxProps) {
   const img = images[index]
   const hasPrev = index > 0
   const hasNext = index < images.length - 1
+  const onCloseRef = useRef(onClose)
+  const onChangeRef = useRef(onChange)
+  onCloseRef.current = onClose
+  onChangeRef.current = onChange
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowRight' && hasNext) onChange(index + 1)
-      if (e.key === 'ArrowLeft' && hasPrev) onChange(index - 1)
+      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key === 'ArrowRight' && hasNext) onChangeRef.current(index + 1)
+      if (e.key === 'ArrowLeft' && hasPrev) onChangeRef.current(index - 1)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [index, hasPrev, hasNext, onClose, onChange])
+  }, [index, hasPrev, hasNext])
 
   return createPortal(
     <div

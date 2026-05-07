@@ -59,13 +59,17 @@ function SortIcon({ col, sortBy, sortDir }: { col: SortBy; sortBy: SortBy; sortD
     : <ChevronDown size={12} className="text-amber-600 ml-1 shrink-0" />
 }
 
-function StaticTag({ value }: { value?: string | null }) {
+function StaticTag({ value, to }: { value?: string | null; to?: string }) {
   if (!value) return <span className="text-gray-300">—</span>
-  return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 max-w-[120px] truncate">
-      {value}
-    </span>
-  )
+  const cls = 'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 max-w-[120px] truncate'
+  if (to) {
+    return (
+      <Link to={to} onClick={(e) => e.stopPropagation()} className={`${cls} hover:bg-blue-50 hover:text-blue-700 transition-colors`}>
+        {value}
+      </Link>
+    )
+  }
+  return <span className={cls}>{value}</span>
 }
 
 // ─── Cellule Avancement ───────────────────────────────────────
@@ -107,11 +111,11 @@ function EngRow({ eng }: { eng: EngBrief }) {
       </td>
       {/* ORG principale */}
       <td className="px-3 py-2.5">
-        <StaticTag value={eng.org_principale_nom} />
+        <StaticTag value={eng.org_principale_nom} to={eng.org_principale_id ? `/org/${eng.org_principale_id}` : undefined} />
       </td>
       {/* ENV principale */}
       <td className="px-3 py-2.5">
-        <StaticTag value={eng.env_principale_nom} />
+        <StaticTag value={eng.env_principale_nom} to={eng.env_principale_id ? `/env/${eng.env_principale_id}` : undefined} />
       </td>
       {/* Début prévu */}
       <td className="px-3 py-2.5 text-xs text-gray-600 tabular-nums">
@@ -252,20 +256,27 @@ export default function EngTable({
 
   // ── Scroll sentinel (IntersectionObserver) ──────────────────
   const sentinelRef = useRef<HTMLTableRowElement>(null)
+  const hasNextPageRef = useRef(hasNextPage)
+  const isFetchingNextPageRef = useRef(isFetchingNextPage)
+  const fetchNextPageRef = useRef(fetchNextPage)
+  hasNextPageRef.current = hasNextPage
+  isFetchingNextPageRef.current = isFetchingNextPage
+  fetchNextPageRef.current = fetchNextPage
+
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage()
+        if (entries[0].isIntersecting && hasNextPageRef.current && !isFetchingNextPageRef.current) {
+          fetchNextPageRef.current()
         }
       },
       { threshold: 0.1 },
     )
     obs.observe(el)
     return () => obs.disconnect()
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
+  }, [allItems.length])
 
   // ── États de chargement / erreur ────────────────────────────
   if (isLoading) {

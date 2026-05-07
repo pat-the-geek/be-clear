@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Clock, AlertTriangle, Search, X } from 'lucide-react'
 import { eventApi } from '@/services/api'
@@ -10,6 +10,7 @@ import type { PaginatedResponse } from '@/types'
 interface EventItem {
   id: number
   obj: { nom: string }
+  eng_id?: number
   eng_nom?: string
   tevent: { nom: string }
   date_heure_prevue: string
@@ -26,6 +27,7 @@ interface Props {
 type StatusFilter = 'tous' | 'attente' | 'accomplis'
 
 export default function EventsInlineList({ orgId, envId, engId }: Props) {
+  const navigate = useNavigate()
   const [status, setStatus] = useState<StatusFilter>('tous')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -135,10 +137,13 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
           {events.map((ev) => {
             const overdue = !ev.est_accompli && new Date(ev.date_heure_prevue) < new Date()
             return (
-              <Link
+              <div
                 key={ev.id}
-                to={`/event/${ev.id}`}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors group ${
+                role="link"
+                tabIndex={0}
+                onClick={() => navigate(`/event/${ev.id}`)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(`/event/${ev.id}`)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors group cursor-pointer ${
                   ev.est_accompli
                     ? 'bg-white border-gray-100 hover:border-green-200 hover:bg-green-50'
                     : overdue
@@ -163,7 +168,17 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
                       {ev.tevent.nom}
                     </span>
                     {ev.eng_nom && !engId && (
-                      <span className="truncate max-w-[140px]">{ev.eng_nom}</span>
+                      ev.eng_id ? (
+                        <Link
+                          to={`/eng/${ev.eng_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="truncate max-w-[140px] hover:text-amber-600 hover:underline transition-colors"
+                        >
+                          {ev.eng_nom}
+                        </Link>
+                      ) : (
+                        <span className="truncate max-w-[140px]">{ev.eng_nom}</span>
+                      )
                     )}
                     <span>{formatDateTime(ev.date_heure_prevue)}</span>
                   </p>
@@ -178,7 +193,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
                     <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">En attente</span>
                   )}
                 </div>
-              </Link>
+              </div>
             )
           })}
           {(data?.total ?? 0) > 100 && (

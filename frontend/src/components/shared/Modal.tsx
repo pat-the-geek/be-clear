@@ -22,14 +22,6 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
     return () => window.removeEventListener('keydown', handler)
   }, [open])
 
-  // Verrouille le scroll body quand la modal est ouverte
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [open])
-
   if (!open) return null
 
   const widthClass = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : 'max-w-lg'

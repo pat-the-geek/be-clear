@@ -157,7 +157,7 @@ async def upcoming_events(
 
 @router.get("/overdue", response_model=list[UpcomingEventOut])
 async def overdue_events(
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

@@ -29,14 +29,18 @@ def _md_prop_table(values: list[Value]) -> str:
     rows = ["| Propriété | Valeur |", "|---|---|"]
     for v in values:
         nom = v.prop.nom if v.prop else "?"
-        val = (
-            v.valeur_texte or
-            str(v.valeur_nombre) if v.valeur_nombre is not None else
-            str(v.valeur_bool) if v.valeur_bool is not None else
-            str(v.valeur_json) if v.valeur_json else
-            str(v.valeur_date) if v.valeur_date else
-            "—"
-        )
+        if v.valeur_texte:
+            val = v.valeur_texte
+        elif v.valeur_nombre is not None:
+            val = str(v.valeur_nombre)
+        elif v.valeur_bool is not None:
+            val = str(v.valeur_bool)
+        elif v.valeur_json:
+            val = str(v.valeur_json)
+        elif v.valeur_date:
+            val = str(v.valeur_date)
+        else:
+            val = "—"
         rows.append(f"| {nom} | {val} |")
     return "\n".join(rows) + "\n\n"
 

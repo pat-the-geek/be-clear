@@ -9,6 +9,7 @@ Media — upload et gestion des images et documents attachés aux OBJ.
 from __future__ import annotations
 import mimetypes
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -21,6 +22,11 @@ from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
 from app.models.activity import User
 from app.models.object import Obj, Img, Doc
+
+
+def _touch_obj(obj: Obj, user: User) -> None:
+    obj.updated_at = datetime.now(timezone.utc)
+    obj.updated_by_id = user.id
 
 router = APIRouter()
 
@@ -109,6 +115,7 @@ async def upload_image(
         mime_type=mime,
     )
     db.add(img)
+    _touch_obj(obj, current_user)
     await db.commit()
     await db.refresh(img)
     return img
@@ -124,6 +131,10 @@ async def set_principale(
     current_user: User = Depends(require_editeur),
 ):
     """Désigne une image comme image principale de l'OBJ."""
+    obj = await db.get(Obj, obj_id)
+    if obj is None:
+        raise HTTPException(status_code=404, detail="OBJ introuvable")
+
     result = await db.execute(select(Img).where(Img.obj_id == obj_id))
     all_imgs = result.scalars().all()
 
@@ -131,10 +142,10 @@ async def set_principale(
     if target is None:
         raise HTTPException(status_code=404, detail="Image introuvable")
 
-    # Retirer le flag sur toutes, puis le poser sur la cible
     for i in all_imgs:
         i.est_principale = False
     target.est_principale = True
+    _touch_obj(obj, current_user)
 
     await db.commit()
     await db.refresh(target)
@@ -151,6 +162,10 @@ async def delete_image(
     current_user: User = Depends(require_editeur),
 ):
     """Supprime une image (fichier + entrée DB)."""
+    obj = await db.get(Obj, obj_id)
+    if obj is None:
+        raise HTTPException(status_code=404, detail="OBJ introuvable")
+
     result = await db.execute(select(Img).where(Img.obj_id == obj_id, Img.id == img_id))
     img = result.scalar_one_or_none()
     if img is None:
@@ -172,6 +187,7 @@ async def delete_image(
         if next_img:
             next_img.est_principale = True
 
+    _touch_obj(obj, current_user)
     await db.commit()
 
 
@@ -254,6 +270,7 @@ async def upload_document(
         taille_octets=len(content),
     )
     db.add(doc)
+    _touch_obj(obj, current_user)
     await db.commit()
     await db.refresh(doc)
     return doc
@@ -269,6 +286,10 @@ async def delete_document(
     current_user: User = Depends(require_editeur),
 ):
     """Supprime un document (fichier + entrée DB)."""
+    obj = await db.get(Obj, obj_id)
+    if obj is None:
+        raise HTTPException(status_code=404, detail="OBJ introuvable")
+
     result = await db.execute(select(Doc).where(Doc.obj_id == obj_id, Doc.id == doc_id))
     doc = result.scalar_one_or_none()
     if doc is None:
@@ -279,4 +300,5 @@ async def delete_document(
         file_path.unlink()
 
     await db.delete(doc)
+    _touch_obj(obj, current_user)
     await db.commit()

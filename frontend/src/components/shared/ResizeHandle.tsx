@@ -6,7 +6,7 @@
  *   <aside style={{ width }} ...>…</aside>
  *   <ResizeHandle onMouseDown={onMouseDown} />
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 // ─── Hook ─────────────────────────────────────────────────────
 
@@ -31,6 +31,21 @@ export function useResizable(
     return initialWidth
   })
 
+  // Garde une référence vers les listeners actifs pour pouvoir les nettoyer si le composant est démonté en cours de drag
+  const activeListenersRef = useRef<{ move: (ev: MouseEvent) => void; up: () => void } | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (activeListenersRef.current) {
+        document.removeEventListener('mousemove', activeListenersRef.current.move)
+        document.removeEventListener('mouseup', activeListenersRef.current.up)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+        activeListenersRef.current = null
+      }
+    }
+  }, [])
+
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -48,12 +63,14 @@ export function useResizable(
         document.removeEventListener('mouseup', onUp)
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
+        activeListenersRef.current = null
       }
 
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
       document.addEventListener('mousemove', onMove)
       document.addEventListener('mouseup', onUp)
+      activeListenersRef.current = { move: onMove, up: onUp }
     },
     [width, minWidth, maxWidth, storageKey],
   )

@@ -7,7 +7,6 @@ import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import mermaid from 'mermaid'
 import { Upload, Trash2, Loader2, FileText, Download, Eye, X } from 'lucide-react'
 import { mediaApi } from '@/services/api'
 import type { Doc } from '@/types'
@@ -61,10 +60,23 @@ function MermaidBlock({ code }: { code: string }) {
     if (!ref.current) return
     const id = idRef.current
     document.getElementById(`d${id}`)?.remove()
-    mermaid.initialize({ startOnLoad: false, theme: 'neutral' })
-    mermaid.render(id, code)
-      .then(({ svg }) => { if (ref.current) ref.current.innerHTML = svg })
-      .catch(() => { if (ref.current) ref.current.innerHTML = `<pre class="text-xs text-red-500">${code}</pre>` })
+    let cancelled = false
+    async function render() {
+      try {
+        const { default: mermaid } = await import('mermaid')
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose', suppressErrorRendering: true })
+        const { svg } = await mermaid.render(id, code)
+        document.getElementById(`d${id}`)?.remove()
+        document.getElementById(`i${id}`)?.remove()
+        if (!cancelled && ref.current) ref.current.innerHTML = svg
+      } catch {
+        document.getElementById(`d${id}`)?.remove()
+        document.getElementById(`i${id}`)?.remove()
+        if (!cancelled && ref.current) ref.current.innerHTML = `<pre class="text-xs text-red-500">${code}</pre>`
+      }
+    }
+    render()
+    return () => { cancelled = true; document.getElementById(`d${id}`)?.remove(); document.getElementById(`i${id}`)?.remove() }
   }, [code])
 
   return <div ref={ref} className="my-4 overflow-x-auto" />
@@ -181,6 +193,8 @@ function DocViewer({ doc, onClose }: DocViewerProps) {
   const type = getDocType(doc)
   const [mdContent, setMdContent] = useState<string | null>(null)
   const [mdError, setMdError] = useState(false)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (type !== 'markdown') return
@@ -191,10 +205,10 @@ function DocViewer({ doc, onClose }: DocViewerProps) {
   }, [url, type])
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [])
 
   return createPortal(
     <div

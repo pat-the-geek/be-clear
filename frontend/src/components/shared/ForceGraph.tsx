@@ -159,8 +159,8 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         const active = conn ? (conn.has(s.id) && conn.has(t.id)) : false
         ctx.beginPath()
         ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y)
-        ctx.strokeStyle = active ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.1)'
-        ctx.lineWidth = active ? 1.8 : 1
+        ctx.strokeStyle = active ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.22)'
+        ctx.lineWidth = active ? 2 : 1.2
         ctx.stroke()
       }
 
@@ -190,12 +190,12 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
         ctx.shadowBlur = 0
 
         // Name below node (short)
-        const fsize = Math.max(9, Math.min(11, r * 0.72))
-        ctx.font = `${focal || isHov ? 600 : 400} ${fsize}px Inter,system-ui,sans-serif`
-        ctx.fillStyle = focal || isHov ? '#fff' : 'rgba(255,255,255,0.6)'
+        const fsize = Math.max(10, Math.min(13, r * 0.85))
+        ctx.font = `${focal || isHov ? 700 : 500} ${fsize}px Inter,system-ui,sans-serif`
+        ctx.fillStyle = focal || isHov ? '#fff' : 'rgba(255,255,255,0.88)'
         ctx.textAlign = 'center'; ctx.textBaseline = 'top'
-        const lbl = n.nom.length > 18 ? n.nom.slice(0, 16) + '…' : n.nom
-        ctx.fillText(lbl, n.x, n.y + r + 3)
+        const lbl = n.nom.length > 22 ? n.nom.slice(0, 20) + '…' : n.nom
+        ctx.fillText(lbl, n.x, n.y + r + 4)
         ctx.restore()
       }
 
@@ -342,8 +342,8 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
       {/* Légende */}
       <div className="absolute bottom-3 left-3 flex items-center gap-4 pointer-events-none">
         {(['org', 'env', 'eng'] as const).map(t => (
-          <span key={t} className="flex items-center gap-1.5 text-[11px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
-            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: COL[t] }} />
+          <span key={t} className="flex items-center gap-1.5 text-[12px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: COL[t] }} />
             {t.toUpperCase()}
           </span>
         ))}
@@ -355,8 +355,8 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
           <button
             onClick={() => zoomBy(1.25)}
             style={{
-              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-              color: 'rgba(255,255,255,0.7)', width: 24, height: 24, borderRadius: 6,
+              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+              color: 'rgba(255,255,255,0.9)', width: 24, height: 24, borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, lineHeight: 1, cursor: 'pointer',
             }}
@@ -365,15 +365,15 @@ export default function ForceGraph({ nodes, edges, focalId, height = 420 }: Prop
           <button
             onClick={() => zoomBy(0.8)}
             style={{
-              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-              color: 'rgba(255,255,255,0.7)', width: 24, height: 24, borderRadius: 6,
+              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+              color: 'rgba(255,255,255,0.9)', width: 24, height: 24, borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, lineHeight: 1, cursor: 'pointer',
             }}
             title="Zoom −"
           >−</button>
         </div>
-        <span className="text-[10px] pointer-events-none" style={{ color: 'rgba(255,255,255,0.18)' }}>
+        <span className="text-[11px] pointer-events-none" style={{ color: 'rgba(255,255,255,0.5)' }}>
           Scroll: zoom · Drag: déplacer · Clic: ouvrir
         </span>
       </div>

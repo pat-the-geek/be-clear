@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import mermaid from 'mermaid'
 import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
 import { envApi, engApi, rptApi, graphApi } from '@/services/api'
 import { toast } from '@/lib/toast'
@@ -17,7 +16,7 @@ import LogTimeline from '@/components/shared/LogTimeline'
 import CalendarView from '@/components/shared/CalendarView'
 import EventsInlineList from '@/components/shared/EventsInlineList'
 import ImageManager from '@/components/shared/ImageManager'
-import DocManager from '@/components/shared/DocManager'
+const DocManager = lazy(() => import('@/components/shared/DocManager'))
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import ForceGraph, { type GNode, type GEdge } from '@/components/shared/ForceGraph'
 import type { Env, Prop, Value, EngBrief, PaginatedResponse } from '@/types'
@@ -128,17 +127,28 @@ function buildTimelineCode(engs: EngBrief[], envNom: string): string {
   return lines.join('\n')
 }
 
-function TimelineDiagram({ envId, envNom }: { envId: number; envNom: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const fsContainerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+// ─── Modal Timeline ENGs (on-demand) ─────────────────────────
 
-  const { data: engs } = useQuery({
+interface TimelineEnvModalProps {
+  open: boolean
+  onClose: () => void
+  envId: number
+  envNom: string
+}
+
+function TimelineEnvModal({ open, onClose, envId, envNom }: TimelineEnvModalProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const [isRendering, setIsRendering] = useState(false)
+
+  const { data: engs, isLoading: isLoadingEngs } = useQuery({
     queryKey: ['engs', 'timeline', envId],
     queryFn: async () => {
       const res = await engApi.list({ env_id: envId, page: 1, per_page: 500, sort_by: 'date_debut_prevue', sort_dir: 'asc' })
       return (res.data as PaginatedResponse<EngBrief>).items
     },
+    enabled: open,
   })
 
   const timelineCode = useMemo(() => {
@@ -147,13 +157,17 @@ function TimelineDiagram({ envId, envNom }: { envId: number; envNom: string }) {
   }, [engs, envNom])
 
   useEffect(() => {
-    if (!timelineCode || !containerRef.current) return
+    if (!open || !timelineCode) return
     let cancelled = false
-    const id = `timeline-env-${envId}`
+    setIsRendering(true)
+    const id = `timeline-env-modal-${envId}`
     document.getElementById(`d${id}`)?.remove()
-    mermaid.initialize({ startOnLoad: false })
-    mermaid.render(id, timelineCode)
-      .then(({ svg }) => {
+    document.getElementById(`i${id}`)?.remove()
+    async function render() {
+      try {
+        const { default: mermaid } = await import('mermaid')
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', suppressErrorRendering: true })
+        const { svg } = await mermaid.render(id, timelineCode!)
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg
           const svgEl = containerRef.current.querySelector('svg')
@@ -165,80 +179,54 @@ function TimelineDiagram({ envId, envNom }: { envId: number; envNom: string }) {
             svgEl.removeAttribute('height')
             svgEl.style.width = '100%'
             svgEl.style.height = 'auto'
+            svgEl.style.minWidth = '600px'
           }
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled && containerRef.current)
-          containerRef.current.innerHTML = '<p class="text-xs text-red-400 p-2">Erreur de rendu du diagramme.</p>'
-      })
-    return () => { cancelled = true }
-  }, [timelineCode, envId])
+          containerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
+      } finally {
+        if (!cancelled) setIsRendering(false)
+      }
+    }
+    render()
+    return () => {
+      cancelled = true
+      document.getElementById(`d${id}`)?.remove()
+      document.getElementById(`i${id}`)?.remove()
+    }
+  }, [open, timelineCode, envId])
 
   useEffect(() => {
-    if (!isFullscreen || !timelineCode || !fsContainerRef.current) return
-    let cancelled = false
-    const id = `timeline-env-fs-${envId}`
-    document.getElementById(`d${id}`)?.remove()
-    mermaid.render(id, timelineCode)
-      .then(({ svg }) => {
-        if (!cancelled && fsContainerRef.current) {
-          fsContainerRef.current.innerHTML = svg
-          const svgEl = fsContainerRef.current.querySelector('svg')
-          if (svgEl) {
-            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-            style.textContent = 'line, polyline { stroke: #1e293b !important; stroke-width: 2px !important; }'
-            svgEl.appendChild(style)
-            svgEl.removeAttribute('width')
-            svgEl.removeAttribute('height')
-            svgEl.style.width = '100%'
-            svgEl.style.height = 'auto'
-          }
-        }
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [isFullscreen, timelineCode, envId])
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open])
 
-  useEffect(() => {
-    if (!isFullscreen) return
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false) }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [isFullscreen])
-
-  if (!engs) return <div className="text-gray-400 text-sm text-center py-4">Chargement…</div>
-  if (!timelineCode) return null
-
-  return (
-    <>
-      <div
-        ref={containerRef}
-        className="overflow-x-auto overflow-y-hidden max-h-64 rounded-xl border border-gray-200 bg-white p-4 cursor-zoom-in"
-        onClick={() => setIsFullscreen(true)}
-        title="Cliquer pour agrandir"
-      />
-      {isFullscreen && createPortal(
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
-          onClick={() => setIsFullscreen(false)}
-        >
-          <div
-            className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-            >
-              <X size={18} />
-            </button>
-            <div ref={fsContainerRef} className="overflow-x-auto" />
+  if (!open) return null
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
+      onClick={() => onCloseRef.current()}>
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8 min-h-[160px]"
+        onClick={(e) => e.stopPropagation()}>
+        <button onClick={() => onCloseRef.current()} className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+          <X size={18} />
+        </button>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Timeline des engagements</h3>
+        {(isLoadingEngs || isRendering) && (
+          <div className="flex items-center justify-center gap-2 py-12 text-gray-400">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm">{isLoadingEngs ? 'Chargement des engagements…' : 'Génération du diagramme…'}</span>
           </div>
-        </div>,
-        document.body
-      )}
-    </>
+        )}
+        {!isLoadingEngs && !timelineCode && !isRendering && (
+          <p className="text-sm text-gray-400 text-center py-12">Aucun engagement avec une date planifiée.</p>
+        )}
+        <div ref={containerRef} className={`overflow-x-auto ${isLoadingEngs || isRendering ? 'hidden' : ''}`} />
+      </div>
+    </div>,
+    document.body
   )
 }
 
@@ -262,6 +250,7 @@ export default function EnvDetailPage() {
 
   const envId = Number(id)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showTimeline, setShowTimeline] = useState(false)
   const [eventsView, setEventsView] = useState<'list' | 'calendar'>('list')
   const [engView, setEngView] = useState<'table' | 'graph'>('table')
   const [showRptMenu, setShowRptMenu] = useState(false)
@@ -403,6 +392,15 @@ export default function EnvDetailPage() {
                   </div>
                 )}
               </div>
+
+              <button
+                onClick={() => setShowTimeline(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                title="Voir la timeline des engagements"
+              >
+                <CalendarDays size={14} />
+                Timeline
+              </button>
 
               {isEditeur() && (
                 <>
@@ -555,12 +553,6 @@ export default function EnvDetailPage() {
         </section>
       )}
 
-      {/* ─── Timeline Engagements ─────────────────────────── */}
-      <section className="mb-4">
-        <SectionTitle>Timeline des engagements</SectionTitle>
-        <TimelineDiagram envId={envId} envNom={env.obj.nom} />
-      </section>
-
       {/* ─── Table Engagements ────────────────────────────── */}
       <section className="mb-7">
         <div className="flex items-center justify-between mb-3">
@@ -632,6 +624,13 @@ export default function EnvDetailPage() {
         )}
       </section>
 
+      <TimelineEnvModal
+        open={showTimeline}
+        onClose={() => setShowTimeline(false)}
+        envId={envId}
+        envNom={env.obj.nom}
+      />
+
       <CreateEngModal
         open={showCreateEng}
         onClose={() => setShowCreateEng(false)}
@@ -643,12 +642,14 @@ export default function EnvDetailPage() {
       {(env.obj.documents.length > 0 || isEditeur()) && (
         <section className="mb-7">
           <SectionTitle>Documents ({env.obj.documents.length})</SectionTitle>
-          <DocManager
-            objId={env.obj.id}
-            documents={env.obj.documents}
-            queryKey={['env', envId]}
-            readOnly={!isEditeur()}
-          />
+          <Suspense fallback={<div className="text-sm text-gray-400 py-4">Chargement…</div>}>
+            <DocManager
+              objId={env.obj.id}
+              documents={env.obj.documents}
+              queryKey={['env', envId]}
+              readOnly={!isEditeur()}
+            />
+          </Suspense>
         </section>
       )}
 

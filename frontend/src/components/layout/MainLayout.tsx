@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Globe, Handshake, CalendarClock,
   Search, Bot, Settings, LogOut, Menu, X, Network, Bell, AlertTriangle, Clock,
@@ -28,9 +28,59 @@ const navItems = [
 export default function MainLayout() {
   const { user, logout, isAdmin } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const bellRef = useRef<HTMLDivElement>(null)
+
+  // On navigation: reset body styles and remove any full-screen portal overlay left over
+  // from the previous route (a transparent fixed inset-0 div silently blocks all clicks)
+  useEffect(() => {
+    document.body.style.overflow = ''
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
+
+    const root = document.getElementById('root')
+    for (const child of Array.from(document.body.children)) {
+      if (child === root) continue
+      const el = child as HTMLElement
+      const rect = el.getBoundingClientRect()
+      // Full-screen = covers ≥ 90% of viewport in both dimensions
+      if (rect.width >= window.innerWidth * 0.9 && rect.height >= window.innerHeight * 0.9) {
+        console.warn('[be.CLEAR] Portail orphelin supprimé:', el.className.slice(0, 80))
+        el.remove()
+      }
+    }
+  }, [location.pathname])
+
+  // Ctrl+Shift+D : diagnostic + récupération manuelle en cas de freeze
+  useEffect(() => {
+    function onDebug(e: KeyboardEvent) {
+      if (!e.ctrlKey || !e.shiftKey || e.key !== 'D') return
+      e.preventDefault()
+      const root = document.getElementById('root')
+      const portals = Array.from(document.body.children).filter(c => c !== root) as HTMLElement[]
+      console.group('[be.CLEAR] Diagnostic freeze')
+      portals.forEach(el => {
+        const rect = el.getBoundingClientRect()
+        const s = window.getComputedStyle(el)
+        console.log({ class: el.className.slice(0, 80), position: s.position, pointerEvents: s.pointerEvents, z: s.zIndex, rect: { w: Math.round(rect.width), h: Math.round(rect.height), t: Math.round(rect.top), l: Math.round(rect.left) } })
+      })
+      const center = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
+      console.log('Element centre viewport:', center)
+      console.groupEnd()
+      // Tentative de récupération : supprimer les portails plein-écran bloquants
+      portals.forEach(el => {
+        const rect = el.getBoundingClientRect()
+        if (rect.width >= window.innerWidth * 0.9 && rect.height >= window.innerHeight * 0.9) {
+          console.warn('[be.CLEAR] Suppression portail bloquant:', el.className.slice(0, 80))
+          el.remove()
+        }
+      })
+    }
+    window.addEventListener('keydown', onDebug)
+    return () => window.removeEventListener('keydown', onDebug)
+  }, [])
 
   const { data: overdueData } = useQuery({
     queryKey: ['events', 'overdue', 'sidebar'],

@@ -18,6 +18,8 @@ class OrgRef(BaseModel):
     """Référence légère à une ORG."""
     id: int
     nom: str
+    torg_id: Optional[int] = None
+    torg_nom: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -25,6 +27,8 @@ class EnvRef(BaseModel):
     """Référence légère à un ENV."""
     id: int
     nom: str
+    tenv_id: Optional[int] = None
+    tenv_nom: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -65,7 +69,9 @@ class EngBrief(BaseModel):
     teng: TengRef
     accomplissement: Optional[float] = None
     nb_events: int = 0
+    org_principale_id: Optional[int] = None
     org_principale_nom: Optional[str] = None
+    env_principale_id: Optional[int] = None
     env_principale_nom: Optional[str] = None
     date_debut: Optional[str] = None
     date_debut_prevue: Optional[str] = None
