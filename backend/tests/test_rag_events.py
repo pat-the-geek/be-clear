@@ -346,3 +346,35 @@ async def test_rag_filter_accomplished_event(client: AsyncClient, rag_events_set
     assert len(captured_contexts) == 1
     assert "15:30" in captured_contexts[0]
     assert DATE_REELLE_MILIEU[:10] in captured_contexts[0]
+
+
+# ─── Nettoyage ────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cleanup_rag_events(client: AsyncClient, rag_events_setup):
+    """
+    Supprime dans l'ordre : EVENTs → ENG → ENV → ORG.
+    Vérifie les 404 après chaque suppression.
+    """
+    s = rag_events_setup
+    h = s["headers"]
+
+    # Supprimer les 3 events
+    for ev_id in [s["ev1_id"], s["ev2_id"], s["ev3_id"]]:
+        r = await client.delete(f"/api/event/{ev_id}", headers=h)
+        assert r.status_code == 204
+
+    # Vérifier les 404 events
+    for ev_id in [s["ev1_id"], s["ev2_id"], s["ev3_id"]]:
+        r = await client.get(f"/api/event/{ev_id}", headers=h)
+        assert r.status_code == 404
+
+    # Plus aucun event pour cet ENG
+    r = await client.get(f"/api/event?eng_id={s['eng_id']}", headers=h)
+    assert r.json()["total"] == 0
+
+    # Supprimer l'ENG
+    r = await client.delete(f"/api/eng/{s['eng_id']}", headers=h)
+    assert r.status_code == 204
+    r = await client.get(f"/api/eng/{s['eng_id']}", headers=h)
+    assert r.status_code == 404

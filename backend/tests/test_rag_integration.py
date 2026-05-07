@@ -249,3 +249,33 @@ async def test_rag_enrich_sources_finds_relations(client: AsyncClient, rag_setup
     assert ENG_NOM in ctx
     assert ORG_NOM in ctx   # _enrich_sources doit avoir retrouvé l'ORG liée
     assert ENV_NOM in ctx   # _enrich_sources doit avoir retrouvé l'ENV liée
+
+
+# ─── Nettoyage ────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cleanup_rag_integration(client: AsyncClient, rag_setup):
+    """
+    Supprime ENG → ENV → ORG dans l'ordre et vérifie les 404.
+    Valide les endpoints DELETE et la cohérence des erreurs après suppression.
+    """
+    s = rag_setup
+    h = s["headers"]
+
+    # ENG en premier (dépend de ORG et ENV)
+    r = await client.delete(f"/api/eng/{s['eng_id']}", headers=h)
+    assert r.status_code == 204
+    r = await client.get(f"/api/eng/{s['eng_id']}", headers=h)
+    assert r.status_code == 404
+
+    # ENV
+    r = await client.delete(f"/api/env/{s['env_id']}", headers=h)
+    assert r.status_code == 204
+    r = await client.get(f"/api/env/{s['env_id']}", headers=h)
+    assert r.status_code == 404
+
+    # ORG
+    r = await client.delete(f"/api/org/{s['org_id']}", headers=h)
+    assert r.status_code == 204
+    r = await client.get(f"/api/org/{s['org_id']}", headers=h)
+    assert r.status_code == 404
