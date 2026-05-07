@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text as sa_text
 from app.models.system import Config, LlmConfig
 from app.services.crypto_service import decrypt_secret as _decrypt
+from app.services.embedding_service import embed_text  # noqa: E402 — import circulaire évité via TYPE_CHECKING si besoin
 
 logger = logging.getLogger("beclear.rag")
 
@@ -298,7 +299,6 @@ async def rag_query(
         selected_llm = next((l for l in available_llms if l["type"] == "local"), available_llms[0])
 
     # ── 2. Embedding de la question ──────────────────────
-    from app.services.embedding_service import embed_text
     from app.config import settings
 
     query_vec = await embed_text(question)
