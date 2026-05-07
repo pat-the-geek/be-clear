@@ -7,12 +7,23 @@ from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
 from app.models.activity import Org, OrgTorgHistory, User, Torg
 from app.models.object import Obj, Cla, Value, Img, Doc
-from app.schemas.org import OrgOut, OrgBrief, OrgCreate, OrgUpdate
+from app.schemas.org import OrgOut, OrgBrief, OrgCreate, OrgUpdate, TorgHistoryEntry
 from app.schemas.common import Paginated
 from app.services.log import write_log
 from app.services.search_service import index_obj, delete_obj
 
 router = APIRouter()
+
+
+def _org_to_out(org: Org) -> OrgOut:
+    history = sorted(org.torg_history, key=lambda h: h.date_debut)
+    return OrgOut(
+        id=org.id,
+        obj=org.obj,
+        torg=org.torg,
+        torg_history=[TorgHistoryEntry.from_orm_with_nom(h) for h in history],
+    )
+
 
 # ─── Chargement complet d'une ORG ────────────────────────
 
@@ -27,6 +38,7 @@ def _org_options():
             joinedload(Obj.created_by).joinedload(User.obj),
             joinedload(Obj.updated_by).joinedload(User.obj),
         ),
+        selectinload(Org.torg_history).joinedload(OrgTorgHistory.torg),
     ]
 
 
@@ -99,7 +111,7 @@ async def get_org(
     org = result.unique().scalar_one_or_none()
     if org is None:
         raise HTTPException(status_code=404, detail="Organisation introuvable")
-    return org
+    return _org_to_out(org)
 
 
 # ─── POST /org ───────────────────────────────────────────
@@ -185,7 +197,7 @@ async def create_org(
     except Exception:
         pass
 
-    return org
+    return _org_to_out(org)
 
 
 # ─── PUT /org/{id} ───────────────────────────────────────
@@ -289,7 +301,7 @@ async def update_org(
     except Exception:
         pass
 
-    return org
+    return _org_to_out(org)
 
 
 # ─── DELETE /org/{id} ────────────────────────────────────

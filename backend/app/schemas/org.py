@@ -90,10 +90,30 @@ class ObjOut(BaseModel):
 
 # ─── ORG ────────────────────────────────────
 
+class TorgHistoryEntry(BaseModel):
+    id: int
+    torg_id: int
+    torg_nom: Optional[str] = None
+    date_debut: datetime
+    date_fin: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_orm_with_nom(cls, h) -> "TorgHistoryEntry":
+        return cls(
+            id=h.id,
+            torg_id=h.torg_id,
+            torg_nom=h.torg.nom if h.torg else None,
+            date_debut=h.date_debut,
+            date_fin=h.date_fin,
+        )
+
+
 class OrgOut(BaseModel):
     id: int
     obj: ObjOut
     torg: TorgRef
+    torg_history: list[TorgHistoryEntry] = []
     model_config = {"from_attributes": True}
 
 

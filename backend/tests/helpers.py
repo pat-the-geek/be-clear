@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.jwt import create_access_token
-from app.models.activity import Role, Tuser, User, Torg, Tenv, Org
+from app.models.activity import Role, Tuser, User, Torg, Tenv, Org, Teng, Tevent
 from app.models.object import Cla, Obj
 
 
@@ -70,6 +70,24 @@ async def create_user(
     db.add(user)
     await db.flush()
     return user
+
+
+async def create_teng(db: AsyncSession, nom: str, cla_id: int) -> Teng:
+    teng = Teng(nom=nom, cla_id=cla_id)
+    db.add(teng)
+    await db.flush()
+    return teng
+
+
+async def create_tevent(
+    db: AsyncSession, nom: str, cla_id: int,
+    duree_valeur: float = 1.0, duree_unite: str = "heures"
+) -> Tevent:
+    tevent = Tevent(nom=nom, cla_id=cla_id,
+                    duree_prevue_valeur=duree_valeur, duree_prevue_unite=duree_unite)
+    db.add(tevent)
+    await db.flush()
+    return tevent
 
 
 async def get_token(user: User) -> str:

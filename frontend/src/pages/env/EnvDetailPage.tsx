@@ -19,7 +19,7 @@ import ImageManager from '@/components/shared/ImageManager'
 const DocManager = lazy(() => import('@/components/shared/DocManager'))
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import ForceGraph, { type GNode, type GEdge } from '@/components/shared/ForceGraph'
-import type { Env, Prop, Value, EngBrief, PaginatedResponse } from '@/types'
+import type { Env, Prop, Value, EngBrief, PaginatedResponse, TenvHistoryEntry } from '@/types'
 
 // ─── Composant : carte PROP / VALUE ─────────────────────────
 
@@ -686,6 +686,32 @@ export default function EnvDetailPage() {
           </div>
         </div>
       </section>
+
+      {env.tenv_history.length > 1 && (
+        <section className="mb-7">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Historique des types</h2>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-100">
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Type</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Depuis</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Jusqu'au</th>
+                </tr>
+              </thead>
+              <tbody>
+                {env.tenv_history.map((h: TenvHistoryEntry) => (
+                  <tr key={h.id} className="border-b border-gray-100 last:border-0">
+                    <td className="px-4 py-2 font-medium text-gray-800">{h.tenv_nom ?? `#${h.tenv_id}`}</td>
+                    <td className="px-4 py-2 text-gray-600">{formatDate(h.date_debut)}</td>
+                    <td className="px-4 py-2 text-gray-600">{h.date_fin ? formatDate(h.date_fin) : <span className="text-green-600 font-medium">actuel</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="mb-7">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Journal des modifications</h2>

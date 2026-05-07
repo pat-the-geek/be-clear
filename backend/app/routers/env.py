@@ -7,12 +7,22 @@ from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
 from app.models.activity import Env, EnvTenvHistory, User, Tenv
 from app.models.object import Obj, Cla, Value, Img, Doc
-from app.schemas.env import EnvOut, EnvBrief, EnvCreate, EnvUpdate
+from app.schemas.env import EnvOut, EnvBrief, EnvCreate, EnvUpdate, TenvHistoryEntry
 from app.schemas.common import Paginated
 from app.services.log import write_log
 from app.services.search_service import index_obj, delete_obj
 
 router = APIRouter()
+
+
+def _env_to_out(env: Env) -> EnvOut:
+    history = sorted(env.tenv_history, key=lambda h: h.date_debut)
+    return EnvOut(
+        id=env.id,
+        obj=env.obj,
+        tenv=env.tenv,
+        tenv_history=[TenvHistoryEntry.from_orm_with_nom(h) for h in history],
+    )
 
 
 # ─── Chargement complet d'un ENV ─────────────────────────────
@@ -28,6 +38,7 @@ def _env_options():
             joinedload(Obj.created_by).joinedload(User.obj),
             joinedload(Obj.updated_by).joinedload(User.obj),
         ),
+        selectinload(Env.tenv_history).joinedload(EnvTenvHistory.tenv),
     ]
 
 
@@ -98,7 +109,7 @@ async def get_env(
     env = result.unique().scalar_one_or_none()
     if env is None:
         raise HTTPException(status_code=404, detail="Environnement introuvable")
-    return env
+    return _env_to_out(env)
 
 
 # ─── POST /env ───────────────────────────────────────────────
@@ -187,7 +198,7 @@ async def create_env(
     except Exception:
         pass
 
-    return env
+    return _env_to_out(env)
 
 
 # ─── PUT /env/{id} ───────────────────────────────────────────
@@ -290,7 +301,7 @@ async def update_env(
     except Exception:
         pass
 
-    return env
+    return _env_to_out(env)
 
 
 # ─── DELETE /env/{id} ────────────────────────────────────────

@@ -135,12 +135,21 @@ export interface Tevent {
   duree_prevue_unite?: 'secondes' | 'minutes' | 'heures' | 'jours' | 'mois'
 }
 
+export interface TorgHistoryEntry {
+  id: number
+  torg_id: number
+  torg_nom?: string | null
+  date_debut: string
+  date_fin?: string | null
+}
+
 /** Vue détail (endpoint GET /org/:id) */
 export interface Org {
   id: number
   obj: Obj
   torg: Torg
   torg_id: number
+  torg_history: TorgHistoryEntry[]
 }
 
 /** Vue liste (endpoint GET /org) — champ `obj` absent */
@@ -152,12 +161,21 @@ export interface OrgBrief {
   updated_at?: string
 }
 
+export interface TenvHistoryEntry {
+  id: number
+  tenv_id: number
+  tenv_nom?: string | null
+  date_debut: string
+  date_fin?: string | null
+}
+
 /** Vue détail (endpoint GET /env/:id) */
 export interface Env {
   id: number
   obj: Obj
   tenv: Tenv
   tenv_id: number
+  tenv_history: TenvHistoryEntry[]
 }
 
 /** Vue liste (endpoint GET /env) — champ `obj` absent */

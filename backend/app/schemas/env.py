@@ -18,10 +18,30 @@ class TenvRef(BaseModel):
 
 # ─── ENV ─────────────────────────────────────
 
+class TenvHistoryEntry(BaseModel):
+    id: int
+    tenv_id: int
+    tenv_nom: Optional[str] = None
+    date_debut: datetime
+    date_fin: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_orm_with_nom(cls, h) -> "TenvHistoryEntry":
+        return cls(
+            id=h.id,
+            tenv_id=h.tenv_id,
+            tenv_nom=h.tenv.nom if h.tenv else None,
+            date_debut=h.date_debut,
+            date_fin=h.date_fin,
+        )
+
+
 class EnvOut(BaseModel):
     id: int
     obj: ObjOut
     tenv: TenvRef
+    tenv_history: list[TenvHistoryEntry] = []
     model_config = {"from_attributes": True}
 
 
