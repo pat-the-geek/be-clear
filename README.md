@@ -152,6 +152,8 @@ docker compose -p <instance> exec backend alembic upgrade head
 | ✅ Fait | **Gestion USER — désactivation** | Bouton désactiver/réactiver un utilisateur dans l'onglet Utilisateurs de l'administration |
 | ✅ Fait | **Pagination côté serveur** | Vérifiée : ORG, ENV, ENG, EVENT ont tous un `page`/`per_page` côté serveur |
 | ✅ Fait | **Chiffrement clés LLM** | Chiffrement Fernet (AES-128-CBC) au repos — clé dérivée du SECRET_KEY |
+| ✅ Fait | **Serveur MCP (étapes 1-4)** | Serveur Model Context Protocol exposant les données be.CLEAR à Claude Desktop et autres clients MCP — outils lecture/écriture, ressources `beclear://`, 10 prompts types, transport stdio et SSE Docker (`--profile mcp`) |
+| 📋 TODO | **ChatGPT Actions (étape 5)** | Exposer be.CLEAR à ChatGPT via OpenAPI Actions — prérequis : déploiement HTTPS public. Créer un spec OpenAPI réduit (`/api/openapi_gpt.json`) couvrant search, RAG, ORG, ENG, EVENT. Configurer l'authentification par clé API dans GPT Builder. Dépend de l'infrastructure d'hébergement public. |
 
 ## Documents produits
 
