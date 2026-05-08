@@ -186,6 +186,29 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             limit: Nombre maximum de résultats.
         """
         async with AsyncSession() as db:
+            # Étape 1 : IDs distincts + tri — SELECT DISTINCT (id, nom) évite
+            # le conflit PostgreSQL "ORDER BY expressions must appear in select list"
+            # causé par le double alias obj/obj_1 généré par joinedload + join explicite.
+            id_stmt = select(Eng.id, Obj.nom).distinct().join(Eng.obj)
+            if org_id:
+                id_stmt = id_stmt.join(
+                    eng_org, Eng.id == eng_org.c.eng_id
+                ).where(eng_org.c.org_id == org_id)
+            if env_id:
+                id_stmt = id_stmt.join(
+                    eng_env, Eng.id == eng_env.c.eng_id
+                ).where(eng_env.c.env_id == env_id)
+            if status == "actif":
+                id_stmt = id_stmt.where(Eng.date_fin.is_(None))
+            elif status == "clos":
+                id_stmt = id_stmt.where(Eng.date_fin.is_not(None))
+            id_stmt = id_stmt.order_by(Obj.nom).limit(limit)
+            ids = [row[0] for row in (await db.execute(id_stmt)).all()]
+
+            if not ids:
+                return "Aucun ENG trouvé."
+
+            # Étape 2 : chargement complet sans DISTINCT — ORDER BY libre
             stmt = (
                 select(Eng)
                 .options(
@@ -193,26 +216,12 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                     joinedload(Eng.teng),
                     selectinload(Eng.orgs).joinedload(Org.obj),
                 )
+                .where(Eng.id.in_(ids))
                 .join(Eng.obj)
-                .distinct()
+                .order_by(Obj.nom)
             )
-            if org_id:
-                stmt = stmt.join(
-                    eng_org, Eng.id == eng_org.c.eng_id
-                ).where(eng_org.c.org_id == org_id)
-            if env_id:
-                stmt = stmt.join(
-                    eng_env, Eng.id == eng_env.c.eng_id
-                ).where(eng_env.c.env_id == env_id)
-            if status == "actif":
-                stmt = stmt.where(Eng.date_fin.is_(None))
-            elif status == "clos":
-                stmt = stmt.where(Eng.date_fin.is_not(None))
-            stmt = stmt.order_by(Obj.nom).limit(limit)
             engs = (await db.execute(stmt)).unique().scalars().all()
 
-        if not engs:
-            return "Aucun ENG trouvé."
         lines = [f"## Engagements ({len(engs)} résultat(s))\n"]
         for eng in engs:
             acc = eng.accomplissement or 0
