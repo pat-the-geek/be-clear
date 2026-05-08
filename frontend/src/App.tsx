@@ -29,6 +29,7 @@ import EventListPage from '@/pages/event/EventListPage'
 import EventCreatePage from '@/pages/event/EventCreatePage'
 import GraphPage from '@/pages/graph/GraphPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import UserDetailPage from '@/pages/user/UserDetailPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
@@ -92,6 +93,7 @@ export default function App() {
 
         {/* Profil utilisateur */}
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/user/:id" element={<UserDetailPage />} />
 
         {/* 404 dans la zone protégée */}
         <Route path="*" element={<NotFoundPage />} />

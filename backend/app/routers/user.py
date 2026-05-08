@@ -35,6 +35,7 @@ class UserOut(BaseModel):
     tuser: TuserRef
     role: RoleRef | None = None
     org_id: int | None = None
+    org_nom: str | None = None
     est_actif: bool
     auth_uid: str | None = None
     model_config = {"from_attributes": True}
@@ -71,11 +72,12 @@ def _user_options():
 
 
 async def _load_user_with_role(db: AsyncSession, user_id: int) -> tuple:
-    """Charge un User avec son Role. Retourne (User, Role | None)."""
+    """Charge un User avec son Role et son Org. Retourne (User, Role | None, Org | None)."""
     result = await db.execute(
         select(User)
         .options(
             joinedload(User.tuser),
+            joinedload(User.org),
             joinedload(User.obj).joinedload(Obj.cla),
         )
         .where(User.id == user_id)
@@ -84,12 +86,11 @@ async def _load_user_with_role(db: AsyncSession, user_id: int) -> tuple:
     if user is None:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
 
-    # Charger le role séparément
     role = None
     if user.role_id is not None:
         role = await db.get(Role, user.role_id)
 
-    return user, role
+    return user, role, user.org
 
 
 # ─── GET /user/roles ──────────────────────────────────────
@@ -135,6 +136,7 @@ async def list_users(
             tuser=u.tuser,
             role=RoleRef(id=role.id, valeur=role.valeur) if role else None,
             org_id=u.org_id,
+            org_nom=u.org.obj.nom if u.org and u.org.obj else None,
             est_actif=u.est_actif,
             auth_uid=u.auth_uid,
         ))
@@ -150,13 +152,14 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    user, role = await _load_user_with_role(db, user_id)
+    user, role, org = await _load_user_with_role(db, user_id)
     return UserOut(
         id=user.id,
         nom=user.obj.nom,
         tuser=user.tuser,
         role=RoleRef(id=role.id, valeur=role.valeur) if role else None,
         org_id=user.org_id,
+        org_nom=org.obj.nom if org and org.obj else None,
         est_actif=user.est_actif,
         auth_uid=user.auth_uid,
     )
@@ -233,13 +236,14 @@ async def create_user(
                            "role_id": body.role_id, "org_id": body.org_id})
     await db.commit()
 
-    user_out, role_obj = await _load_user_with_role(db, new_user.id)
+    user_out, role_obj, org_obj = await _load_user_with_role(db, new_user.id)
     return UserOut(
         id=user_out.id,
         nom=user_out.obj.nom,
         tuser=user_out.tuser,
         role=RoleRef(id=role_obj.id, valeur=role_obj.valeur) if role_obj else None,
         org_id=user_out.org_id,
+        org_nom=org_obj.obj.nom if org_obj and org_obj.obj else None,
         est_actif=user_out.est_actif,
         auth_uid=user_out.auth_uid,
     )
@@ -286,13 +290,14 @@ async def update_user(
                            "est_actif": user.est_actif})
     await db.commit()
 
-    user_out, role_obj = await _load_user_with_role(db, user_id)
+    user_out, role_obj, org_obj = await _load_user_with_role(db, user_id)
     return UserOut(
         id=user_out.id,
         nom=user_out.obj.nom,
         tuser=user_out.tuser,
         role=RoleRef(id=role_obj.id, valeur=role_obj.valeur) if role_obj else None,
         org_id=user_out.org_id,
+        org_nom=org_obj.obj.nom if org_obj and org_obj.obj else None,
         est_actif=user_out.est_actif,
         auth_uid=user_out.auth_uid,
     )

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -806,7 +806,11 @@ function TabUsers() {
           <tbody>
             {users?.map((user) => (
               <tr key={user.id} className="border-t border-gray-100">
-                <td className="px-4 py-2.5 font-medium text-gray-900">{user.nom}</td>
+                <td className="px-4 py-2.5 font-medium text-gray-900">
+                  <Link to={`/user/${user.id}`} className="hover:text-blue-600 hover:underline transition-colors">
+                    {user.nom}
+                  </Link>
+                </td>
                 <td className="px-4 py-2.5 text-gray-500">{user.tuser.valeur}</td>
                 <td className="px-4 py-2.5">
                   {user.role ? (
