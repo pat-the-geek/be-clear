@@ -380,9 +380,9 @@ Stratégie **colonnes typées hybrides** : seule la colonne correspondant au typ
 | `prop_id` | INT | FK → prop(id), NOT NULL | |
 | `valeur_texte` | TEXT | | `TEXTE`, `MARKDOWN`, `URL`, `EMAIL`, `TELEPHONE`, `LISTE` |
 | `valeur_date` | TIMESTAMPTZ | | `DATE`, `HEURE`, `DATETIME` |
-| `valeur_nombre` | DECIMAL(20,6) | | `ENTIER`, `DECIMAL`, `POURCENTAGE` |
+| `valeur_nombre` | DECIMAL(20,6) | | `ENTIER`, `DECIMAL`, `POURCENTAGE`, `MONTANT` (en CHF) |
 | `valeur_bool` | BOOLEAN | | `BOOLEEN` |
-| `valeur_json` | JSONB | | `MONTANT` `{valeur, devise}`, `DUREE` `{valeur, unite}`, `COORDONNEES` `{lat, lng}` |
+| `valeur_json` | JSONB | | `DUREE` `{valeur, unite}`, `COORDONNEES` `{lat, lng}` |
 | `valeur_ref_obj_id` | INT | FK → obj(id) | `REFERENCE` |
 | | | UNIQUE(obj_id, prop_id) | 1 VALUE par PROP par OBJ |
 | `created_at` | TIMESTAMPTZ | NOT NULL | |
@@ -402,7 +402,7 @@ Stratégie **colonnes typées hybrides** : seule la colonne correspondant au typ
 | `ENTIER` | `valeur_nombre` | `42.000000` |
 | `DECIMAL` | `valeur_nombre` | `3.141593` |
 | `POURCENTAGE` | `valeur_nombre` | `85.500000` |
-| `MONTANT` | `valeur_json` | `{"valeur": 1500.00, "devise": "EUR"}` |
+| `MONTANT` | `valeur_nombre` | `1500.000000` (CHF) |
 | `DUREE` | `valeur_json` | `{"valeur": 2, "unite": "jours"}` |
 | `COORDONNEES` | `valeur_json` | `{"lat": 48.8566, "lng": 2.3522}` |
 | `BOOLEEN` | `valeur_bool` | `true` |
@@ -541,8 +541,9 @@ Stratégie **colonnes typées hybrides** : seule la colonne correspondant au typ
 |-------|-----------|------|---------------|
 | `obj` | `search_vector` | GIN | Recherche full-text |
 | `obj` | `uid` | BTREE UNIQUE | Accès par UUID universel |
-| `obj` | `cla_id` | BTREE | Filtrage par classe |
+| `obj` | `cla_id` | BTREE | Filtrage par classe — migration 0012 |
 | `value` | `(obj_id, prop_id)` | BTREE UNIQUE | Unicité + jointures |
+| `value` | `prop_id` | BTREE | CASCADE DELETE sur PROP — migration 0012 |
 | `value` | `valeur_ref_obj_id` | BTREE | Navigation par REFERENCE |
 | `value` | `valeur_date` | BTREE | Filtrage et tri par date |
 | `value` | `valeur_nombre` | BTREE | Filtrage et tri numérique |

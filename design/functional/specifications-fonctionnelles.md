@@ -145,9 +145,10 @@ Identique à F05, appliqué aux ENV.
 **Acteurs** : tous
 
 - Afficher l'arborescence des TORG
-- Pour chaque nœud, afficher les ORG rattachées
 - Développer / réduire les nœuds
-- Accéder à une ORG depuis l'arborescence
+- Sélectionner un TORG → afficher un **tableau de toutes les ORG** de ce type avec leurs PROP/VALUE en colonnes triables (clic sur un en-tête de colonne inverse le tri)
+- Cliquer une ligne du tableau → sélectionner l'ORG et afficher ses ENG
+- Accéder à la fiche détail d'une ORG depuis le tableau (icône lien)
 
 ### F13 — Consulter une Organisation
 **Acteurs** : tous
@@ -174,7 +175,7 @@ Identique à F11, appliqué aux ENV.
 ### F16 — Naviguer par TENV → ENV
 **Acteurs** : tous
 
-Identique à F12, appliqué aux ENV.
+Identique à F12, appliqué aux ENV avec TENV.
 
 ### F17 — Consulter un Environnement
 **Acteurs** : tous
