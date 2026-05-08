@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound, BarChart3, CheckCircle2, Clock, AlertTriangle, Users, Handshake, Leaf, Building2, CalendarClock, Activity } from 'lucide-react'
+import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound, BarChart3, CheckCircle2, Clock, AlertTriangle, Users, Handshake, Leaf, Building2, CalendarClock, Activity, UserCheck, UserX } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, statsApi, searchApi, api } from '@/services/api'
 import { toast } from '@/lib/toast'
@@ -762,6 +762,15 @@ function TabUsers() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<UserItem | null>(null)
   const [resetPwdTarget, setResetPwdTarget] = useState<UserItem | null>(null)
+  const qc = useQueryClient()
+
+  const toggleActive = useMutation({
+    mutationFn: (user: UserItem) => userApi.update(user.id, { est_actif: !user.est_actif }),
+    onSuccess: (_data, user) => {
+      qc.invalidateQueries({ queryKey: ['user'] })
+      toast.success(user.est_actif ? 'Utilisateur désactivé' : 'Utilisateur réactivé')
+    },
+  })
 
   const { data: users, isLoading, isError } = useQuery<UserItem[]>({
     queryKey: ['user', 'list'],
@@ -829,6 +838,19 @@ function TabUsers() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => toggleActive.mutate(user)}
+                      disabled={toggleActive.isPending}
+                      className={cn(
+                        'transition-colors',
+                        user.est_actif
+                          ? 'text-gray-400 hover:text-red-600'
+                          : 'text-gray-400 hover:text-green-600',
+                      )}
+                      title={user.est_actif ? 'Désactiver' : 'Réactiver'}
+                    >
+                      {user.est_actif ? <UserX size={14} /> : <UserCheck size={14} />}
+                    </button>
                     <button
                       onClick={() => setResetPwdTarget(user)}
                       className="text-gray-400 hover:text-amber-600 transition-colors"

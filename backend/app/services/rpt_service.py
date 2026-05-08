@@ -225,7 +225,7 @@ def save_report(content: str, entity_type: str, nom: str, destination: str) -> s
     filename = f"{entity_type}-{safe_nom}-{date_str}.md"
 
     if destination == "obsidian":
-        base = Path(settings.OBSIDIAN_VAULT_PATH)
+        base = Path(settings.OBSIDIAN_VAULT_PATH) / "be.CLEAR"
     else:
         base = Path(settings.MEDIA_PATH) / "rapports"
 

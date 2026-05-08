@@ -144,7 +144,10 @@ docker compose -p <instance> exec backend alembic upgrade head
 |----------|-------|-------------|
 | ✅ Fait | **Auth externe OIDC** | Login SSO via OpenID Connect (Keycloak, Google, GitHub, Authentik…) — découverte automatique, state HMAC, provisionnement USER, secret chiffré Fernet |
 | ✅ Fait | **Graphe global** | Vue globale ORG↔ENG↔ENV avec filtres par type, recherche de nœud et optimisation N+1 (selectinload) |
-| ✅ Fait | **Tests automatisés** | Suite pytest-asyncio (SQLite in-memory) : 205 tests — auth, CRUD ORG/ENV/ENG/EVENT/TORG/TENV/TENG/TEVENT, duplication ENG, RPT, règles métier RF-02/RF-03/RF-04/RF-08/RF-09/RF-11/RF-12/RF-13/RF-15, OIDC state HMAC, crypto, RAG intégration, LOG, STATS, search, media, config/LLM/token |
+| ✅ Fait | **Tests automatisés** | Suite pytest-asyncio (SQLite in-memory) : 216 tests — auth, CRUD ORG/ENV/ENG/EVENT/TORG/TENV/TENG/TEVENT, duplication ENG, RPT, règles métier RF-02/RF-03/RF-04/RF-08/RF-09/RF-11/RF-12/RF-13/RF-15, OIDC state HMAC, crypto, RAG intégration, LOG, STATS, search, media, config/LLM/token, seed BDD multi-instance |
+| ✅ Fait | **Tests E2E Playwright** | Tests navigateur sur les parcours critiques : auth (login/logout/protection), ENG (liste, création), recherche full-text — lancés avec `npm run e2e` |
+| ✅ Fait | **CI/CD GitHub Actions** | Pipeline sur chaque push/PR : lint + tests backend, lint + typecheck + build frontend, build images Docker |
+| ✅ Fait | **Gestion USER — désactivation** | Bouton désactiver/réactiver un utilisateur dans l'onglet Utilisateurs de l'administration |
 | ✅ Fait | **Pagination côté serveur** | Vérifiée : ORG, ENV, ENG, EVENT ont tous un `page`/`per_page` côté serveur |
 | ✅ Fait | **Chiffrement clés LLM** | Chiffrement Fernet (AES-128-CBC) au repos — clé dérivée du SECRET_KEY |
 
