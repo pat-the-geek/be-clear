@@ -281,9 +281,19 @@ async def reorder_templates(
     )
     tmpl_map = {t.id: t for t in result.unique().scalars().all()}
 
-    for i, tmpl_id in enumerate(body.ordre):
+    for tmpl_id in body.ordre:
         if tmpl_id not in tmpl_map:
             raise HTTPException(status_code=400, detail=f"Template {tmpl_id} introuvable")
+
+    # Two-phase update: avoid UNIQUE(teng_id, ordre) conflicts during reorder.
+    # Phase 1: shift all orders to a high offset so no two rows share the same value.
+    offset = len(tmpl_map) + 1000
+    for t in tmpl_map.values():
+        t.ordre = offset + t.ordre
+    await db.flush()
+
+    # Phase 2: assign final orders 0, 1, 2…
+    for i, tmpl_id in enumerate(body.ordre):
         tmpl_map[tmpl_id].ordre = i
 
     await db.commit()
