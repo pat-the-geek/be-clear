@@ -14,6 +14,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
  * Retourne [largeur, gestionnaire onMouseDown] pour un volet redimensionnable.
  * La largeur est persistée dans localStorage si `storageKey` est fourni.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useResizable(
   initialWidth: number,
   minWidth: number,

@@ -13,10 +13,10 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 const schema = z.object({
   nom: z.string().min(1, 'Nom requis'),
-  teng_id: z.coerce.number().min(1, "Type d'engagement requis"),
+  teng_id: z.string().min(1, "Type d'engagement requis"),
   date_debut: z.string().optional(),
   date_debut_prevue: z.string().optional(),
-  date_fin_prevue: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  date_fin_prevue: z.string().optional(),
   description: z.string().optional(),
 })
 type FormData = z.infer<typeof schema>
@@ -61,14 +61,14 @@ export default function CreateEngModal({ open, onClose, orgId, envId, entityNom,
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { teng_id: 0 },
+    defaultValues: { teng_id: '' },
   })
 
   const [selectionError, setSelectionError] = useState<string | null>(null)
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const teng = (tengList ?? []).find((t) => t.id === data.teng_id)
+      const teng = (tengList ?? []).find((t) => t.id === Number(data.teng_id))
       if (!teng) throw new Error('TENG introuvable')
 
       const finalOrgIds = orgId != null ? [orgId] : [...selectedOrgIds]
@@ -81,7 +81,7 @@ export default function CreateEngModal({ open, onClose, orgId, envId, entityNom,
 
       return engApi.create({
         nom: data.nom,
-        teng_id: data.teng_id,
+        teng_id: Number(data.teng_id),
         cla_id: teng.cla.id,
         org_ids: finalOrgIds,
         env_ids: finalEnvIds,
@@ -103,7 +103,7 @@ export default function CreateEngModal({ open, onClose, orgId, envId, entityNom,
 
   useEffect(() => {
     if (open) {
-      form.reset({ teng_id: 0, date_debut: today(), date_debut_prevue: today() })
+      form.reset({ teng_id: '', date_debut: today(), date_debut_prevue: today() })
       mutation.reset()
       setSelectionError(null)
       setSelectedOrgIds(new Set())
@@ -112,7 +112,7 @@ export default function CreateEngModal({ open, onClose, orgId, envId, entityNom,
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleClose() {
-    form.reset({ teng_id: 0 })
+    form.reset({ teng_id: '' })
     mutation.reset()
     setSelectionError(null)
     setSelectedOrgIds(new Set())
@@ -122,11 +122,11 @@ export default function CreateEngModal({ open, onClose, orgId, envId, entityNom,
 
   function toggleOrg(id: number) {
     setSelectionError(null)
-    setSelectedOrgIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+    setSelectedOrgIds((prev) => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
   }
   function toggleEnv(id: number) {
     setSelectionError(null)
-    setSelectedEnvIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+    setSelectedEnvIds((prev) => { const s = new Set(prev); if (s.has(id)) s.delete(id); else s.add(id); return s })
   }
 
   function handleSubmit(data: FormData) {
@@ -163,7 +163,7 @@ export default function CreateEngModal({ open, onClose, orgId, envId, entityNom,
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Type d'engagement *</label>
           <select {...form.register('teng_id')} className={inputClass}>
-            <option value={0}>— Sélectionner —</option>
+            <option value="">— Sélectionner —</option>
             {(tengList ?? []).map((t) => (
               <option key={t.id} value={t.id}>{t.nom}</option>
             ))}

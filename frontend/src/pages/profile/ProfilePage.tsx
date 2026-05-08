@@ -27,7 +27,7 @@ interface ApiTokenCreated extends ApiToken {
 
 const tokenSchema = z.object({
   nom: z.string().optional(),
-  expire_at: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  expire_at: z.string().optional(),
 })
 type TokenForm = z.infer<typeof tokenSchema>
 

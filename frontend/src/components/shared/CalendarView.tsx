@@ -48,7 +48,7 @@ export default function CalendarView({ orgId, envId, engId }: Props) {
       }).then((r) => r.data as PaginatedResponse<CalendarEvent>),
   })
 
-  const events = data?.items ?? []
+  const events = useMemo(() => data?.items ?? [], [data?.items])
 
   // Group events by ISO date string (YYYY-MM-DD)
   const eventsByDay = useMemo(() => {

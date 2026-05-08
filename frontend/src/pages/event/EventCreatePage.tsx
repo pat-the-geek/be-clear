@@ -80,6 +80,8 @@ export default function EventCreatePage() {
     if (suggest?.date_heure_prevue_suggere && !dateHeurePrevue) {
       setDateHeurePrevue(isoToDatetimeLocal(suggest.date_heure_prevue_suggere))
     }
+    // dateHeurePrevue intentionnellement absent : on ne re-déclenche pas quand l'utilisateur saisit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suggest])
 
   const { mutateAsync: createAsync, isPending, isSuccess, error } = useMutation({

@@ -12,6 +12,7 @@ export interface ValueDraft {
   valeur_ref_obj_id: number | null
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function emptyDraft(propId: number): ValueDraft {
   return {
     prop_id: propId,

@@ -127,10 +127,10 @@ function MessageBubble({ message }: MessageBubbleProps) {
                   li: ({ children }) => <li className="text-sm text-gray-800">{children}</li>,
                   strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
                   em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
-                  code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
-                    inline
-                      ? <code className="font-mono text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">{children}</code>
-                      : <code>{children}</code>,
+                  code: ({ className, children }) =>
+                    className
+                      ? <code className={className}>{children}</code>
+                      : <code className="font-mono text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">{children}</code>,
                   pre: ({ children }) => <pre className="bg-gray-800 text-green-300 text-xs rounded-lg p-3 overflow-x-auto my-2">{children}</pre>,
                   blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-300 pl-3 text-gray-600 italic text-sm my-2">{children}</blockquote>,
                   hr: () => <hr className="border-gray-200 my-3" />,

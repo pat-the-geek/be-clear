@@ -28,10 +28,10 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 const createEngSchema = z.object({
   nom: z.string().min(1, 'Nom requis'),
-  teng_id: z.coerce.number().min(1, "Type d'engagement requis"),
+  teng_id: z.string().min(1, "Type d'engagement requis"),
   date_debut: z.string().optional(),
   date_debut_prevue: z.string().optional(),
-  date_fin_prevue: z.preprocess(v => (v === '' ? undefined : v), z.string().optional()),
+  date_fin_prevue: z.string().optional(),
   description: z.string().optional(),
 })
 type CreateEngForm = z.infer<typeof createEngSchema>
@@ -337,7 +337,7 @@ export default function EnvListPage() {
 
   const engForm = useForm<CreateEngForm>({
     resolver: zodResolver(createEngSchema),
-    defaultValues: { teng_id: 0 },
+    defaultValues: { teng_id: '' },
   })
 
   // ─── Données ────────────────────────────────────────────────
@@ -420,11 +420,11 @@ export default function EnvListPage() {
 
   const createEngMutation = useMutation({
     mutationFn: async (data: CreateEngForm) => {
-      const teng = (tengList ?? []).find(t => t.id === data.teng_id)
+      const teng = (tengList ?? []).find(t => t.id === Number(data.teng_id))
       if (!teng) throw new Error('TENG introuvable')
       return engApi.create({
         nom: data.nom,
-        teng_id: data.teng_id,
+        teng_id: Number(data.teng_id),
         cla_id: teng.cla.id,
         org_ids: [],
         env_ids: [selectedEnvId!],
@@ -638,7 +638,7 @@ export default function EnvListPage() {
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Engagements</h3>
                 {isEditeur() && (
                   <button
-                    onClick={() => { engForm.reset({ teng_id: 0, date_debut: today(), date_debut_prevue: today() }); setShowCreateEng(true) }}
+                    onClick={() => { engForm.reset({ teng_id: '', date_debut: today(), date_debut_prevue: today() }); setShowCreateEng(true) }}
                     title="Nouvel engagement"
                     className="text-gray-400 hover:text-orange-600 transition-colors"
                   >
@@ -686,7 +686,7 @@ export default function EnvListPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Type d'engagement *</label>
             <select {...engForm.register('teng_id')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value={0}>— Sélectionner —</option>
+              <option value="">— Sélectionner —</option>
               {(tengList ?? []).map(t => <option key={t.id} value={t.id}>{t.nom}</option>)}
             </select>
             {engForm.formState.errors.teng_id && <p className="text-red-500 text-xs mt-1">{engForm.formState.errors.teng_id.message}</p>}

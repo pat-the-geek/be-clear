@@ -29,6 +29,7 @@ interface Props {
 // ─── Helpers ──────────────────────────────────────────────
 
 /** URL publique d'une image stockée dans /media/files/ */
+// eslint-disable-next-line react-refresh/only-export-components
 export function imgUrl(chemin: string): string {
   return `/api/media/files/${chemin}`
 }
