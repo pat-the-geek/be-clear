@@ -25,6 +25,8 @@ erDiagram
     EVENT }|--|| TEVENT : "typé par"
     USER }|--|| TUSER : "de nature"
     USER }|--|| ROLE : "a"
+    TENG ||--o{ TENG_TEVENT_TEMPLATE : "séquence auto"
+    TENG_TEVENT_TEMPLATE }|--|| TEVENT : "référence"
 
     ORG {
         datetime created_at

@@ -26,6 +26,8 @@ erDiagram
     ENV }|--|| TENV : "typée par"
     ENG }|--|| TENG : "typé par"
     EVENT }|--|| TEVENT : "typé par"
+    TENG ||--o{ TENG_TEVENT_TEMPLATE : "séquence"
+    TENG_TEVENT_TEMPLATE }|--|| TEVENT : "référence"
     USER }|--|| TUSER : "de nature"
     USER }o--|| ROLE : "a"
 
@@ -107,6 +109,26 @@ Liste plate.
 | `updated_at` | TIMESTAMPTZ | NOT NULL | |
 | `created_by` | INT | FK → user(id) | |
 | `updated_by` | INT | FK → user(id) | |
+
+---
+
+### `teng_tevent_template` — Séquence de TEVENTs d'un TENG
+Liste ordonnée de TEVENT à créer automatiquement à la création d'un ENG de ce type.
+
+| Colonne | Type | Contraintes | Description |
+|---------|------|-------------|-------------|
+| `id` | SERIAL | PK | |
+| `teng_id` | INT | FK → teng(id) CASCADE, NOT NULL | |
+| `tevent_id` | INT | FK → tevent(id) CASCADE, NOT NULL | |
+| `ordre` | INT | NOT NULL, DEFAULT 0 | Position dans la séquence (0-based) |
+| `created_at` | TIMESTAMPTZ | NOT NULL | |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | |
+| `created_by` | INT | FK → user(id) | |
+| `updated_by` | INT | FK → user(id) | |
+
+Contrainte : `UNIQUE(teng_id, ordre)` — deux entrées d'un même TENG ne peuvent avoir le même rang.
+
+> Lors de la création d'un ENG, si son TENG possède des entrées dans cette table et que `date_début` est renseignée, les EVENTs sont générés en cascade : chaque EVENT démarre à la fin du précédent (`date_heure_prévue + durée TEVENT`).
 
 ---
 

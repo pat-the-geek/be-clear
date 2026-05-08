@@ -129,6 +129,8 @@ docker compose -p <instance> exec backend alembic upgrade head
 | **ENG** | CRUD complet + filtres (statut, TENG, ORG, ENV, recherche) | ✅ | ✅ |
 | **ENG** | Détail : Gantt Mermaid, accomplissement, ORG/ENV liées, EVENTs, images, documents, timeline | ✅ | ✅ |
 | **ENG** | Duplication d'engagement | ✅ | ✅ |
+| **ENG** | Création automatique des EVENTs depuis la séquence du TENG (RF-T1) | ✅ | ✅ |
+| **Admin** | Séquence TEVENT par TENG — ajouter, réordonner, supprimer des TEVENTs (template) | ✅ | ✅ |
 | **EVENT** | CRUD complet + calendrier + vue liste | ✅ | ✅ |
 | **EVENT** | Détail : dates prévues/effectives, propriétés, images, documents, timeline | ✅ | ✅ |
 | **IMG** | Upload, suppression, désignation image principale | ✅ | ✅ |

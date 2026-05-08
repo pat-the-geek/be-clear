@@ -90,6 +90,20 @@ Identique à F05, appliqué aux ENV.
 - Créer un TENG : nom, CLA associée
 - Modifier, supprimer (tracé dans LOG)
 - RF-08 : un TENG ne peut être supprimé si des ENG lui sont rattachés
+- Définir la **séquence de TEVENTs automatiques** du TENG : liste ordonnée de TEVENT à créer automatiquement à la création d'un ENG de ce type (voir F07b)
+
+### F07b — Séquence TEVENT d'un TENG (template)
+**Acteurs** : `ADMIN`
+
+- Associer des TEVENT à un TENG dans un ordre défini
+- Ajouter un TEVENT à la fin de la séquence
+- Réordonner les TEVENT (monter / descendre)
+- Supprimer un TEVENT de la séquence
+- La séquence est affichée dans l'interface d'administration, sur la fiche du TENG
+
+**Règle RF-T1** : à la création d'un ENG dont le TENG possède une séquence de TEVENTs et dont la `date_début` est renseignée, le système crée automatiquement les EVENTs correspondants. Les dates sont calculées en cascade :
+- EVENT 1 : `date_début` de l'ENG
+- EVENT n+1 : `date_heure_prévue` de l'EVENT n + durée prévue du TEVENT n
 
 ### F08 — Gestion des Types d'Évènement (TEVENT)
 **Acteurs** : `ADMIN`
@@ -182,6 +196,7 @@ Identique à F12, appliqué aux ENV.
 - Associer 1..n ORG et 1..n ENV ; désigner une ORG principale et un ENV principal (affichés dans la liste)
 - Saisir les dates : `date_début`, `date_début_prévue`
 - RF-12 : au moins 1 ORG et 1 ENV doivent être associés
+- **RF-T1** : si le TENG sélectionné possède une séquence de TEVENTs et que `date_début` est renseignée, les EVENTs sont créés automatiquement (voir F07b)
 
 ### F18b — Dupliquer un Engagement
 **Acteurs** : `ADMIN`, `EDITEUR`
