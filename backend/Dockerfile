@@ -16,5 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Code source
 COPY . .
 
-# Migrations Alembic au démarrage + lancement FastAPI
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+# Rendre l'entrypoint exécutable
+RUN chmod +x entrypoint.sh
+
+# Attente DB → migrations Alembic → uvicorn (seed via lifespan FastAPI)
+ENTRYPOINT ["./entrypoint.sh"]

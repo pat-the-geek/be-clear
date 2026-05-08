@@ -118,10 +118,12 @@ if curl -sf "$BACKEND_URL" &>/dev/null; then
 fi
 
 # ─── Migrations Alembic ───────────────────────────────────────────────────────
+# Note : les migrations sont exécutées automatiquement par l'entrypoint du container
+# backend au démarrage. Cette étape force une exécution supplémentaire si demandé.
 if $DO_MIGRATE; then
-  info "Application des migrations Alembic..."
+  info "Vérification des migrations Alembic..."
   docker compose exec -T backend alembic upgrade head
-  success "Migrations appliquées"
+  success "Migrations vérifiées"
 fi
 
 # ─── Configuration Meilisearch ────────────────────────────────────────────────

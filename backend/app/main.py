@@ -36,10 +36,24 @@ async def _setup_meilisearch() -> None:
         logging.getLogger("beclear").warning("Meilisearch indisponible au démarrage : %s", exc)
 
 
+async def _seed_database() -> None:
+    """Initialise les données de démarrage (idempotent)."""
+    try:
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from app.services.seed_service import seed_initial_data
+        async_session = async_sessionmaker(engine, expire_on_commit=False)
+        async with async_session() as db:
+            await seed_initial_data(db)
+    except Exception as exc:
+        import logging
+        logging.getLogger("beclear").error("Erreur seed BDD : %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Démarrage / arrêt de l'application."""
     await _setup_meilisearch()
+    await _seed_database()
     yield
     await engine.dispose()
 
