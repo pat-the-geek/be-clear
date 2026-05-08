@@ -42,6 +42,13 @@ async def delete_obj(obj_id: int) -> None:
         await index.delete_document(obj_id)
 
 
+async def clear_index() -> None:
+    """Supprime tous les documents de l'index (utilisé avant un ré-index complet)."""
+    async with await get_client() as client:
+        index = client.index("objets")
+        await index.delete_all_documents()
+
+
 async def search_objs(q: str, offset: int = 0, limit: int = 20, filter_expr: str | None = None) -> dict:
     """Recherche full-text. Retourne les hits et le total estimé."""
     async with await get_client() as client:

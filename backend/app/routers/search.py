@@ -32,9 +32,13 @@ async def search(
 
     items = []
     for hit in result["hits"]:
+        entity_id = hit.get("entity_id")
+        if not entity_id:
+            # Document sans entity_id = entrée obsolète (entité supprimée) → ignorée
+            continue
         items.append({
             "id": hit.get("id"),
-            "entity_id": hit.get("entity_id") or hit.get("id"),
+            "entity_id": entity_id,
             "nom": hit.get("nom"),
             "entity_type": hit.get("entity_type"),
             "cla_nom": hit.get("cla_nom"),
@@ -59,6 +63,7 @@ async def reindex_all(
     current_user: User = Depends(require_admin),
 ):
     """Ré-indexe toutes les entités dans Meilisearch (ADMIN uniquement)."""
+    await search_service.clear_index()
     count = 0
 
     # ORG
