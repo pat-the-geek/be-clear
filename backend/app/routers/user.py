@@ -66,7 +66,7 @@ class SetPasswordBody(BaseModel):
 def _user_options():
     return [
         joinedload(User.tuser),
-        joinedload(User.org),
+        joinedload(User.org).joinedload(Org.obj),
         joinedload(User.obj).joinedload(Obj.cla),
     ]
 
@@ -77,7 +77,7 @@ async def _load_user_with_role(db: AsyncSession, user_id: int) -> tuple:
         select(User)
         .options(
             joinedload(User.tuser),
-            joinedload(User.org),
+            joinedload(User.org).joinedload(Org.obj),
             joinedload(User.obj).joinedload(Obj.cla),
         )
         .where(User.id == user_id)
