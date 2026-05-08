@@ -65,50 +65,91 @@ graph TB
 
 ## Diagramme 2 — Déploiement Docker
 
+be.CLEAR est **multi-instance** : plusieurs instances peuvent tourner en parallèle sur la même machine. Chaque instance est déployée avec `./deploy.sh --instance=<nom>`, qui passe `-p <nom>` à Docker Compose — containers, volumes et réseau sont préfixés automatiquement par ce nom.
+
 ```mermaid
 graph TB
-    subgraph COMPOSE["docker-compose.yml — be.CLEAR"]
-        FE_C["frontend\nReact + Vite\n:3000"]
-        BE_C["backend\nFastAPI\n:8000"]
-        DB_C["db\nPostgreSQL + pgvector\n:5432"]
-        SEARCH_C["search\nMeilisearch\n:7700"]
-        CACHE_C["cache\nRedis\n:6379"]
+    subgraph INST1["Instance be-clear-1 (projet Docker : be-clear-1)"]
+        FE1["frontend\n:FRONTEND_PORT"]
+        BE1["backend\n:BACKEND_PORT"]
+        DB1["db\n:POSTGRES_PORT"]
+        S1["search\n:MEILI_PORT"]
+        C1["cache\n:REDIS_PORT"]
     end
 
-    subgraph EXTERNAL_D["Services externes (partagés)"]
-        OLLAMA_C["ollama\n:11434\n(instance partagée)"]
+    subgraph INST2["Instance be-clear-2 (projet Docker : be-clear-2)"]
+        FE2["frontend\n:FRONTEND_PORT"]
+        BE2["backend\n:BACKEND_PORT"]
+        DB2["db\n:POSTGRES_PORT"]
+        S2["search\n:MEILI_PORT"]
+        C2["cache\n:REDIS_PORT"]
     end
 
-    subgraph VOLUMES["Volumes persistants"]
-        V_DB[("vol_postgres")]
-        V_SEARCH[("vol_meilisearch")]
-        V_CACHE[("vol_redis")]
-        V_MEDIA[("vol_media\nimages / docs")]
+    subgraph SHARED["Services partagés (hôte)"]
+        OLLAMA["ollama\n:11434"]
     end
 
-    FE_C -- "proxy /api" --> BE_C
-    BE_C --> DB_C
-    BE_C --> SEARCH_C
-    BE_C --> CACHE_C
-    BE_C -- "réseau Docker commun" --> OLLAMA_C
+    FE1 --> BE1 --> DB1
+    BE1 --> S1
+    BE1 --> C1
+    BE1 --> OLLAMA
 
-    DB_C --- V_DB
-    SEARCH_C --- V_SEARCH
-    CACHE_C --- V_CACHE
-    BE_C --- V_MEDIA
+    FE2 --> BE2 --> DB2
+    BE2 --> S2
+    BE2 --> C2
+    BE2 --> OLLAMA
 ```
+
+> Chaque instance a son propre fichier `.env.<nom>` définissant des ports uniques sur l'hôte. Les communications internes (backend → db, backend → search, etc.) utilisent les noms de service Docker et ne dépendent pas des ports hôte.
 
 ### Variables d'environnement clés
 
 | Variable | Service | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | backend | URL PostgreSQL |
-| `MEILISEARCH_URL` | backend | URL Meilisearch |
-| `REDIS_URL` | backend | URL Redis |
+| `DATABASE_URL` | backend | URL PostgreSQL (réseau interne) |
+| `MEILISEARCH_URL` | backend | URL Meilisearch (réseau interne) |
+| `REDIS_URL` | backend | URL Redis (réseau interne) |
 | `OLLAMA_URL` | backend | URL instance Ollama partagée |
 | `SECRET_KEY` | backend | Clé de signature JWT |
 | `OBSIDIAN_VAULT_PATH` | backend | Chemin du vault Obsidian (volume monté) |
 | `MEDIA_PATH` | backend | Répertoire de stockage images/docs |
+| `PUBLIC_BASE_URL` | backend | URL publique du backend (rapports RPT) |
+| `VITE_API_URL` | frontend | URL du backend appelé depuis le navigateur |
+| `FRONTEND_PORT` | hôte | Port exposé du frontend (défaut : 3000) |
+| `BACKEND_PORT` | hôte | Port exposé du backend (défaut : 8000) |
+| `MEILI_PORT` | hôte | Port exposé de Meilisearch (défaut : 7700) |
+| `REDIS_PORT` | hôte | Port exposé de Redis (défaut : 6379) |
+| `POSTGRES_PORT` | hôte | Port exposé de PostgreSQL (défaut : 5432) |
+
+---
+
+## Initialisation automatique (Bootstrap)
+
+Au démarrage de chaque instance, l'entrypoint du backend exécute automatiquement les étapes suivantes :
+
+```mermaid
+flowchart TD
+    A([Démarrage container]) --> B{PostgreSQL\nprêt ?}
+    B -- non / attente TCP --> B
+    B -- oui --> C[alembic upgrade head\nmigrations idempotentes]
+    C --> D[Démarrage uvicorn\nFastAPI lifespan]
+    D --> E[seed_initial_data]
+    E --> F{Rôles ADMIN\nEDITEUR LECTEUR\nexistent ?}
+    F -- non --> G[Créer les rôles]
+    F -- oui --> H
+    G --> H{Types USER\nexistent ?}
+    H -- non --> I[Créer humain / système]
+    H -- oui --> J
+    I --> J{CLA Utilisateur\nexiste ?}
+    J -- non --> K[Créer CLA de base]
+    J -- oui --> L
+    K --> L{USER admin\nexiste ?}
+    L -- non --> M[Créer admin/admin\nhash bcrypt]
+    L -- oui --> N([Démarrage complet])
+    M --> N
+```
+
+Le seed est **strictement idempotent** : chaque entité est créée uniquement si elle est absente. Les données existantes ne sont jamais modifiées. Ce comportement garantit qu'un redémarrage ou une mise à jour de l'instance ne casse pas une base déjà en production.
 
 ---
 
