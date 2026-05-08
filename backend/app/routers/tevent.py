@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_admin
-from app.models.activity import Tevent, User
+from app.models.activity import Tevent, Event, User
 from app.models.object import Cla
 from app.services.log import write_log
 
@@ -155,6 +155,15 @@ async def delete_tevent(
     tevent = result.scalar_one_or_none()
     if tevent is None:
         raise HTTPException(status_code=404, detail="TEVENT introuvable")
+
+    # RF-09 : bloquer si des EVENT utilisent ce TEVENT
+    ev_result = await db.execute(select(Event).where(Event.tevent_id == tevent_id).limit(1))
+    if ev_result.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="RF-09 : impossible de supprimer ce TEVENT — des EVENT lui sont rattachés",
+        )
+
     await write_log(db, user_id=current_user.id, operation="DELETE",
                     table_name="tevent", entite_id=tevent_id,
                     avant={"nom": tevent.nom})

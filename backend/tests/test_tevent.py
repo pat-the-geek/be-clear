@@ -143,3 +143,58 @@ async def test_tevent_delete_ok(client: AsyncClient, tevent_fixtures):
 async def test_tevent_delete_404(client: AsyncClient, tevent_fixtures):
     r = await client.delete("/api/tevent/999999", headers=tevent_fixtures["headers"])
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_tevent_delete_blocked_rf09(client: AsyncClient, tevent_fixtures):
+    """RF-09 : suppression d'un TEVENT bloquée si des EVENT lui sont rattachés."""
+    h = tevent_fixtures["headers"]
+    cla_id = tevent_fixtures["cla_id"]
+
+    # Créer un TEVENT dédié
+    r = await client.post("/api/tevent", json={"nom": "TeventRF09", "cla_id": cla_id,
+                                               "duree_prevue_valeur": 1.0,
+                                               "duree_prevue_unite": "heures"}, headers=h)
+    assert r.status_code == 201
+    tevent_id = r.json()["id"]
+
+    # Créer la hiérarchie TORG→ORG, TENV→ENV, TENG→ENG
+    r = await client.post("/api/torg", json={"nom": "TorgRF09", "cla_id": cla_id}, headers=h)
+    torg_id = r.json()["id"]
+    r = await client.post("/api/org", json={"nom": "OrgRF09", "torg_id": torg_id,
+                                            "cla_id": cla_id, "values": []}, headers=h)
+    org_id = r.json()["id"]
+    r = await client.post("/api/tenv", json={"nom": "TenvRF09", "cla_id": cla_id}, headers=h)
+    tenv_id = r.json()["id"]
+    r = await client.post("/api/env", json={"nom": "EnvRF09", "tenv_id": tenv_id,
+                                            "cla_id": cla_id, "values": []}, headers=h)
+    env_id = r.json()["id"]
+    r = await client.post("/api/teng", json={"nom": "TengRF09", "cla_id": cla_id}, headers=h)
+    teng_id = r.json()["id"]
+    r = await client.post("/api/eng", json={
+        "nom": "EngRF09", "teng_id": teng_id, "cla_id": cla_id,
+        "org_ids": [org_id], "env_ids": [env_id], "values": [],
+    }, headers=h)
+    assert r.status_code == 201
+    eng_id = r.json()["id"]
+
+    # Créer un EVENT rattaché à ce TEVENT
+    r = await client.post("/api/event", json={
+        "eng_id": eng_id, "tevent_id": tevent_id,
+        "nom": "EventRF09", "cla_id": cla_id,
+        "date_heure_prevue": "2026-06-01T10:00:00", "values": [],
+    }, headers=h)
+    assert r.status_code == 201
+    event_id = r.json()["id"]
+
+    # La suppression du TEVENT doit être bloquée (400)
+    r = await client.delete(f"/api/tevent/{tevent_id}", headers=h)
+    assert r.status_code == 400
+    assert "RF-09" in r.json()["detail"]
+
+    # Nettoyage
+    await client.delete(f"/api/event/{event_id}", headers=h)
+    await client.delete(f"/api/eng/{eng_id}", headers=h)
+    await client.delete(f"/api/env/{env_id}", headers=h)
+    await client.delete(f"/api/org/{org_id}", headers=h)
+    await client.delete(f"/api/tevent/{tevent_id}", headers=h)

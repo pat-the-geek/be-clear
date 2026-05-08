@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_admin
-from app.models.activity import Teng, User
+from app.models.activity import Teng, Eng, User
 from app.models.object import Cla
 from app.services.log import write_log
 
@@ -137,6 +137,15 @@ async def delete_teng(
     teng = result.scalar_one_or_none()
     if teng is None:
         raise HTTPException(status_code=404, detail="TENG introuvable")
+
+    # RF-08 : bloquer si des ENG utilisent ce TENG
+    eng_result = await db.execute(select(Eng).where(Eng.teng_id == teng_id).limit(1))
+    if eng_result.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="RF-08 : impossible de supprimer ce TENG — des ENG lui sont rattachés",
+        )
+
     await write_log(db, user_id=current_user.id, operation="DELETE",
                     table_name="teng", entite_id=teng_id,
                     avant={"nom": teng.nom, "cla_id": teng.cla_id})
