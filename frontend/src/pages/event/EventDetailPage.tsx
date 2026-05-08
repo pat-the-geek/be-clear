@@ -34,7 +34,7 @@ function PropValueRow({ label, value }: PropValueRowProps) {
   } else if (type === 'BOOLEEN') {
     display = value.valeur_bool === true ? 'Oui' : value.valeur_bool === false ? 'Non' : '—'
   } else if (type === 'MONTANT' && value.valeur_nombre !== undefined) {
-    display = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value.valeur_nombre)
+    display = new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(value.valeur_nombre)
   } else if (type === 'POURCENTAGE' && value.valeur_nombre !== undefined) {
     display = `${value.valeur_nombre} %`
   } else if (value.valeur_nombre !== undefined) {

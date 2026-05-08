@@ -19,7 +19,7 @@ function formatValue(v: Value): string {
     if (type === 'POURCENTAGE') return `${v.valeur_nombre} %`
     if (type === 'MONTANT' && v.valeur_json) {
       const j = v.valeur_json as { valeur?: number; devise?: string }
-      return `${j.valeur ?? v.valeur_nombre} ${j.devise ?? ''}`.trim()
+      return `CHF ${j.valeur ?? v.valeur_nombre}`
     }
     return String(v.valeur_nombre)
   }

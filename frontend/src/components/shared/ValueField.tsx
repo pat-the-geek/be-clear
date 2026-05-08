@@ -125,7 +125,7 @@ export default function ValueField({ propNom, propType, valeursList, draft, onCh
     )
   }
   if (propType === 'DECIMAL' || propType === 'MONTANT' || propType === 'POURCENTAGE') {
-    const suffix = propType === 'MONTANT' ? ' (€)' : propType === 'POURCENTAGE' ? ' (%)' : ''
+    const suffix = propType === 'MONTANT' ? ' (CHF)' : propType === 'POURCENTAGE' ? ' (%)' : ''
     return (
       <div>
         {label}{suffix && <span className="text-xs text-gray-400 ml-1">{suffix}</span>}

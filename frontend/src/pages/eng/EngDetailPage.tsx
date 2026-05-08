@@ -669,7 +669,7 @@ function PropValueCard({ prop, value }: { prop: Prop; value?: Value }) {
         ? <span className="text-red-600 font-medium">Non</span>
         : <span className="text-gray-400">—</span>
     } else if (type === 'MONTANT' && value.valeur_nombre != null) {
-      display = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value.valeur_nombre)
+      display = new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(value.valeur_nombre)
     } else if (type === 'POURCENTAGE' && value.valeur_nombre != null) {
       display = `${value.valeur_nombre} %`
     } else if (value.valeur_nombre != null) {

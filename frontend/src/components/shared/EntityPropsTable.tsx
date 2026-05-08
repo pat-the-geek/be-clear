@@ -22,7 +22,7 @@ function formatValue(v: Value): string {
   const t = v.prop.type as PropType
   if (v.valeur_bool != null) return v.valeur_bool ? 'Oui' : 'Non'
   if (v.valeur_nombre != null) {
-    if (t === 'MONTANT') return `${v.valeur_nombre.toLocaleString('fr-FR')} €`
+    if (t === 'MONTANT') return `CHF ${v.valeur_nombre.toLocaleString('fr-CH')}`
     if (t === 'POURCENTAGE') return `${v.valeur_nombre} %`
     return String(v.valeur_nombre)
   }
