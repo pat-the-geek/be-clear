@@ -44,8 +44,12 @@ export default function PanelPage() {
     queryFn: () => eventApi.overdue(20).then((r) => r.data),
   })
 
-  const [dateFrom, setDateFrom] = useState<string>('')
-  const [dateTo, setDateTo] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return d.toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = useState<string>(() => new Date().toISOString().slice(0, 10))
 
   // Compute suggested date range from all items
   const { suggestedFrom, suggestedTo } = useMemo(() => {
