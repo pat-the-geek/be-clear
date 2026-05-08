@@ -70,6 +70,16 @@ _pg.TSVECTOR = Text
 from app.main import app  # noqa: E402 — dépend des patches ci-dessus
 from app.database import get_db, Base  # noqa: E402
 
+# L'index partiel postgresql_where="est_principale = true" est ignoré par SQLite
+# ce qui crée un UNIQUE sur toute la colonne obj_id et empêche plusieurs images par OBJ.
+# On supprime cet index du schéma de test — l'invariant est enforced en application.
+from app.models.object import Img as _Img  # noqa: E402
+_img_partial_idx = next(
+    (i for i in list(_Img.__table__.indexes) if i.name == "uq_img_principale"), None
+)
+if _img_partial_idx is not None:
+    _Img.__table__.indexes.discard(_img_partial_idx)
+
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 

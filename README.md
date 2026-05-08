@@ -87,7 +87,7 @@ docker compose up --build
 |----------|-------|-------------|
 | ✅ Fait | **Auth externe OIDC** | Login SSO via OpenID Connect (Keycloak, Google, GitHub, Authentik…) — découverte automatique, state HMAC, provisionnement USER, secret chiffré Fernet |
 | ✅ Fait | **Graphe global** | Vue globale ORG↔ENG↔ENV avec filtres par type, recherche de nœud et optimisation N+1 (selectinload) |
-| ✅ Fait | **Tests automatisés** | Suite pytest-asyncio (SQLite in-memory) : 161 tests — auth, CRUD ORG/ENV/ENG/EVENT/TORG/TENV/TENG/TEVENT, duplication ENG, RPT, règles métier RF-02/RF-03/RF-04/RF-08/RF-09/RF-11/RF-12/RF-13/RF-15, OIDC state HMAC, crypto, RAG intégration, LOG, STATS |
+| ✅ Fait | **Tests automatisés** | Suite pytest-asyncio (SQLite in-memory) : 205 tests — auth, CRUD ORG/ENV/ENG/EVENT/TORG/TENV/TENG/TEVENT, duplication ENG, RPT, règles métier RF-02/RF-03/RF-04/RF-08/RF-09/RF-11/RF-12/RF-13/RF-15, OIDC state HMAC, crypto, RAG intégration, LOG, STATS, search, media, config/LLM/token |
 | ✅ Fait | **Pagination côté serveur** | Vérifiée : ORG, ENV, ENG, EVENT ont tous un `page`/`per_page` côté serveur |
 | ✅ Fait | **Chiffrement clés LLM** | Chiffrement Fernet (AES-128-CBC) au repos — clé dérivée du SECRET_KEY |
 

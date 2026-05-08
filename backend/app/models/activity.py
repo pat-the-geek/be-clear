@@ -248,6 +248,8 @@ class Event(Base, AuditMixin):
         Index("ix_event_eng_prevue", "eng_id", "date_heure_prevue"),
     )
 
+    __mapper_args__ = {"confirm_deleted_rows": False}
+
     @property
     def est_accompli(self) -> bool:
         return self.date_heure_reelle is not None
