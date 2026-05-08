@@ -165,6 +165,7 @@ docker compose -p <instance> exec backend alembic upgrade head
 | [Spécifications fonctionnelles](design/functional/specifications-fonctionnelles.md) | Fonctionnel | ✅ Rédigé |
 | [Architecture système](design/architecture/architecture-systeme.md) | Architecture | ✅ Rédigé |
 | [Terminal IA — Architecture RAG](design/architecture/terminal-ia-rag.md) | Architecture | ✅ Rédigé |
+| [Serveur MCP — Intégration Claude Desktop](design/architecture/mcp-serveur.md) | Architecture | ✅ Rédigé |
 | [UX / GUI](design/ux/ux-gui.md) | UX | ✅ Rédigé |
 
 ## Menu principal
@@ -365,6 +366,47 @@ Content-Type: application/json
 ```
 
 Le tableau de bord se rafraîchit en interrogeant ces trois endpoints à intervalle régulier — aucune synchronisation de base de données, aucun accès direct au backend.
+
+### MCP — Intégration Claude Desktop
+
+be.CLEAR expose un **serveur MCP** (*Model Context Protocol*) qui permet à Claude Desktop d'accéder directement aux données et d'y effectuer des opérations en langage naturel.
+
+| Élément | Description |
+|---------|-------------|
+| **Transport** | stdio (Claude Desktop local) ou SSE HTTP (Docker, accès réseau) |
+| **Outils lecture** | `search`, `rag_query`, `get_org`, `list_orgs`, `get_eng`, `list_engs`, `get_env`, `list_events_due`, `get_overdue_events` |
+| **Outils écriture** | `create_event`, `mark_event_done`, `update_value` (rôle EDITEUR requis) |
+| **Ressources** | `beclear://orgs`, `beclear://envs`, `beclear://org/{id}`, `beclear://eng/{id}/gantt` |
+| **Prompts** | 10 gabarits prédéfinis : `briefing_org`, `avancement_eng`, `jalons_semaine`, `engs_en_retard`, `historique_interactions`, `onboarding_eng`, `rapport_activite_org`, `comparaison_orgs`, `suivi_env`, `diagnostic_obj` |
+| **Sécurité** | Authentification par token API be.CLEAR — droits ROLE respectés — écritures tracées dans le LOG |
+
+#### Démarrage rapide
+
+1. Créer un token API dans *Administration → Tokens*
+2. Ajouter la configuration dans `~/Library/Application Support/Claude/claude_desktop_config.json` :
+
+```json
+{
+  "mcpServers": {
+    "beclear": {
+      "command": "python3",
+      "args": ["/chemin/vers/backend/mcp_server.py"],
+      "env": {
+        "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/beclear",
+        "SECRET_KEY": "<SECRET_KEY>",
+        "BECLEAR_API_TOKEN": "<token>",
+        "BECLEAR_API_URL": "http://localhost:8000"
+      }
+    }
+  }
+}
+```
+
+3. Redémarrer Claude Desktop — l'icône 🔌 confirme la connexion
+
+Mode Docker (accès réseau) : `docker compose --profile mcp up` → SSE sur `:8001`
+
+→ Documentation complète : [design/architecture/mcp-serveur.md](design/architecture/mcp-serveur.md)
 
 ### Terminal IA
 
