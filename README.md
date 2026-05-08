@@ -33,20 +33,60 @@ be.CLEAR/
     └── ux/                 # Parcours utilisateur, wireframes descriptifs
 ```
 
-## Démarrage rapide
+## Déployer une nouvelle instance
+
+be.CLEAR est conçu pour être **multi-instance** : chaque déploiement fonctionne dans ses propres containers Docker avec sa propre base de données, isolée des autres instances.
+
+### Prérequis
+
+- Docker Engine ≥ 24
+- Plugin `docker compose` (v2)
+
+### Procédure
 
 ```bash
-# 1. Copier les variables d'environnement
+# 1. Cloner le dépôt
+git clone <repo> be.CLEAR
+cd be.CLEAR
+
+# 2. Configurer l'environnement
 cp .env.example .env
-# Éditer .env avec les valeurs réelles
+# Éditer .env : POSTGRES_PASSWORD, SECRET_KEY, MEILISEARCH_MASTER_KEY, ...
 
-# 2. Démarrer tous les services
-docker compose up --build
+# 3. Déployer
+./deploy.sh
+```
 
-# 3. Accès
-#    Frontend  →  http://localhost:3000
-#    Backend   →  http://localhost:8000
-#    API docs  →  http://localhost:8000/docs
+**C'est tout.** Au premier démarrage, l'entrypoint du backend :
+1. Attend que PostgreSQL soit prêt
+2. Applique les migrations Alembic (`alembic upgrade head`)
+3. Lance l'application — le seed crée automatiquement les données essentielles si elles sont absentes : rôles, types d'utilisateur, classe de base et un compte **`admin` / `admin`**
+
+> **Idempotent** : `./deploy.sh` peut être relancé à tout moment sur une instance existante sans risque — les données existantes ne sont jamais écrasées.
+
+### Accès
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| Backend / API | http://localhost:8000 |
+| Documentation API (Swagger) | http://localhost:8000/docs |
+| Meilisearch | http://localhost:7700 |
+
+### Options du script de déploiement
+
+```bash
+./deploy.sh --no-migrate       # Ne pas vérifier les migrations Alembic explicitement
+./deploy.sh --no-search-setup  # Ne pas (re)configurer l'index Meilisearch
+./deploy.sh --clean            # Repartir de zéro — supprime les volumes (demande confirmation)
+```
+
+### Commandes utiles
+
+```bash
+docker compose logs -f          # Suivre les logs en temps réel
+docker compose down             # Arrêter les services
+docker compose exec backend alembic upgrade head  # Appliquer les migrations manuellement
 ```
 
 ## État d'implémentation
