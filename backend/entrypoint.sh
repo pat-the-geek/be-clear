@@ -8,10 +8,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 
-# ── Attente PostgreSQL ──────────────────────────────────────────────────────
-echo "[entrypoint] Attente de PostgreSQL..."
+# ── Attente PostgreSQL (check TCP via Python — pas de dépendance système) ───
+echo "[entrypoint] Attente de PostgreSQL (${PGHOST:-db}:${PGPORT:-5432})..."
 ELAPSED=0
-until pg_isready -h "${PGHOST:-db}" -p "${PGPORT:-5432}" -U "${PGUSER:-postgres}" -q; do
+until python3 - <<EOF 2>/dev/null
+import socket, sys
+try:
+    s = socket.create_connection(("${PGHOST:-db}", int("${PGPORT:-5432}")), timeout=1)
+    s.close()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+EOF
+do
     ELAPSED=$((ELAPSED + 2))
     if [ "$ELAPSED" -ge 60 ]; then
         echo "[entrypoint] PostgreSQL non disponible après 60s — abandon."
