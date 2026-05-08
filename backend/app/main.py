@@ -79,6 +79,7 @@ app.add_middleware(
 # ─── Routers ───────────────────────────────────────────────
 from app.routers import auth, org, env, eng, event, torg, tenv, teng as teng_router, tevent as tevent_router
 from app.routers import search, rag, user, cla, config, log as log_router, rpt, url_tools, media, stats, graph
+from app.routers import tuser as tuser_router
 
 app.include_router(auth.router,           prefix="/api/auth",    tags=["auth"])
 app.include_router(org.router,            prefix="/api/org",     tags=["org"])
@@ -86,6 +87,7 @@ app.include_router(torg.router,           prefix="/api/torg",    tags=["types"])
 app.include_router(tenv.router,           prefix="/api/tenv",    tags=["types"])
 app.include_router(teng_router.router,    prefix="/api/teng",    tags=["types"])
 app.include_router(tevent_router.router,  prefix="/api/tevent",  tags=["types"])
+app.include_router(tuser_router.router,   prefix="/api/tuser",   tags=["types"])
 app.include_router(env.router,          prefix="/api/env",    tags=["env"])
 app.include_router(eng.router,          prefix="/api/eng",    tags=["eng"])
 app.include_router(event.router,      prefix="/api/event",  tags=["event"])
