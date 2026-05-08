@@ -66,6 +66,11 @@ class Teng(Base, AuditMixin):
 
     cla: Mapped["Cla"] = relationship("Cla")
     engs: Mapped[list["Eng"]] = relationship("Eng", back_populates="teng")
+    tevent_templates: Mapped[list["TengTeventTemplate"]] = relationship(
+        "TengTeventTemplate", back_populates="teng",
+        cascade="all, delete-orphan",
+        order_by="TengTeventTemplate.ordre",
+    )
 
 
 class Tevent(Base, AuditMixin):
@@ -86,6 +91,23 @@ class Tevent(Base, AuditMixin):
             "duree_prevue_unite IN ('secondes','minutes','heures','jours','mois')",
             name="ck_tevent_unite"
         ),
+    )
+
+
+class TengTeventTemplate(Base, AuditMixin):
+    """Template d'EVENTs pour un TENG — liste ordonnée de TEVENT à créer automatiquement."""
+    __tablename__ = "teng_tevent_template"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    teng_id: Mapped[int] = mapped_column(Integer, ForeignKey("teng.id", ondelete="CASCADE"), nullable=False)
+    tevent_id: Mapped[int] = mapped_column(Integer, ForeignKey("tevent.id", ondelete="CASCADE"), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    teng: Mapped["Teng"] = relationship("Teng", back_populates="tevent_templates")
+    tevent: Mapped["Tevent"] = relationship("Tevent")
+
+    __table_args__ = (
+        UniqueConstraint("teng_id", "ordre", name="uq_teng_template_ordre"),
     )
 
 

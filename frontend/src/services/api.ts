@@ -111,11 +111,15 @@ export const tenvApi = {
 
 // ─── TENG / TEVENT ───────────────────────────────────────
 export const tengApi = {
-  list: () => api.get('/teng'),
-  get: (id: number) => api.get(`/teng/${id}`),
-  create: (data: unknown) => api.post('/teng', data),
-  update: (id: number, data: unknown) => api.put(`/teng/${id}`, data),
-  delete: (id: number) => api.delete(`/teng/${id}`),
+  list:              ()                          => api.get('/teng'),
+  get:               (id: number)               => api.get(`/teng/${id}`),
+  create:            (data: unknown)            => api.post('/teng', data),
+  update:            (id: number, data: unknown) => api.put(`/teng/${id}`, data),
+  delete:            (id: number)               => api.delete(`/teng/${id}`),
+  listTemplates:     (tengId: number)           => api.get(`/teng/${tengId}/templates`),
+  addTemplate:       (tengId: number, teventId: number) => api.post(`/teng/${tengId}/templates`, { tevent_id: teventId }),
+  deleteTemplate:    (tengId: number, templateId: number) => api.delete(`/teng/${tengId}/templates/${templateId}`),
+  reorderTemplates:  (tengId: number, ordre: number[]) => api.put(`/teng/${tengId}/templates/reorder`, { ordre }),
 }
 
 export const teventApi = {

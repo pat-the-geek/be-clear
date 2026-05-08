@@ -7,13 +7,13 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user, require_editeur
-from app.models.activity import Eng, Org, Env, Event, User, Teng, eng_org, eng_env
+from app.models.activity import Eng, Org, Env, Event, User, Teng, TengTeventTemplate, eng_org, eng_env
 from app.models.object import Cla
 from app.models.object import Obj, Value
 from app.schemas.eng import EngOut, EngBrief, EngCreate, EngUpdate, OrgRef, EnvRef, EventBrief
 from app.schemas.common import Paginated
 from app.services.log import write_log
-from app.services.gantt import recalculate_eng
+from app.services.gantt import recalculate_eng, _to_timedelta
 from app.services.search_service import index_obj, delete_obj
 
 router = APIRouter()
@@ -322,6 +322,43 @@ async def create_eng(
                     table_name="eng", entite_id=eng.id,
                     apres={"nom": body.nom, "teng_id": body.teng_id,
                            "org_ids": body.org_ids, "env_ids": body.env_ids})
+
+    # ── Auto-création des EVENTs depuis les templates du TENG ──
+    ref_date = date_debut or date_debut_prevue
+    if ref_date is not None:
+        tmpl_result = await db.execute(
+            select(TengTeventTemplate)
+            .options(selectinload(TengTeventTemplate.tevent))
+            .where(TengTeventTemplate.teng_id == body.teng_id)
+            .order_by(TengTeventTemplate.ordre)
+        )
+        templates = tmpl_result.unique().scalars().all()
+        cursor = ref_date
+        for tmpl in templates:
+            ev_obj = Obj(
+                nom=tmpl.tevent.nom,
+                cla_id=teng.cla_id,
+                created_by_id=current_user.id,
+                updated_by_id=current_user.id,
+            )
+            db.add(ev_obj)
+            await db.flush()
+            ev = Event(
+                obj_id=ev_obj.id,
+                eng_id=eng.id,
+                tevent_id=tmpl.tevent_id,
+                date_heure_prevue=cursor,
+                created_by_id=current_user.id,
+                updated_by_id=current_user.id,
+            )
+            db.add(ev)
+            # Avancer le curseur de la durée de ce TEVENT
+            if tmpl.tevent.duree_prevue_valeur and tmpl.tevent.duree_prevue_unite:
+                cursor = cursor + _to_timedelta(
+                    float(tmpl.tevent.duree_prevue_valeur),
+                    tmpl.tevent.duree_prevue_unite,
+                )
+
     await db.commit()
 
     # Recharger avec toutes les relations

@@ -1408,6 +1408,132 @@ function ModalTevent({ open, onClose, initialData }: ModalTeventProps) {
   )
 }
 
+// ─── Template TEVENT d'un TENG ───────────────────────────────
+
+interface TengTemplate {
+  id: number
+  teng_id: number
+  tevent_id: number
+  ordre: number
+  tevent_nom: string
+  tevent_duree_valeur: number | null
+  tevent_duree_unite: string | null
+}
+
+function TemplatePanelRow({ tmpl, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: {
+  tmpl: TengTemplate
+  onDelete: (id: number) => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  isFirst: boolean
+  isLast: boolean
+}) {
+  const duree = tmpl.tevent_duree_valeur
+    ? `${tmpl.tevent_duree_valeur} ${tmpl.tevent_duree_unite}`
+    : '—'
+  return (
+    <div className="flex items-center gap-2 py-1.5 px-3 border-b border-gray-100 last:border-0">
+      <div className="flex flex-col gap-0.5">
+        <button disabled={isFirst} onClick={onMoveUp} className="text-gray-300 hover:text-gray-600 disabled:opacity-20">
+          <ChevronRight size={12} className="-rotate-90" />
+        </button>
+        <button disabled={isLast} onClick={onMoveDown} className="text-gray-300 hover:text-gray-600 disabled:opacity-20">
+          <ChevronRight size={12} className="rotate-90" />
+        </button>
+      </div>
+      <span className="w-5 text-xs text-gray-400 text-center">{tmpl.ordre + 1}</span>
+      <span className="flex-1 text-sm text-gray-900">{tmpl.tevent_nom}</span>
+      <span className="text-xs text-gray-400">{duree}</span>
+      <button onClick={() => onDelete(tmpl.id)} className="text-gray-300 hover:text-red-500 ml-2">
+        <X size={13} />
+      </button>
+    </div>
+  )
+}
+
+function TemplatePanel({ teng, tevents }: { teng: Teng; tevents: Tevent[] | undefined }) {
+  const qc = useQueryClient()
+  const [addTeventId, setAddTeventId] = useState<string>('')
+
+  const { data: templates = [] } = useQuery<TengTemplate[]>({
+    queryKey: ['teng', teng.id, 'templates'],
+    queryFn: () => tengApi.listTemplates(teng.id).then((r) => r.data),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: (teventId: number) => tengApi.addTemplate(teng.id, teventId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['teng', teng.id, 'templates'] })
+      setAddTeventId('')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (templateId: number) => tengApi.deleteTemplate(teng.id, templateId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['teng', teng.id, 'templates'] }),
+  })
+
+  const reorderMutation = useMutation({
+    mutationFn: (ordre: number[]) => tengApi.reorderTemplates(teng.id, ordre),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['teng', teng.id, 'templates'] }),
+  })
+
+  const move = (index: number, dir: -1 | 1) => {
+    const ids = templates.map((t) => t.id)
+    const swapped = [...ids]
+    ;[swapped[index], swapped[index + dir]] = [swapped[index + dir], swapped[index]]
+    reorderMutation.mutate(swapped)
+  }
+
+  return (
+    <div className="mt-2 ml-6 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          EVENTs automatiques ({templates.length})
+        </span>
+        <div className="flex items-center gap-2">
+          <select
+            value={addTeventId}
+            onChange={(e) => setAddTeventId(e.target.value)}
+            className="text-xs border border-gray-200 rounded px-2 py-1 bg-white"
+          >
+            <option value="">+ Ajouter un TEVENT…</option>
+            {tevents?.map((t) => (
+              <option key={t.id} value={t.id}>{t.nom}</option>
+            ))}
+          </select>
+          {addTeventId && (
+            <button
+              onClick={() => addMutation.mutate(Number(addTeventId))}
+              disabled={addMutation.isPending}
+              className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Ajouter
+            </button>
+          )}
+        </div>
+      </div>
+      {templates.length === 0 ? (
+        <p className="text-xs text-gray-400 px-3 py-3 text-center">Aucun EVENT automatique défini.</p>
+      ) : (
+        <div>
+          {templates.map((tmpl, i) => (
+            <TemplatePanelRow
+              key={tmpl.id}
+              tmpl={tmpl}
+              onDelete={(id) => deleteMutation.mutate(id)}
+              onMoveUp={() => move(i, -1)}
+              onMoveDown={() => move(i, 1)}
+              isFirst={i === 0}
+              isLast={i === templates.length - 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Onglet Types ENG / EVENT ────────────────────────────────
 
 function TabTypesEngEvent() {
@@ -1415,6 +1541,7 @@ function TabTypesEngEvent() {
   const [tengEditTarget, setTengEditTarget] = useState<Teng | null>(null)
   const [teventCreateOpen, setTeventCreateOpen] = useState(false)
   const [teventEditTarget, setTeventEditTarget] = useState<Tevent | null>(null)
+  const [expandedTengId, setExpandedTengId] = useState<number | null>(null)
 
   const { data: tengs, isLoading: tengLoading } = useQuery<Teng[]>({
     queryKey: ['teng', 'list'],
@@ -1465,21 +1592,38 @@ function TabTypesEngEvent() {
               </thead>
               <tbody>
                 {tengs?.map((t) => (
-                  <tr key={t.id} className="border-t border-gray-100">
-                    <td className="px-4 py-2.5 font-medium text-gray-900">{t.nom}</td>
-                    <td className="px-4 py-2.5 text-gray-500">{t.cla.nom}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => setTengEditTarget(t)} className="text-gray-400 hover:text-gray-700"><Edit size={14} /></button>
+                  <>
+                    <tr key={t.id} className="border-t border-gray-100">
+                      <td className="px-4 py-2.5 font-medium text-gray-900">
                         <button
-                          onClick={() => { if (confirm(`Supprimer « ${t.nom} » ?`)) deleteTeng(t.id) }}
-                          className="text-gray-400 hover:text-red-500"
+                          onClick={() => setExpandedTengId(expandedTengId === t.id ? null : t.id)}
+                          className="flex items-center gap-1.5 hover:text-violet-700 transition-colors"
                         >
-                          <Trash2 size={14} />
+                          <ChevronRight size={13} className={cn('transition-transform', expandedTengId === t.id && 'rotate-90')} />
+                          {t.nom}
                         </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">{t.cla.nom}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => setTengEditTarget(t)} className="text-gray-400 hover:text-gray-700"><Edit size={14} /></button>
+                          <button
+                            onClick={() => { if (confirm(`Supprimer « ${t.nom} » ?`)) deleteTeng(t.id) }}
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedTengId === t.id && (
+                      <tr key={`${t.id}-tmpl`} className="bg-gray-50">
+                        <td colSpan={3} className="px-4 pb-3">
+                          <TemplatePanel teng={t} tevents={tevents} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
                 {tengs?.length === 0 && (
                   <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400 text-sm">Aucun type défini.</td></tr>
