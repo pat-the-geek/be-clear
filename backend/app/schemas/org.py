@@ -124,6 +124,7 @@ class OrgBrief(BaseModel):
     torg: TorgRef
     image_principale: Optional[ImgBrief] = None
     updated_at: Optional[datetime] = None
+    values: list[ValueOut] = []
     model_config = {"from_attributes": True}
 
 

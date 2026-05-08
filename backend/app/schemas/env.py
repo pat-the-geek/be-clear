@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
-from app.schemas.org import ClaRef, ImgBrief, ObjOut, ValueIn
+from app.schemas.org import ClaRef, ImgBrief, ObjOut, ValueIn, ValueOut
 
 
 # ─── Sous-schémas imbriqués ──────────────────
@@ -52,6 +52,7 @@ class EnvBrief(BaseModel):
     tenv: TenvRef
     image_principale: Optional[ImgBrief] = None
     updated_at: Optional[datetime] = None
+    values: list[ValueOut] = []
     model_config = {"from_attributes": True}
 
 

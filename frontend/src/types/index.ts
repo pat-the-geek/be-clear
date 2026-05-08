@@ -159,6 +159,7 @@ export interface OrgBrief {
   torg: Torg
   image_principale: Img | null
   updated_at?: string
+  values?: Value[]
 }
 
 export interface TenvHistoryEntry {
@@ -185,6 +186,7 @@ export interface EnvBrief {
   tenv: Tenv
   image_principale: Img | null
   updated_at?: string
+  values?: Value[]
 }
 
 /** Vue liste (endpoint GET /eng) — champ `obj` absent */

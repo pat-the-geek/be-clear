@@ -92,6 +92,7 @@ async def list_orgs(
             torg=org.torg,
             image_principale=img,
             updated_at=org.obj.updated_at,
+            values=list(org.obj.values),
         ))
 
     return Paginated(items=items, total=total, page=page, per_page=per_page)

@@ -90,6 +90,7 @@ async def list_envs(
             tenv=env.tenv,
             image_principale=img,
             updated_at=env.obj.updated_at,
+            values=list(env.obj.values),
         ))
 
     return Paginated(items=items, total=total, page=page, per_page=per_page)

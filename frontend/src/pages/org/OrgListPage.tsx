@@ -5,8 +5,9 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Search, Building2, ChevronRight, ChevronDown, ExternalLink, Loader2, X, Pencil, Check, Trash2 } from 'lucide-react'
+import { Plus, Search, Building2, ChevronRight, ChevronDown, ExternalLink, Loader2, X, Pencil, Check, Trash2, TableProperties } from 'lucide-react'
 import { torgApi, orgApi, engApi, tengApi } from '@/services/api'
+import EntityPropsTable from '@/components/shared/EntityPropsTable'
 import ResizeHandle, { useResizable } from '@/components/shared/ResizeHandle'
 import { useAuthStore } from '@/stores/authStore'
 import { Modal } from '@/components/shared/Modal'
@@ -619,9 +620,10 @@ export default function OrgListPage() {
 
       <ResizeHandle onMouseDown={onDragCol2} />
 
-      {/* ═══ Colonne 3 : ENGs de l'ORG sélectionnée ══════════ */}
+      {/* ═══ Colonne 3 : table props (TORG sélectionné) ou ENGs (ORG sélectionnée) ═══ */}
       <div className="flex-1 overflow-y-auto bg-white min-w-0">
         {selectedOrg ? (
+          /* ── ORG sélectionnée → ENGs ── */
           <div className="flex flex-col h-full">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
               <div>
@@ -652,10 +654,28 @@ export default function OrgListPage() {
               <EngTable orgId={selectedOrg.id} />
             </div>
           </div>
+        ) : selectedTorgId ? (
+          /* ── TORG sélectionné, aucune ORG → tableau des propriétés ── */
+          <div className="flex flex-col h-full">
+            <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-base font-semibold text-gray-900">
+                {allOrgs[0]?.torg?.nom ?? 'Organisations'}
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">{allOrgs.length} / {total} — cliquez une ligne pour voir ses engagements</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <EntityPropsTable
+                items={allOrgs}
+                entityType="org"
+                onSelect={setSelectedOrgId}
+              />
+            </div>
+          </div>
         ) : (
+          /* ── Rien sélectionné ── */
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 gap-3">
-            <Building2 size={40} className="text-gray-200" />
-            <p className="text-sm">Sélectionne une organisation</p>
+            <TableProperties size={40} className="text-gray-200" />
+            <p className="text-sm">Sélectionne un type ou une organisation</p>
           </div>
         )}
       </div>
