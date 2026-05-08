@@ -7,11 +7,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: beclear_frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     depends_on:
       - backend
     networks:
@@ -25,9 +24,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: beclear_backend
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - MEILISEARCH_URL=http://search:7700
@@ -61,9 +59,8 @@ services:
   # ─────────────────────────────────────────────
   db:
     image: pgvector/pgvector:0.8.2-pg16
-    container_name: beclear_db
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -84,9 +81,8 @@ services:
   # ─────────────────────────────────────────────
   search:
     image: getmeili/meilisearch:v1.42.1
-    container_name: beclear_search
     ports:
-      - "7700:7700"
+      - "${MEILI_PORT:-7700}:7700"
     environment:
       - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
       - MEILI_ENV=production
@@ -106,9 +102,8 @@ services:
   # ─────────────────────────────────────────────
   cache:
     image: redis:8.4-alpine
-    container_name: beclear_cache
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - vol_redis:/data
     healthcheck:
@@ -122,22 +117,18 @@ services:
 
 # ─────────────────────────────────────────────
 # VOLUMES PERSISTANTS
+# (préfixés automatiquement par le nom de projet Docker Compose)
 # ─────────────────────────────────────────────
 volumes:
   vol_postgres:
-    name: beclear_vol_postgres
   vol_meilisearch:
-    name: beclear_vol_meilisearch
   vol_redis:
-    name: beclear_vol_redis
   vol_media:
-    name: beclear_vol_media
 
 # ─────────────────────────────────────────────
-# RÉSEAUX
-# Réseau interne be.CLEAR + réseau Ollama partagé
+# RÉSEAU INTERNE
+# (préfixé automatiquement par le nom de projet Docker Compose)
 # ─────────────────────────────────────────────
 networks:
   beclear_net:
-    name: beclear_net
     driver: bridge

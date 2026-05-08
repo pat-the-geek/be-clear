@@ -35,19 +35,18 @@ be.CLEAR/
 
 ## Déployer une nouvelle instance
 
-be.CLEAR est conçu pour être **multi-instance** : chaque déploiement fonctionne dans ses propres containers Docker avec sa propre base de données, isolée des autres instances.
+be.CLEAR est conçu pour être **multi-instance** : plusieurs instances peuvent tourner en parallèle sur la même machine, chacune avec ses propres containers, volumes, réseau et ports.
 
 ### Prérequis
 
 - Docker Engine ≥ 24
 - Plugin `docker compose` (v2)
 
-### Procédure
+### Instance par défaut
 
 ```bash
 # 1. Cloner le dépôt
-git clone <repo> be.CLEAR
-cd be.CLEAR
+git clone <repo> be.CLEAR && cd be.CLEAR
 
 # 2. Configurer l'environnement
 cp .env.example .env
@@ -57,6 +56,31 @@ cp .env.example .env
 ./deploy.sh
 ```
 
+### Instances multiples sur la même machine
+
+Chaque instance utilise un fichier `.env.<nom>` avec des **ports uniques** :
+
+```bash
+# Instance 1
+cp .env.example .env.be-clear-1
+# Éditer .env.be-clear-1 : ports 3000/8000/7700/6379/5432 (valeurs par défaut)
+./deploy.sh --instance=be-clear-1
+
+# Instance 2
+cp .env.example .env.be-clear-2
+# Éditer .env.be-clear-2 : changer les ports — ex. 3001/8001/7701/6380/5433
+#   FRONTEND_PORT=3001
+#   BACKEND_PORT=8001
+#   MEILI_PORT=7701
+#   REDIS_PORT=6380
+#   POSTGRES_PORT=5433
+#   PUBLIC_BASE_URL=http://localhost:8001
+#   VITE_API_URL=http://localhost:8001
+./deploy.sh --instance=be-clear-2
+```
+
+Chaque instance est totalement isolée : containers, volumes et réseau sont préfixés automatiquement par le nom de l'instance.
+
 **C'est tout.** Au premier démarrage, l'entrypoint du backend :
 1. Attend que PostgreSQL soit prêt
 2. Applique les migrations Alembic (`alembic upgrade head`)
@@ -64,29 +88,22 @@ cp .env.example .env
 
 > **Idempotent** : `./deploy.sh` peut être relancé à tout moment sur une instance existante sans risque — les données existantes ne sont jamais écrasées.
 
-### Accès
-
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:3000 |
-| Backend / API | http://localhost:8000 |
-| Documentation API (Swagger) | http://localhost:8000/docs |
-| Meilisearch | http://localhost:7700 |
-
-### Options du script de déploiement
+### Options du script
 
 ```bash
-./deploy.sh --no-migrate       # Ne pas vérifier les migrations Alembic explicitement
-./deploy.sh --no-search-setup  # Ne pas (re)configurer l'index Meilisearch
-./deploy.sh --clean            # Repartir de zéro — supprime les volumes (demande confirmation)
+./deploy.sh --instance=NOM       # Cibler une instance spécifique
+./deploy.sh --no-migrate         # Ne pas vérifier les migrations Alembic
+./deploy.sh --no-search-setup    # Ne pas reconfigurer l'index Meilisearch
+./deploy.sh --clean              # Repartir de zéro — supprime les volumes (demande confirmation)
 ```
 
 ### Commandes utiles
 
 ```bash
-docker compose logs -f          # Suivre les logs en temps réel
-docker compose down             # Arrêter les services
-docker compose exec backend alembic upgrade head  # Appliquer les migrations manuellement
+# Remplacer <instance> par le nom choisi (ex. be-clear-1), ou "beclear" pour l'instance par défaut
+docker compose -p <instance> logs -f
+docker compose -p <instance> down
+docker compose -p <instance> exec backend alembic upgrade head
 ```
 
 ## État d'implémentation
