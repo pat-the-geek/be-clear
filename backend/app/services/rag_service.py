@@ -135,15 +135,37 @@ async def similarity_search(db: AsyncSession, query_vec: list[float], top_k: int
 # ─── Génération LLM ──────────────────────────────────────────────────────────
 
 async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
-    """Enrichit les sources avec les relations ENG↔ORG/ENV pour donner au LLM un contexte structurel."""
+    """Enrichit les sources avec les relations ENG↔ORG/ENV et les VALUES de propriétés."""
     from sqlalchemy import text as sa_text
     enriched = []
     for src in sources:
         etype = src["entity_type"]
         obj_id = src["obj_id"]
 
+        # VALUES pour tous les types d'entité
+        r = await db.execute(sa_text("""
+            SELECT p.nom, v.valeur_texte, v.valeur_nombre, v.valeur_bool, v.valeur_date
+            FROM value v
+            JOIN prop p ON p.id = v.prop_id
+            WHERE v.obj_id = :oid
+              AND (v.valeur_texte IS NOT NULL OR v.valeur_nombre IS NOT NULL
+                   OR v.valeur_bool IS NOT NULL OR v.valeur_date IS NOT NULL)
+            ORDER BY p.nom
+        """), {"oid": obj_id})
+        values_rows = r.fetchall()
+        props: list[str] = []
+        for row in values_rows:
+            val = (
+                row[1]
+                or (str(row[2]) if row[2] is not None else None)
+                or (str(row[3]) if row[3] is not None else None)
+                or (str(row[4]) if row[4] is not None else None)
+            )
+            if val:
+                props.append(f"{row[0]}: {val}")
+        src = {**src, "props": props}
+
         if etype == "eng":
-            # ORGs liées
             r = await db.execute(sa_text("""
                 SELECT ob.nom FROM org o
                 JOIN obj ob ON ob.id = o.obj_id
@@ -151,7 +173,6 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
                 JOIN eng e ON e.id = eo.eng_id AND e.obj_id = :oid
             """), {"oid": obj_id})
             src = {**src, "orgs": [row[0] for row in r.fetchall()]}
-            # ENVs liées
             r = await db.execute(sa_text("""
                 SELECT ob.nom FROM env v
                 JOIN obj ob ON ob.id = v.obj_id
@@ -161,7 +182,6 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
             src = {**src, "envs": [row[0] for row in r.fetchall()]}
 
         elif etype == "org":
-            # ENGs liés
             r = await db.execute(sa_text("""
                 SELECT ob.nom FROM eng e
                 JOIN obj ob ON ob.id = e.obj_id
@@ -171,7 +191,6 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
             src = {**src, "engs": [row[0] for row in r.fetchall()]}
 
         elif etype == "env":
-            # ENGs liés
             r = await db.execute(sa_text("""
                 SELECT ob.nom FROM eng e
                 JOIN obj ob ON ob.id = e.obj_id
@@ -181,7 +200,6 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
             src = {**src, "engs": [row[0] for row in r.fetchall()]}
 
         elif etype == "event":
-            # ENG parent + dates
             r = await db.execute(sa_text("""
                 SELECT ev.date_heure_prevue, ev.date_heure_reelle, ob.nom
                 FROM event ev
@@ -207,8 +225,11 @@ def _build_context(sources: list[dict]) -> str:
     for i, src in enumerate(sources, 1):
         eid = src.get("entity_id", "?")
         part = f"{i}. [{src['entity_type'].upper()} #{eid}] {src['nom']}"
-        if src["description"]:
+        if src.get("description"):
             part += f"\n   Description : {src['description'][:300]}"
+        if src.get("props"):
+            for prop_line in src["props"]:
+                part += f"\n   {prop_line}"
         if src.get("orgs"):
             part += f"\n   Organisations liées : {', '.join(src['orgs'])}"
         if src.get("envs"):

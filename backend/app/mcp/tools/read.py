@@ -152,16 +152,19 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         """
         async with AsyncSession() as db:
             result = await db.execute(
-                select(Tevent).options(joinedload(Tevent.obj)).join(Tevent.obj).order_by(Obj.nom)
+                select(Tevent).options(joinedload(Tevent.cla)).order_by(Tevent.nom)
             )
             tevents = result.unique().scalars().all()
 
         if not tevents:
             return "Aucun TEVENT trouvé."
-        lines = ["## Types d'EVENT (TEVENT)\n", "| ID | Nom | CLA ID |", "|---|---|---|"]
+        lines = ["## Types d'EVENT (TEVENT)\n", "| ID | Nom | Classe | Durée par défaut |", "|---|---|---|---|"]
         for t in tevents:
-            nom = t.obj.nom if t.obj else f"TEVENT #{t.id}"
-            lines.append(f"| {t.id} | {nom} | {t.cla_id} |")
+            duree = ""
+            if t.duree_prevue_valeur is not None:
+                duree = f"{t.duree_prevue_valeur:g} {t.duree_prevue_unite or ''}"
+            cla_nom = t.cla.nom if t.cla else str(t.cla_id)
+            lines.append(f"| {t.id} | {t.nom} | {cla_nom} | {duree} |")
         return "\n".join(lines)
 
     # ── Outil : list_orgs ─────────────────────────────────────
