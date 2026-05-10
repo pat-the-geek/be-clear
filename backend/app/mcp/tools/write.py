@@ -123,6 +123,10 @@ def register_write_tools(mcp) -> None:  # noqa: ANN001
     async def mark_event_done(event_id: int, date_heure_reelle: str = "") -> str:
         """Marque un EVENT comme accompli en renseignant sa date réelle (requiert EDITEUR).
 
+        Un avertissement non bloquant est émis si l'écart entre la date réelle fournie
+        et la date prévue dépasse 30 jours (dans un sens ou dans l'autre). L'opération
+        est néanmoins effectuée.
+
         Args:
             event_id: ID de l'EVENT à marquer accompli.
             date_heure_reelle: Date et heure réelles au format ISO. Défaut = maintenant.

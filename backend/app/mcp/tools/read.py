@@ -40,14 +40,20 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             lines.append(f"- ❌ **PostgreSQL** — {exc}")
 
         # Ping Meilisearch
+        from app.config import settings as _s
+        meili_url = _s.MEILISEARCH_URL
         try:
             async with asyncio.timeout(5):
-                result = await search_service.search_objs("health", offset=0, limit=1)
-            lines.append("- ✅ **Meilisearch** — connecté")
+                await search_service.search_objs("health", offset=0, limit=1)
+            lines.append(f"- ✅ **Meilisearch** — connecté (`{meili_url}`)")
         except TimeoutError:
-            lines.append("- ❌ **Meilisearch** — timeout (> 5 s)")
+            lines.append(f"- ❌ **Meilisearch** — timeout (> 5 s) — URL : `{meili_url}`")
         except Exception as exc:
-            lines.append(f"- ❌ **Meilisearch** — {exc}")
+            lines.append(
+                f"- ❌ **Meilisearch** — indisponible (`{meili_url}`)\n"
+                f"  → En mode stdio, définissez `MEILISEARCH_URL=http://localhost:7700` "
+                "dans `claude_desktop_config.json` si Meilisearch tourne sur la machine hôte."
+            )
 
         lines.append("\nSi tous les backends sont ✅, le serveur est prêt pour la campagne de tests.")
         return "\n".join(lines)
@@ -80,6 +86,14 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
     async def search(query: str, entity_type: str = "") -> str:
         """Recherche full-text dans be.CLEAR via Meilisearch.
+
+        ⚠️ Prérequis : Meilisearch doit être accessible depuis le processus MCP.
+        En mode stdio (Claude Desktop), définissez MEILISEARCH_URL=http://localhost:7700
+        dans la section "env" de claude_desktop_config.json et assurez-vous que le
+        port 7700 est ouvert sur la machine hôte.
+        En mode SSE (Docker), la configuration est automatique.
+        Si Meilisearch est indisponible, utilisez `list_orgs`, `list_engs` (filtrage
+        textuel via paramètre `q`) ou `rag_query` comme alternatives.
 
         Args:
             query: Texte à rechercher (min 2 caractères).
