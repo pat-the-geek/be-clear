@@ -1,18 +1,55 @@
 """Outils MCP en lecture — search, RAG, fiches entités, jalons."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 
 def register_read_tools(mcp) -> None:  # noqa: ANN001
-    from sqlalchemy import select
+    from sqlalchemy import select, text
     from sqlalchemy.orm import joinedload, selectinload
 
     from app.mcp.auth import get_mcp_user
-    from app.mcp.db import AsyncSession
+    from app.mcp.db import AsyncSession, _engine
     from app.models.activity import Eng, Env, Event, Org, eng_env, eng_org
     from app.models.object import Obj, Value
     from app.services import rag_service, search_service
+
+    # ── Outil : health ────────────────────────────────────────
+
+    @mcp.tool()
+    async def health() -> str:
+        """Vérifie que le serveur MCP be.CLEAR est opérationnel et teste la connectivité aux backends.
+
+        Appeler en premier dans toute campagne de test pour valider que le serveur
+        répond avant de lancer des appels plus lourds.
+        """
+        now = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M:%S UTC")
+        lines = [f"## be.CLEAR MCP — Health check\n**Horodatage :** {now}\n"]
+
+        # Ping PostgreSQL
+        try:
+            async with asyncio.timeout(5):
+                async with AsyncSession() as db:
+                    await db.execute(text("SELECT 1"))
+            lines.append("- ✅ **PostgreSQL** — connecté")
+        except TimeoutError:
+            lines.append("- ❌ **PostgreSQL** — timeout (> 5 s)")
+        except Exception as exc:
+            lines.append(f"- ❌ **PostgreSQL** — {exc}")
+
+        # Ping Meilisearch
+        try:
+            async with asyncio.timeout(5):
+                result = await search_service.search_objs("health", offset=0, limit=1)
+            lines.append("- ✅ **Meilisearch** — connecté")
+        except TimeoutError:
+            lines.append("- ❌ **Meilisearch** — timeout (> 5 s)")
+        except Exception as exc:
+            lines.append(f"- ❌ **Meilisearch** — {exc}")
+
+        lines.append("\nSi tous les backends sont ✅, le serveur est prêt pour la campagne de tests.")
+        return "\n".join(lines)
 
     # ── Helpers formatage ─────────────────────────────────────
 
