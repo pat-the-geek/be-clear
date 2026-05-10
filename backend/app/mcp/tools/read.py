@@ -297,6 +297,60 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             )
         return "\n".join(lines)
 
+    # ── Outil : list_engs_sans_events ─────────────────────────
+
+    @mcp.tool()
+    async def list_engs_sans_events(limit: int = 20) -> str:
+        """Liste les ENGs actifs qui n'ont aucun EVENT futur non accompli.
+
+        Utile pour identifier les engagements en cours sans jalonnement visible —
+        zone grise de pilotage : actif sur le papier mais sans prochaine étape planifiée.
+
+        Args:
+            limit: Nombre maximum de résultats (défaut 20).
+        """
+        now = datetime.now(timezone.utc)
+        async with AsyncSession() as db:
+            # Sous-requête : IDs d'ENGs qui ont au moins un EVENT futur non accompli
+            engs_avec_event = (
+                select(Event.eng_id)
+                .where(
+                    Event.date_heure_prevue > now,
+                    Event.date_heure_reelle.is_(None),
+                )
+                .scalar_subquery()
+            )
+            stmt = (
+                select(Eng)
+                .options(
+                    joinedload(Eng.obj),
+                    joinedload(Eng.teng),
+                    selectinload(Eng.orgs).joinedload(Org.obj),
+                )
+                .join(Eng.obj)
+                .where(
+                    Eng.date_fin.is_(None),           # actif
+                    Eng.id.not_in(engs_avec_event),   # sans EVENT futur
+                )
+                .order_by(Obj.nom)
+                .limit(limit)
+            )
+            engs = (await db.execute(stmt)).unique().scalars().all()
+
+        if not engs:
+            return "✅ Tous les ENGs actifs ont au moins un EVENT futur planifié."
+        lines = [
+            f"## ENGs actifs sans EVENT futur planifié ({len(engs)})\n",
+            "_Ces engagements sont actifs mais n'ont aucune prochaine étape visible._\n",
+        ]
+        for eng in engs:
+            acc = eng.accomplissement or 0
+            orgs_str = ", ".join(o.obj.nom for o in eng.orgs) if eng.orgs else "?"
+            teng = eng.teng.nom if eng.teng else "?"
+            etat = "⚠️ Actif (100%)" if acc >= 100 else "🟢 Actif"
+            lines.append(f"- **#{eng.id}** {eng.obj.nom} | {teng} | {orgs_str} | {acc:.0f}% | {etat}")
+        return "\n".join(lines)
+
     # ── Outil : get_eng ───────────────────────────────────────
 
     @mcp.tool()
@@ -483,6 +537,13 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         )
         if dt_to.tzinfo is None:
             dt_to = dt_to.replace(tzinfo=timezone.utc)
+
+        if dt_to < dt_from:
+            return (
+                f"Fenêtre temporelle invalide : date_fin ({dt_to.strftime('%d/%m/%Y')}) "
+                f"est antérieure à date_debut ({dt_from.strftime('%d/%m/%Y')}). "
+                "Inversez les deux dates."
+            )
 
         async with AsyncSession() as db:
             where = [
