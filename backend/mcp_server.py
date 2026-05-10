@@ -42,8 +42,10 @@ if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
 
     if transport == "sse":
+        import uvicorn
         host = os.environ.get("MCP_HOST", "0.0.0.0")
         port = int(os.environ.get("MCP_PORT", "8001"))
-        mcp.run(transport="sse", host=host, port=port)
+        app = mcp.sse_app()
+        uvicorn.run(app, host=host, port=port)
     else:
         mcp.run(transport="stdio")
