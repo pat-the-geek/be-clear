@@ -201,7 +201,7 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
 
         elif etype == "event":
             r = await db.execute(sa_text("""
-                SELECT ev.date_heure_prevue, ev.date_heure_reelle, ob.nom
+                SELECT ev.date_heure_prevue, ev.date_heure_reelle, ob.nom, e.id AS eng_id
                 FROM event ev
                 JOIN eng e ON e.id = ev.eng_id
                 JOIN obj ob ON ob.id = e.obj_id
@@ -214,10 +214,92 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
                     "date_prevue": str(row[0]) if row[0] else None,
                     "date_reelle": str(row[1]) if row[1] else None,
                     "eng_nom": row[2],
+                    "eng_id": row[3],
                 }
 
         enriched.append(src)
     return enriched
+
+
+async def _build_temporal_context(db: AsyncSession) -> str:
+    """Injecte en tête du contexte RAG les données temporelles exactes depuis la DB.
+
+    Cela garantit que le LLM a toujours la vérité structurée sur les retards et
+    jalons à venir — indépendamment de la similarité vectorielle de la question.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy import text as sa_text
+
+    now = datetime.now(timezone.utc)
+
+    try:
+        # Events en retard
+        r = await db.execute(sa_text("""
+            SELECT ev.id, o.nom AS ev_nom, ev.date_heure_prevue,
+                   eo.nom AS eng_nom, eng.id AS eng_id,
+                   oo.nom AS org_nom
+            FROM event ev
+            JOIN obj o ON o.id = ev.obj_id
+            JOIN eng ON eng.id = ev.eng_id
+            JOIN obj eo ON eo.id = eng.obj_id
+            LEFT JOIN eng_org egr ON egr.eng_id = eng.id
+            LEFT JOIN org ON org.id = egr.org_id
+            LEFT JOIN obj oo ON oo.id = org.obj_id
+            WHERE ev.date_heure_reelle IS NULL
+              AND ev.date_heure_prevue < NOW()
+            ORDER BY ev.date_heure_prevue
+            LIMIT 20
+        """))
+        overdue = r.fetchall()
+
+        # Events à venir dans les 30 jours
+        r2 = await db.execute(sa_text("""
+            SELECT ev.id, o.nom AS ev_nom, ev.date_heure_prevue,
+                   eo.nom AS eng_nom, eng.id AS eng_id
+            FROM event ev
+            JOIN obj o ON o.id = ev.obj_id
+            JOIN eng ON eng.id = ev.eng_id
+            JOIN obj eo ON eo.id = eng.obj_id
+            WHERE ev.date_heure_reelle IS NULL
+              AND ev.date_heure_prevue BETWEEN NOW() AND NOW() + INTERVAL '30 days'
+            ORDER BY ev.date_heure_prevue
+            LIMIT 20
+        """))
+        upcoming = r2.fetchall()
+
+    except Exception as exc:
+        logger.warning("_build_temporal_context failed: %s", exc)
+        return ""
+
+    if not overdue and not upcoming:
+        return ""
+
+    lines = [f"=== DONNÉES TEMPORELLES EXACTES (au {now.strftime('%d/%m/%Y')}) ==="]
+    lines.append("Ces informations proviennent directement de la base de données — utilise-les pour toute question sur les retards ou jalons.\n")
+
+    if overdue:
+        lines.append(f"**EVENT en retard ({len(overdue)}) :**")
+        for row in overdue:
+            dt = row.date_heure_prevue.strftime("%d/%m/%Y") if row.date_heure_prevue else "?"
+            org_info = f" — ORG : {row.org_nom}" if row.org_nom else ""
+            lines.append(
+                f"- [EVENT #{row.id}] {row.ev_nom} | prévu le {dt}"
+                f" | [ENG #{row.eng_id}] {row.eng_nom}{org_info}"
+            )
+    else:
+        lines.append("**Aucun EVENT en retard.**")
+
+    if upcoming:
+        lines.append(f"\n**EVENT à venir dans les 30 jours ({len(upcoming)}) :**")
+        for row in upcoming:
+            dt = row.date_heure_prevue.strftime("%d/%m/%Y") if row.date_heure_prevue else "?"
+            lines.append(
+                f"- [EVENT #{row.id}] {row.ev_nom} | prévu le {dt}"
+                f" | [ENG #{row.eng_id}] {row.eng_nom}"
+            )
+
+    lines.append("\n=== FIN DONNÉES TEMPORELLES ===")
+    return "\n".join(lines)
 
 
 def _build_context(sources: list[dict]) -> str:
@@ -241,7 +323,8 @@ def _build_context(sources: list[dict]) -> str:
             else:
                 part += "\n   Engagements : aucun"
         if src.get("eng_nom"):
-            part += f"\n   Engagement : {src['eng_nom']}"
+            eng_ref = f"[ENG #{src['eng_id']}] " if src.get("eng_id") else ""
+            part += f"\n   Engagement : {eng_ref}{src['eng_nom']}"
         if src.get("date_prevue"):
             part += f"\n   Date prévue : {src['date_prevue']}"
         if src.get("date_reelle"):
@@ -378,6 +461,11 @@ async def rag_query(
     # ── 4. Enrichissement + construction du contexte ────
     sources = await _enrich_sources(db, sources)
     context = _build_context(sources)
+
+    # ── 4b. Contexte temporel injecté (toujours, pas seulement sur mots-clés) ──
+    temporal_block = await _build_temporal_context(db)
+    if temporal_block:
+        context = temporal_block + "\n\n" + context
 
     # ── 5. Génération ────────────────────────────────────
     raw_answer = await _generate(question, context, selected_llm)

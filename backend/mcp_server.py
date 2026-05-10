@@ -11,9 +11,13 @@ Variables d'environnement requises :
   BECLEAR_API_TOKEN    — token API be.CLEAR (créé dans l'interface admin)
   BECLEAR_API_URL      — URL du backend be.CLEAR (défaut: http://localhost:8000)
 
-Variables optionnelles (mode SSE uniquement) :
-  MCP_HOST             — interface d'écoute (défaut: 0.0.0.0)
-  MCP_PORT             — port d'écoute (défaut: 8001)
+Variables optionnelles :
+  MEILISEARCH_URL      — URL Meilisearch (défaut: http://localhost:7700)
+                         En mode stdio depuis la machine hôte, laisser le défaut.
+                         En mode SSE Docker, le compose surcharge automatiquement.
+  SECRET_KEY           — clé JWT identique à celle du backend (pour l'auth MCP)
+  MCP_HOST             — interface d'écoute SSE (défaut: 0.0.0.0)
+  MCP_PORT             — port d'écoute SSE (défaut: 8001)
 
 Exemple Claude Desktop (~/.config/claude/claude_desktop_config.json) :
   {
@@ -24,7 +28,8 @@ Exemple Claude Desktop (~/.config/claude/claude_desktop_config.json) :
         "env": {
           "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/beclear",
           "BECLEAR_API_TOKEN": "votre-token-api",
-          "BECLEAR_API_URL": "http://localhost:8000"
+          "BECLEAR_API_URL": "http://localhost:8000",
+          "SECRET_KEY": "votre-secret-key"
         }
       }
     }

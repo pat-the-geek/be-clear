@@ -10,11 +10,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     # Meilisearch
-    MEILISEARCH_URL: str = "http://search:7700"
+    MEILISEARCH_URL: str = "http://localhost:7700"
     MEILISEARCH_KEY: str = ""
 
     # Redis
-    REDIS_URL: str = "redis://cache:6379/0"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     # Ollama
     OLLAMA_URL: str = "http://100.72.122.51:11434"
