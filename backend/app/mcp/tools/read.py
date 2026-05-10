@@ -165,7 +165,13 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             for eng in org.engs:
                 acc = eng.accomplissement or 0
                 teng = eng.teng.nom if eng.teng else "?"
-                lines.append(f"- **#{eng.id}** {eng.obj.nom} | {teng} | {acc:.0f}%")
+                if eng.date_fin:
+                    etat = "🔴 Clos"
+                elif acc >= 100:
+                    etat = "⚠️ Actif (100%)"
+                else:
+                    etat = "🟢 Actif"
+                lines.append(f"- **#{eng.id}** {eng.obj.nom} | {teng} | {acc:.0f}% | {etat}")
         return "\n".join(lines)
 
     # ── Outil : list_engs ─────────────────────────────────────
@@ -182,7 +188,11 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         Args:
             org_id: Filtrer par ORG (0 = tous).
             env_id: Filtrer par ENV (0 = tous).
-            status: actif | clos | vide pour tous.
+            status: Filtre d'état —
+                actif    = non clos (date_fin absente), inclut les ENG à 100% non encore fermés ;
+                en_cours = actif ET avancement < 100% (vraiment en cours) ;
+                clos     = date_fin renseignée ;
+                vide     = tous.
             limit: Nombre maximum de résultats.
         """
         async with AsyncSession() as db:
@@ -198,8 +208,12 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 id_stmt = id_stmt.join(
                     eng_env, Eng.id == eng_env.c.eng_id
                 ).where(eng_env.c.env_id == env_id)
-            if status == "actif":
+            if status in ("actif", "en_cours"):
                 id_stmt = id_stmt.where(Eng.date_fin.is_(None))
+                if status == "en_cours":
+                    id_stmt = id_stmt.where(
+                        (Eng.accomplissement.is_(None)) | (Eng.accomplissement < 100)
+                    )
             elif status == "clos":
                 id_stmt = id_stmt.where(Eng.date_fin.is_not(None))
             id_stmt = id_stmt.order_by(Obj.nom).limit(limit)
@@ -227,7 +241,13 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             acc = eng.accomplissement or 0
             orgs_str = ", ".join(o.obj.nom for o in eng.orgs) if eng.orgs else "?"
             teng = eng.teng.nom if eng.teng else "?"
-            etat = "🔴 Clos" if eng.date_fin else "🟢 Actif"
+            if eng.date_fin:
+                etat = "🔴 Clos"
+            elif acc >= 100:
+                # Accompli mais non clos — mérite attention
+                etat = "⚠️ Actif (100%)"
+            else:
+                etat = "🟢 Actif"
             lines.append(
                 f"- **#{eng.id}** {eng.obj.nom} | {teng} | {orgs_str} | {acc:.0f}% | {etat}"
             )
@@ -309,6 +329,35 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         if eng.gantt_mermaid:
             lines.append(f"\n## Gantt\n```mermaid\n{eng.gantt_mermaid}\n```")
 
+        return "\n".join(lines)
+
+    # ── Outil : list_envs ────────────────────────────────────
+
+    @mcp.tool()
+    async def list_envs(q: str = "", limit: int = 30) -> str:
+        """Liste les environnements (ENV) enregistrés dans be.CLEAR.
+
+        Args:
+            q: Filtre textuel sur le nom (optionnel).
+            limit: Nombre maximum de résultats (défaut 30).
+        """
+        async with AsyncSession() as db:
+            stmt = (
+                select(Env)
+                .options(joinedload(Env.obj), joinedload(Env.tenv))
+                .join(Env.obj)
+            )
+            if q:
+                stmt = stmt.where(Obj.nom.ilike(f"%{q}%"))
+            stmt = stmt.order_by(Obj.nom).limit(limit)
+            envs = (await db.execute(stmt)).unique().scalars().all()
+
+        if not envs:
+            return "Aucun ENV trouvé."
+        lines = [f"## Environnements ({len(envs)} résultat(s))\n"]
+        for env in envs:
+            tenv = env.tenv.nom if env.tenv else "N/A"
+            lines.append(f"- **#{env.id}** — {env.obj.nom} _{tenv}_")
         return "\n".join(lines)
 
     # ── Outil : get_env ───────────────────────────────────────
