@@ -92,9 +92,16 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             if entity_type in ("org", "env", "eng", "event")
             else None
         )
-        result = await search_service.search_objs(
-            query, offset=0, limit=20, filter_expr=filter_expr
-        )
+        try:
+            result = await search_service.search_objs(
+                query, offset=0, limit=20, filter_expr=filter_expr
+            )
+        except Exception:
+            return (
+                "⚠️ Le moteur de recherche full-text (Meilisearch) est temporairement "
+                "indisponible. Alternatives : utilisez `list_orgs`, `list_engs` ou "
+                "`rag_query` pour interroger les données."
+            )
         hits = [h for h in result.get("hits", []) if h.get("entity_id")]
         if not hits:
             return f"Aucun résultat pour « {query} »."

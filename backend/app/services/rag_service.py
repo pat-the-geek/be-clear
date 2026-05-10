@@ -21,6 +21,12 @@ Le contexte fourni liste des entités numérotées avec leurs relations explicit
 Réponds en français, de façon concise et factuelle, en t'appuyant UNIQUEMENT sur les relations explicitement listées dans le contexte.
 Ne déduis rien au-delà de ce qui est écrit. Si une ORG ne figure pas dans "Organisations liées" d'un ENG, elle n'a pas cet engagement.
 
+RÈGLE ABSOLUE SUR LES IDENTIFIANTS :
+Chaque entité du contexte porte son identifiant exact sous la forme [TYPE #ID] (ex: [ENG #3], [ORG #1], [EVENT #15]).
+- Utilise TOUJOURS cet identifiant exact lorsque tu cites une entité. Ne l'invente jamais.
+- Si tu ne vois pas l'ID dans le contexte, écris "ID inconnu" plutôt que de deviner.
+- Un nom et un ID doivent TOUJOURS être copiés ensemble depuis le contexte — ne recombine jamais le nom d'une entité avec l'ID d'une autre.
+
 IMPORTANT : à la toute fin de ta réponse, ajoute obligatoirement une ligne (et une seule) de la forme exacte :
 SOURCES_USED: 1,3,5
 Règles strictes pour SOURCES_USED :
@@ -199,7 +205,8 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
 def _build_context(sources: list[dict]) -> str:
     parts = []
     for i, src in enumerate(sources, 1):
-        part = f"{i}. [{src['entity_type'].upper()}] {src['nom']}"
+        eid = src.get("entity_id", "?")
+        part = f"{i}. [{src['entity_type'].upper()} #{eid}] {src['nom']}"
         if src["description"]:
             part += f"\n   Description : {src['description'][:300]}"
         if src.get("orgs"):
