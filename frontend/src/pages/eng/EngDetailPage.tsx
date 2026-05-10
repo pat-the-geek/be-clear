@@ -3,7 +3,7 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, AlertTriangle, Copy, Square, CheckSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, GanttChartSquare, AlertTriangle, Copy, Square, CheckSquare } from 'lucide-react'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import { engApi, eventApi, teventApi, claApi } from '@/services/api'
 import { formatDate, formatDateTime } from '@/lib/utils'
@@ -75,16 +75,18 @@ function DateGrid({ dateDebut, dateDebutPrevue, dateFin, dateFinPrevue }: DateGr
   )
 }
 
-// ─── Composant : timeline à la demande (plein écran) ─────────
+// ─── Composant : modal diagramme Mermaid (plein écran) ───────
 
-interface TimelineModalProps {
+interface MermaidModalProps {
   open: boolean
   onClose: () => void
-  id: number
+  id: string
   code: string
+  title: string
+  stripInit?: boolean
 }
 
-function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
+function MermaidModal({ open, onClose, id, code, title, stripInit = false }: MermaidModalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -95,18 +97,18 @@ function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
     let cancelled = false
     setIsRendering(true)
 
-    const cleanCode = code.replace(/^%%\{[\s\S]*?\}%%\s*/m, '')
+    const renderCode = stripInit ? code.replace(/^%%\{[\s\S]*?\}%%\s*/m, '') : code
+    const renderId = `mermaid-${id}`
 
     async function render() {
-      document.getElementById(`dgantt-tl-${id}`)?.remove()
-      document.getElementById(`igantt-tl-${id}`)?.remove()
+      document.getElementById(`d${renderId}`)?.remove()
+      document.getElementById(`i${renderId}`)?.remove()
       try {
         const { default: mermaid } = await import('mermaid')
         mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', suppressErrorRendering: true })
-        const { svg } = await mermaid.render(`gantt-tl-${id}`, cleanCode)
-        // Toujours nettoyer les éléments temporaires Mermaid après le rendu
-        document.getElementById(`dgantt-tl-${id}`)?.remove()
-        document.getElementById(`igantt-tl-${id}`)?.remove()
+        const { svg } = await mermaid.render(renderId, renderCode)
+        document.getElementById(`d${renderId}`)?.remove()
+        document.getElementById(`i${renderId}`)?.remove()
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg
           const svgEl = containerRef.current.querySelector('svg')
@@ -122,8 +124,8 @@ function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
           }
         }
       } catch {
-        document.getElementById(`dgantt-tl-${id}`)?.remove()
-        document.getElementById(`igantt-tl-${id}`)?.remove()
+        document.getElementById(`d${renderId}`)?.remove()
+        document.getElementById(`i${renderId}`)?.remove()
         if (!cancelled && containerRef.current)
           containerRef.current.innerHTML = '<p class="text-red-500 text-sm">Erreur de rendu du diagramme.</p>'
       } finally {
@@ -135,10 +137,10 @@ function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
 
     return () => {
       cancelled = true
-      document.getElementById(`dgantt-tl-${id}`)?.remove()
-      document.getElementById(`igantt-tl-${id}`)?.remove()
+      document.getElementById(`d${renderId}`)?.remove()
+      document.getElementById(`i${renderId}`)?.remove()
     }
-  }, [open, id, code])
+  }, [open, id, code, stripInit])
 
   useEffect(() => {
     if (!open) return
@@ -164,7 +166,7 @@ function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
         >
           <X size={18} />
         </button>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Timeline</h3>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">{title}</h3>
         {isRendering && (
           <div className="flex items-center justify-center gap-2 py-12 text-gray-400">
             <Loader2 size={16} className="animate-spin" />
@@ -176,6 +178,67 @@ function TimelineModal({ open, onClose, id, code }: TimelineModalProps) {
     </div>,
     document.body
   )
+}
+
+// ─── Génération du code Mermaid Gantt ────────────────────────
+
+const GANTT_COLORS = ['#f97316', '#fb923c', '#ea580c', '#fdba74', '#c2410c', '#fed7aa', '#9a3412', '#ffedd5']
+
+function buildGanttCode(eng: Eng): string {
+  const cScales = GANTT_COLORS.map((c, i) => `'cScale${i}': '${c}'`).join(', ')
+
+  const lines: string[] = [
+    `%%{init: {'theme': 'base', 'themeVariables': {${cScales}}}}%%`,
+    'gantt',
+    `    title ${eng.obj.nom}`,
+    '    dateFormat YYYY-MM-DD',
+  ]
+
+  const sorted = [...(eng.events ?? [])].sort(
+    (a, b) => new Date(a.date_heure_prevue).getTime() - new Date(b.date_heure_prevue).getTime(),
+  )
+
+  const byType = new Map<string, typeof sorted>()
+  for (const ev of sorted) {
+    const key = ev.tevent_nom ?? 'Évènements'
+    if (!byType.has(key)) byType.set(key, [])
+    byType.get(key)!.push(ev)
+  }
+
+  const now = new Date()
+  for (const [sectionName, events] of byType) {
+    lines.push(`    section ${sectionName.replace(/[:#,]/g, ' ').trim()}`)
+    for (const ev of events) {
+      const startDate = new Date(ev.date_heure_prevue)
+      const startStr = startDate.toISOString().slice(0, 10)
+      let endStr: string
+      if (ev.date_heure_reelle) {
+        const endDate = new Date(ev.date_heure_reelle)
+        const candidateEnd = endDate.toISOString().slice(0, 10)
+        if (candidateEnd <= startStr) {
+          const d = new Date(startDate)
+          d.setDate(d.getDate() + 1)
+          endStr = d.toISOString().slice(0, 10)
+        } else {
+          endStr = candidateEnd
+        }
+      } else {
+        const d = new Date(startDate)
+        d.setDate(d.getDate() + 1)
+        endStr = d.toISOString().slice(0, 10)
+      }
+      let status = ''
+      if (ev.est_accompli) {
+        status = 'done, '
+      } else if (startDate < now) {
+        status = 'crit, '
+      }
+      const safeName = ev.obj_nom.replace(/[:#,]/g, ' ').trim()
+      lines.push(`    ${safeName} :${status}e${ev.id}, ${startStr}, ${endStr}`)
+    }
+  }
+
+  return lines.join('\n')
 }
 
 // Référence stable pour éviter qu'un `= []` inline recrée un tableau à chaque render
@@ -842,6 +905,7 @@ export default function EngDetailPage() {
   const descRef = useAutoResize(descDraft)
   const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
   const [showTimeline, setShowTimeline] = useState(false)
+  const [showGantt, setShowGantt] = useState(false)
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -970,14 +1034,27 @@ export default function EngDetailPage() {
 
               {/* Boutons d'action */}
               <div className="flex items-center gap-2 shrink-0">
-                {eng.gantt_mermaid && (
-                  <button
-                    onClick={() => setShowTimeline(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
-                  >
-                    <CalendarDays size={14} />
-                    Timeline
-                  </button>
+                {(eng.gantt_mermaid || sortedEvents.length > 0) && (
+                  <div className="flex items-center border border-violet-200 rounded-lg overflow-hidden">
+                    {eng.gantt_mermaid && (
+                      <button
+                        onClick={() => setShowTimeline(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-50 transition-colors"
+                      >
+                        <CalendarDays size={14} />
+                        Timeline
+                      </button>
+                    )}
+                    {sortedEvents.length > 0 && (
+                      <button
+                        onClick={() => setShowGantt(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-50 transition-colors${eng.gantt_mermaid ? ' border-l border-violet-200' : ''}`}
+                      >
+                        <GanttChartSquare size={14} />
+                        Gantt
+                      </button>
+                    )}
+                  </div>
                 )}
                 {isEditeur() && (
                   <>
@@ -1402,13 +1479,23 @@ export default function EngDetailPage() {
       />
 
       {eng.gantt_mermaid && (
-        <TimelineModal
+        <MermaidModal
           open={showTimeline}
           onClose={() => setShowTimeline(false)}
-          id={engId}
+          id={`tl-${engId}`}
           code={eng.gantt_mermaid}
+          title="Timeline"
+          stripInit
         />
       )}
+
+      <MermaidModal
+        open={showGantt}
+        onClose={() => setShowGantt(false)}
+        id={`gantt-${engId}`}
+        code={buildGanttCode(eng)}
+        title="Gantt"
+      />
     </div>
   )
 }

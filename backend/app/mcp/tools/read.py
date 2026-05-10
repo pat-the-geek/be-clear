@@ -5,6 +5,55 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 
+def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
+    """Génère le code Mermaid Gantt avec palette orange depuis une liste d'EVENTs."""
+    from collections import defaultdict
+    from datetime import date as _date, timedelta as _td
+
+    colors = ['#f97316', '#fb923c', '#ea580c', '#fdba74', '#c2410c', '#fed7aa', '#9a3412', '#ffedd5']
+    cscales = ', '.join(f"'cScale{i}': '{c}'" for i, c in enumerate(colors))
+
+    lines = [
+        f"%%{{init: {{'theme': 'base', 'themeVariables': {{{cscales}}}}}}}%%",
+        "gantt",
+        f"    title {eng_nom}",
+        "    dateFormat YYYY-MM-DD",
+    ]
+
+    by_tevent: dict[str, list] = defaultdict(list)
+    for ev in sorted(events, key=lambda e: e.get("date_prevue") or "9999"):
+        by_tevent[ev["tevent_nom"]].append(ev)
+
+    for section, evs in by_tevent.items():
+        safe_section = section.replace(":", " ").replace(",", " ")
+        lines.append(f"    section {safe_section}")
+        for ev in evs:
+            dp = ev.get("date_prevue")
+            if not dp:
+                continue
+            start = dp[:10]
+            done = ev.get("done", False)
+            dr = ev.get("date_reelle")
+
+            if done and dr:
+                end_candidate = dr[:10]
+                end = end_candidate if end_candidate > start else (_date.fromisoformat(start) + _td(days=1)).isoformat()
+            else:
+                end = (_date.fromisoformat(start) + _td(days=1)).isoformat()
+
+            if done:
+                status = "done, "
+            elif start < now_date_str:
+                status = "crit, "
+            else:
+                status = ""
+
+            safe_nom = ev["nom"].replace(":", " ").replace(",", " ").replace("#", "").strip()
+            lines.append(f"    {safe_nom} :{status}ev{ev['id']}, {start}, {end}")
+
+    return "\n".join(lines)
+
+
 def register_read_tools(mcp) -> None:  # noqa: ANN001
     from sqlalchemy import select, text
     from sqlalchemy.orm import joinedload, selectinload
@@ -415,11 +464,15 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     # ── Outil : get_eng ───────────────────────────────────────
 
     @mcp.tool()
-    async def get_eng(eng_id: int) -> str:
-        """Récupère un ENG complet : EVENTs, avancement, diagramme Gantt.
+    async def get_eng(eng_id: int, diagram: str = "") -> str:
+        """Récupère un ENG complet : EVENTs, avancement, diagramme Mermaid optionnel.
 
         Args:
             eng_id: Identifiant numérique de l'ENG.
+            diagram: Type de diagramme à inclure :
+                ""         → pas de diagramme (défaut) ;
+                "timeline" → diagramme Timeline généré par be.CLEAR ;
+                "gantt"    → diagramme Gantt avec palette orange.
         """
         async with AsyncSession() as db:
             result = await db.execute(
@@ -517,7 +570,27 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                     f"- {icon} **#{ev.id}** {nom} _{tv}_ — prévu {dt_p} / réel {dt_r}"
                 )
 
-        if eng.gantt_mermaid:
+        if diagram == "timeline":
+            if eng.gantt_mermaid:
+                lines.append(f"\n## Diagramme Timeline\n```mermaid\n{eng.gantt_mermaid}\n```")
+            else:
+                lines.append("\n_Aucun diagramme Timeline disponible pour cet ENG._")
+        elif diagram == "gantt":
+            ev_list = [
+                {
+                    "id": ev.id,
+                    "nom": ev.obj.nom if ev.obj else f"EVENT {ev.id}",
+                    "tevent_nom": ev.tevent.nom if ev.tevent else "Évènements",
+                    "date_prevue": ev.date_heure_prevue.isoformat() if ev.date_heure_prevue else None,
+                    "date_reelle": ev.date_heure_reelle.isoformat() if ev.date_heure_reelle else None,
+                    "done": ev.date_heure_reelle is not None,
+                }
+                for ev in eng.events
+            ]
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            gantt_code = _build_gantt_mermaid(eng.obj.nom, ev_list, now_str)
+            lines.append(f"\n## Diagramme Gantt\n```mermaid\n{gantt_code}\n```")
+        elif eng.gantt_mermaid:
             lines.append(f"\n## Gantt\n```mermaid\n{eng.gantt_mermaid}\n```")
 
         return "\n".join(lines)
