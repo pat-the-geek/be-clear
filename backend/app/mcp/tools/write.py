@@ -186,7 +186,7 @@ def register_write_tools(mcp) -> None:  # noqa: ANN001
         from sqlalchemy import select
         from sqlalchemy.orm import joinedload, selectinload
 
-        from app.models.object import Cla, Obj, Value
+        from app.models.object import Cla, Obj, Prop, Value
         from app.services.log import write_log
 
         async with AsyncSession() as db:
@@ -210,7 +210,19 @@ def register_write_tools(mcp) -> None:  # noqa: ANN001
                     "utilisez get_org ou get_eng pour obtenir le bon obj_id."
                 )
 
-            all_props = obj.cla.props if obj.cla else []
+            # Collect props from the full inheritance chain (CLA + all ancestors)
+            async def _resolve_props(cla: Cla) -> list[Prop]:
+                collected: list[Prop] = list(cla.props)
+                if cla.super_classe_id:
+                    parent_result = await db.execute(
+                        select(Cla).options(selectinload(Cla.props)).where(Cla.id == cla.super_classe_id)
+                    )
+                    parent = parent_result.scalar_one_or_none()
+                    if parent:
+                        collected.extend(await _resolve_props(parent))
+                return collected
+
+            all_props = await _resolve_props(obj.cla) if obj.cla else []
             prop = next(
                 (p for p in all_props if p.nom.lower() == prop_nom.lower()), None
             )

@@ -13,7 +13,7 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     from sqlalchemy import or_
     from app.mcp.db import AsyncSession, _engine
     from app.models.activity import Eng, Env, Event, Org, Tevent, Torg, Tenv, eng_env, eng_org
-    from app.models.object import Obj, Value
+    from app.models.object import Cla, Obj, Value
     from app.services import rag_service, search_service
 
     # ── Outil : health ────────────────────────────────────────
@@ -398,6 +398,7 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 select(Eng)
                 .options(
                     joinedload(Eng.obj).options(
+                        joinedload(Obj.cla).options(selectinload(Cla.props)),
                         selectinload(Obj.values).joinedload(Value.prop),
                     ),
                     joinedload(Eng.teng),
@@ -412,14 +413,34 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             )
             eng = result.unique().scalar_one_or_none()
 
+            # Collect all props through inheritance chain
+            all_props: list = []
+            if eng and eng.obj and eng.obj.cla:
+                cla = eng.obj.cla
+                all_props.extend(cla.props)
+                parent_id = cla.super_classe_id
+                depth = 0
+                while parent_id and depth < 5:
+                    pr = await db.execute(
+                        select(Cla).options(selectinload(Cla.props)).where(Cla.id == parent_id)
+                    )
+                    parent_cla = pr.scalar_one_or_none()
+                    if not parent_cla:
+                        break
+                    all_props.extend(parent_cla.props)
+                    parent_id = parent_cla.super_classe_id
+                    depth += 1
+
         if eng is None:
             return f"ENG #{eng_id} introuvable."
 
         acc = eng.accomplissement or 0
         lines = [f"# ENG : {eng.obj.nom}\n"]
+        cla_nom = eng.obj.cla.nom if eng.obj.cla else "N/A"
         lines.append(
             f"**ID :** {eng.id} | **obj_id :** {eng.obj_id} | "
             f"**Type :** {eng.teng.nom if eng.teng else 'N/A'} "
+            f"| **Classe :** {cla_nom} "
             f"| **Avancement :** {acc:.0f}%"
         )
         if eng.orgs:
@@ -440,6 +461,16 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         if eng.obj.description:
             lines.append(f"\n## Description\n{eng.obj.description}")
         lines.append(_values_md(eng.obj.values))
+
+        # Show available PROPs not yet set (to guide update_value usage)
+        set_prop_ids = {v.prop_id for v in eng.obj.values}
+        unset_props = [p for p in all_props if p.id not in set_prop_ids]
+        if unset_props:
+            lines.append(
+                "\n_Propriétés disponibles (non renseignées) : "
+                + ", ".join(f"**{p.nom}**" for p in unset_props)
+                + "_"
+            )
 
         # EVENTs triés par date prévue
         events_sorted = sorted(
