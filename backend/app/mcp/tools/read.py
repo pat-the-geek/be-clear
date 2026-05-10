@@ -450,12 +450,21 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     # ── Outil : list_events_due ───────────────────────────────
 
     @mcp.tool()
-    async def list_events_due(date_debut: str = "", date_fin: str = "") -> str:
-        """Liste les EVENTs prévus dans un intervalle de dates (accomplis et non accomplis).
+    async def list_events_due(
+        date_debut: str = "",
+        date_fin: str = "",
+        inclure_accomplis: bool = False,
+    ) -> str:
+        """Liste les EVENTs prévus dans un intervalle de dates.
+
+        Par défaut, ne retourne que les EVENTs non encore accomplis (usage prospectif :
+        « qu'est-ce qui m'attend cette semaine ? »). Passer inclure_accomplis=true pour
+        voir aussi les EVENTs déjà réalisés dans la fenêtre.
 
         Args:
             date_debut: Date ISO de début (ex: 2025-06-01). Défaut = aujourd'hui.
             date_fin: Date ISO de fin (ex: 2025-06-07). Défaut = date_debut + 7 jours.
+            inclure_accomplis: Si true, inclut les EVENTs déjà marqués accomplis. Défaut false.
         """
         now = datetime.now(timezone.utc)
 
@@ -476,6 +485,12 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             dt_to = dt_to.replace(tzinfo=timezone.utc)
 
         async with AsyncSession() as db:
+            where = [
+                Event.date_heure_prevue >= dt_from,
+                Event.date_heure_prevue <= dt_to,
+            ]
+            if not inclure_accomplis:
+                where.append(Event.date_heure_reelle.is_(None))
             result = await db.execute(
                 select(Event)
                 .options(
@@ -483,21 +498,19 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                     joinedload(Event.tevent),
                     joinedload(Event.eng).joinedload(Eng.obj),
                 )
-                .where(
-                    Event.date_heure_prevue >= dt_from,
-                    Event.date_heure_prevue <= dt_to,
-                )
+                .where(*where)
                 .order_by(Event.date_heure_prevue)
             )
             events = result.unique().scalars().all()
 
+        label = "" if inclure_accomplis else " (non accomplis)"
         if not events:
             return (
-                f"Aucun EVENT prévu du {dt_from.strftime('%d/%m/%Y')} "
+                f"Aucun EVENT{label} prévu du {dt_from.strftime('%d/%m/%Y')} "
                 f"au {dt_to.strftime('%d/%m/%Y')}."
             )
         lines = [
-            f"## EVENTs du {dt_from.strftime('%d/%m/%Y')} "
+            f"## EVENTs{label} du {dt_from.strftime('%d/%m/%Y')} "
             f"au {dt_to.strftime('%d/%m/%Y')} ({len(events)})\n"
         ]
         for ev in events:
