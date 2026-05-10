@@ -752,8 +752,6 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 )
 
         if diagram in ("gantt", "timeline"):
-            from mcp.server.fastmcp.utilities.types import Image as McpImage
-
             ev_list = [
                 {
                     "id": ev.id,
@@ -766,8 +764,25 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 for ev in eng.events
             ]
             now_dt = datetime.now(timezone.utc)
-            png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
-            return McpImage(data=png_bytes, format="png")
+            try:
+                from mcp.server.fastmcp.utilities.types import Image as McpImage
+                png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
+                return McpImage(data=png_bytes, format="png")
+            except ImportError:
+                # matplotlib absent (mode stdio sans installation locale) —
+                # fallback Mermaid. Installer avec : pip install matplotlib
+                if diagram == "timeline" and eng.gantt_mermaid:
+                    lines.append(
+                        f"\n⚠️ _matplotlib non disponible — diagramme en Mermaid._"
+                        f"\n## Diagramme Timeline\n```mermaid\n{eng.gantt_mermaid}\n```"
+                    )
+                else:
+                    now_str = now_dt.strftime("%Y-%m-%d")
+                    gantt_code = _build_gantt_mermaid(eng.obj.nom, ev_list, now_str)
+                    lines.append(
+                        f"\n⚠️ _matplotlib non disponible — diagramme en Mermaid._"
+                        f"\n## Diagramme Gantt\n```mermaid\n{gantt_code}\n```"
+                    )
 
         elif eng.gantt_mermaid:
             lines.append(f"\n## Gantt\n```mermaid\n{eng.gantt_mermaid}\n```")

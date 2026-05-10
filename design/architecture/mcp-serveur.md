@@ -117,7 +117,8 @@ Connexion depuis Claude Desktop (mode SSE distant) :
 - **`search`** : nécessite que **Meilisearch soit accessible depuis le processus MCP**. En mode stdio (Claude Desktop), ajouter `"MEILISEARCH_URL": "http://localhost:7700"` dans la section `"env"` de `claude_desktop_config.json`. En mode SSE Docker, la configuration est automatique. Si Meilisearch est indisponible, utiliser `list_orgs`, `list_engs` (filtre `q`) ou `rag_query` comme alternatives.
 - **`rag_query`** : dépend d'Ollama (LLM local). Timeout de 90 secondes — si Ollama est inaccessible ou surchargé, un message d'erreur explicite est retourné. Pour les questions temporelles précises (retards, jalons), préférer `get_overdue_events` et `list_events_due` qui sont déterministes.
 - **`list_tevents`** : indispensable avant `create_event` — fournit les `tevent_id` valides.
-- **`get_eng`** avec `diagram="gantt"` ou `diagram="timeline"` : retourne une **image PNG** affichée directement dans Claude Desktop. Le diagramme Gantt est généré avec matplotlib (barres colorées : vert=accompli, violet=planifié, rouge=en retard ; grille H+V ; marqueur Aujourd'hui ambre ; sections par TEVENT). Sans paramètre : pas de diagramme (réponse texte légère).
+- **`get_eng`** avec `diagram="gantt"` ou `diagram="timeline"` : retourne une **image PNG** affichée directement dans Claude Desktop (matplotlib requis). Barres colorées : vert=accompli, violet=planifié, rouge=en retard ; grille H+V ; marqueur Aujourd'hui ambre ; sections par TEVENT. **Si matplotlib est absent** (mode stdio sans installation locale), le diagramme est retourné en Mermaid avec un avertissement. Sans paramètre : pas de diagramme (réponse texte légère).
+  > **Mode stdio** : installer matplotlib dans le Python utilisé par `mcp_server.py` : `pip install matplotlib`
 
 ### Écriture (rôle EDITEUR requis)
 
