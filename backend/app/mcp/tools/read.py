@@ -12,7 +12,7 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     from app.mcp.auth import get_mcp_user
     from sqlalchemy import or_
     from app.mcp.db import AsyncSession, _engine
-    from app.models.activity import Eng, Env, Event, Org, Torg, Tenv, eng_env, eng_org
+    from app.models.activity import Eng, Env, Event, Org, Tevent, Torg, Tenv, eng_env, eng_org
     from app.models.object import Obj, Value
     from app.services import rag_service, search_service
 
@@ -141,6 +141,29 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 answer += f"- [{s['entity_type'].upper()} #{s['entity_id']}] {s['nom']}\n"
         return answer
 
+    # ── Outil : list_tevents ─────────────────────────────────
+
+    @mcp.tool()
+    async def list_tevents() -> str:
+        """Liste tous les types d'EVENT (TEVENT) disponibles avec leurs IDs.
+
+        Indispensable avant d'appeler create_event : retourne les tevent_id valides
+        à passer en paramètre.
+        """
+        async with AsyncSession() as db:
+            result = await db.execute(
+                select(Tevent).options(joinedload(Tevent.obj)).join(Tevent.obj).order_by(Obj.nom)
+            )
+            tevents = result.unique().scalars().all()
+
+        if not tevents:
+            return "Aucun TEVENT trouvé."
+        lines = ["## Types d'EVENT (TEVENT)\n", "| ID | Nom | CLA ID |", "|---|---|---|"]
+        for t in tevents:
+            nom = t.obj.nom if t.obj else f"TEVENT #{t.id}"
+            lines.append(f"| {t.id} | {nom} | {t.cla_id} |")
+        return "\n".join(lines)
+
     # ── Outil : list_orgs ─────────────────────────────────────
 
     @mcp.tool()
@@ -207,7 +230,10 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             return f"ORG #{org_id} introuvable."
 
         lines = [f"# ORG : {org.obj.nom}\n"]
-        lines.append(f"**ID :** {org.id} | **Type :** {org.torg.nom if org.torg else 'N/A'}")
+        lines.append(
+            f"**ID :** {org.id} | **obj_id :** {org.obj_id} | "
+            f"**Type :** {org.torg.nom if org.torg else 'N/A'}"
+        )
         if org.obj.description:
             lines.append(f"\n## Description\n{org.obj.description}")
         lines.append(_values_md(org.obj.values))
@@ -392,7 +418,8 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         acc = eng.accomplissement or 0
         lines = [f"# ENG : {eng.obj.nom}\n"]
         lines.append(
-            f"**ID :** {eng.id} | **Type :** {eng.teng.nom if eng.teng else 'N/A'} "
+            f"**ID :** {eng.id} | **obj_id :** {eng.obj_id} | "
+            f"**Type :** {eng.teng.nom if eng.teng else 'N/A'} "
             f"| **Avancement :** {acc:.0f}%"
         )
         if eng.orgs:
