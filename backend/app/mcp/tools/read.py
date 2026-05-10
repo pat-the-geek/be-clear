@@ -16,6 +16,164 @@ def _sanitize_mermaid(text: str) -> str:
     return re.sub(r" +", " ", clean).strip()
 
 
+def _generate_gantt_png(eng_nom: str, events: list, now: "datetime") -> bytes:
+    """Génère un diagramme Gantt en PNG (matplotlib) — barres colorées, grille, légende."""
+    import io
+    from collections import defaultdict
+    from datetime import datetime as _dt, timedelta as _td
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.dates as mdates
+    import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
+    from matplotlib.dates import date2num
+
+    # ── Couleurs (palette de l'application) ───────────────────
+    C_DONE   = "#22c55e"   # green-500
+    C_PLAN   = "#7c3aed"   # violet-700
+    C_LATE   = "#f87171"   # red-400
+    C_TODAY  = "#f59e0b"   # amber-400
+    C_SEC_BG = "#ede9fe"   # violet-100
+    C_SEC_FG = "#5b21b6"   # violet-800
+    C_GRID   = "#e5e7eb"   # gray-200
+    C_TEXT   = "#374151"   # gray-700
+
+    now_plain = now.replace(tzinfo=None)
+    MIN_BAR   = 3  # jours minimum par barre
+
+    # ── Tri et regroupement par TEVENT ────────────────────────
+    sorted_evs = sorted(events, key=lambda e: e.get("date_prevue") or "9999")
+    by_sec: dict = defaultdict(list)
+    for ev in sorted_evs:
+        by_sec[ev["tevent_nom"]].append(ev)
+
+    rows: list[tuple] = []  # (type, label, ev_or_None)
+    for sec_name, sec_evs in by_sec.items():
+        rows.append(("section", sec_name, None))
+        for ev in sec_evs:
+            rows.append(("event", ev["nom"], ev))
+
+    n = len(rows)
+    if n == 0:
+        # Diagramme vide
+        fig, ax = plt.subplots(figsize=(10, 3))
+        ax.text(0.5, 0.5, "Aucun évènement", ha="center", va="center",
+                fontsize=12, color="#6b7280", transform=ax.transAxes)
+        ax.axis("off")
+        ax.set_title(eng_nom, fontsize=12, fontweight="bold")
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+
+    # ── Plage de dates ────────────────────────────────────────
+    all_dates: list[_dt] = []
+    for ev in sorted_evs:
+        dp, dr = ev.get("date_prevue"), ev.get("date_reelle")
+        if dp: all_dates.append(_dt.fromisoformat(dp[:10]))
+        if dr: all_dates.append(_dt.fromisoformat(dr[:10]))
+    if not all_dates:
+        all_dates = [now_plain]
+
+    d_min, d_max = min(all_dates), max(all_dates)
+    span_d = max((d_max - d_min).days, 7)
+    pad_d  = max(int(span_d * 0.08), 3)
+    chart_s = d_min - _td(days=pad_d)
+    chart_e = d_max + _td(days=pad_d * 2)
+
+    # ── Figure ────────────────────────────────────────────────
+    fig_h = max(5, n * 0.52 + 2.2)
+    fig, ax = plt.subplots(figsize=(16, fig_h), dpi=130)
+    ax.set_facecolor("#ffffff")
+    fig.patch.set_facecolor("#ffffff")
+
+    yticks, ylabels = [], []
+
+    for i, (rtype, label, ev) in enumerate(rows):
+        y = n - i
+
+        if rtype == "section":
+            ax.axhspan(y - 0.45, y + 0.45, color=C_SEC_BG, zorder=1, linewidth=0)
+            yticks.append(y); ylabels.append(f"  {label}")
+        else:
+            ax.axhline(y - 0.45, color=C_GRID, lw=0.5, zorder=0)
+            yticks.append(y); ylabels.append(f"  {label}")
+
+            dp = ev.get("date_prevue")
+            dr = ev.get("date_reelle")
+            done = ev.get("done", False)
+            if not dp:
+                continue
+
+            s = _dt.fromisoformat(dp[:10])
+            if done and dr:
+                e = _dt.fromisoformat(dr[:10])
+                if (e - s).days < MIN_BAR:
+                    e = s + _td(days=MIN_BAR)
+            else:
+                e = s + _td(days=MIN_BAR)
+
+            late  = not done and s < now_plain
+            color = C_DONE if done else (C_LATE if late else C_PLAN)
+
+            ax.barh(y, date2num(e) - date2num(s), left=date2num(s),
+                    height=0.5, color=color, alpha=0.88, zorder=2, linewidth=0)
+
+    # Marqueur Aujourd'hui
+    if chart_s <= now_plain <= chart_e:
+        ax.axvline(date2num(now_plain), color=C_TODAY, lw=2, zorder=5, alpha=0.95)
+        ax.text(now_plain, n + 0.7, "Auj.", ha="center", va="top",
+                fontsize=7.5, color=C_TODAY, fontweight="bold", zorder=6)
+
+    # ── Axes ─────────────────────────────────────────────────
+    ax.set_xlim(date2num(chart_s), date2num(chart_e))
+    ax.set_ylim(0.3, n + 1.2)
+    ax.xaxis_date()
+
+    span_total = (chart_e - chart_s).days
+    if span_total > 90:
+        ax.xaxis.set_major_locator(mdates.MonthLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+    elif span_total > 21:
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
+    else:
+        ax.xaxis.set_major_locator(mdates.DayLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
+
+    ax.xaxis.grid(True, color=C_GRID, lw=0.6, zorder=0)
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=35, ha="right", fontsize=8)
+
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=8.5)
+    for tick, (rtype, *_) in zip(ax.get_yticklabels(), rows):
+        tick.set_color(C_SEC_FG if rtype == "section" else C_TEXT)
+        tick.set_fontweight("bold" if rtype == "section" else "normal")
+
+    ax.set_title(eng_nom, fontsize=12, fontweight="bold", color="#111827", pad=8, loc="left")
+
+    patches = [
+        mpatches.Patch(color=C_DONE, label="Accompli"),
+        mpatches.Patch(color=C_PLAN, label="Planifié"),
+        mpatches.Patch(color=C_LATE, label="En retard"),
+    ]
+    ax.legend(handles=patches, loc="lower right", fontsize=8,
+              framealpha=0.9, edgecolor=C_GRID, ncol=3)
+
+    for spine in ("top", "right", "left"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["bottom"].set_color(C_GRID)
+
+    fig.tight_layout(pad=1.5)
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
 def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
     """Génère le code Mermaid Gantt avec palette orange depuis une liste d'EVENTs.
 
@@ -593,26 +751,24 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                     f"- {icon} **#{ev.id}** {nom} _{tv}_ — prévu {dt_p} / réel {dt_r}"
                 )
 
-        if diagram == "timeline":
-            if eng.gantt_mermaid:
-                lines.append(f"\n## Diagramme Timeline\n```mermaid\n{eng.gantt_mermaid}\n```")
-            else:
-                lines.append("\n_Aucun diagramme Timeline disponible pour cet ENG._")
-        elif diagram == "gantt":
+        if diagram in ("gantt", "timeline"):
+            from mcp.server.fastmcp.utilities.types import Image as McpImage
+
             ev_list = [
                 {
                     "id": ev.id,
                     "nom": ev.obj.nom if ev.obj else f"EVENT {ev.id}",
-                    "tevent_nom": ev.tevent.nom if ev.tevent else "Évènements",
+                    "tevent_nom": ev.tevent.nom if ev.tevent else "Evenements",
                     "date_prevue": ev.date_heure_prevue.isoformat() if ev.date_heure_prevue else None,
                     "date_reelle": ev.date_heure_reelle.isoformat() if ev.date_heure_reelle else None,
                     "done": ev.date_heure_reelle is not None,
                 }
                 for ev in eng.events
             ]
-            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            gantt_code = _build_gantt_mermaid(eng.obj.nom, ev_list, now_str)
-            lines.append(f"\n## Diagramme Gantt\n```mermaid\n{gantt_code}\n```")
+            now_dt = datetime.now(timezone.utc)
+            png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
+            return McpImage(data=png_bytes, format="png")
+
         elif eng.gantt_mermaid:
             lines.append(f"\n## Gantt\n```mermaid\n{eng.gantt_mermaid}\n```")
 

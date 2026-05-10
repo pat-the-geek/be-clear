@@ -32,6 +32,9 @@ llama-index-llms-openai==0.7.7
 # MCP — Model Context Protocol
 mcp>=1.0
 
+# Visualisation
+matplotlib==3.10.3
+
 # Utilitaires
 pydantic==2.13.4
 pydantic-settings==2.14.0
