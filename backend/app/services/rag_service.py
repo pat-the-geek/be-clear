@@ -180,6 +180,23 @@ async def _enrich_sources(db: AsyncSession, sources: list[dict]) -> list[dict]:
                 JOIN eng e ON e.id = ee.eng_id AND e.obj_id = :oid
             """), {"oid": obj_id})
             src = {**src, "envs": [row[0] for row in r.fetchall()]}
+            # EVENTs de l'ENG — tous, pour éviter les omissions par similarité
+            r = await db.execute(sa_text("""
+                SELECT ev.id, ob.nom, ev.date_heure_prevue, ev.date_heure_reelle
+                FROM event ev
+                JOIN obj ob ON ob.id = ev.obj_id
+                JOIN eng e ON e.id = ev.eng_id AND e.obj_id = :oid
+                ORDER BY ev.date_heure_prevue
+            """), {"oid": obj_id})
+            src = {**src, "eng_events": [
+                {
+                    "id": row[0],
+                    "nom": row[1],
+                    "date_prevue": row[2].strftime("%d/%m/%Y") if row[2] else "?",
+                    "done": row[3] is not None,
+                }
+                for row in r.fetchall()
+            ]}
 
         elif etype == "org":
             r = await db.execute(sa_text("""
@@ -316,6 +333,12 @@ def _build_context(sources: list[dict]) -> str:
             part += f"\n   Organisations liées : {', '.join(src['orgs'])}"
         if src.get("envs"):
             part += f"\n   Environnements liés : {', '.join(src['envs'])}"
+        if src.get("eng_events") is not None:
+            evts = src["eng_events"]
+            part += f"\n   EVENTs ({len(evts)}) :"
+            for ev in evts:
+                icon = "✅" if ev["done"] else "⏳"
+                part += f"\n     {icon} [EVENT #{ev['id']}] {ev['nom']} — prévu {ev['date_prevue']}"
         if src.get("engs"):
             engs = src["engs"]
             if engs:
