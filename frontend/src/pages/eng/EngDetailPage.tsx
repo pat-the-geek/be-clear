@@ -184,13 +184,23 @@ function MermaidModal({ open, onClose, id, code, title, stripInit = false }: Mer
 
 const GANTT_COLORS = ['#f97316', '#fb923c', '#ea580c', '#fdba74', '#c2410c', '#fed7aa', '#9a3412', '#ffedd5']
 
+function toMermaidText(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')    // supprimer les diacritiques
+    .replace(/[^\x20-\x7E]/g, ' ')     // supprimer les non-ASCII (emojis inclus)
+    .replace(/[:#,;{}[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function buildGanttCode(eng: Eng): string {
   const cScales = GANTT_COLORS.map((c, i) => `'cScale${i}': '${c}'`).join(', ')
 
   const lines: string[] = [
     `%%{init: {'theme': 'base', 'themeVariables': {${cScales}}}}%%`,
     'gantt',
-    `    title ${eng.obj.nom}`,
+    `    title ${toMermaidText(eng.obj.nom)}`,
     '    dateFormat YYYY-MM-DD',
   ]
 
@@ -200,14 +210,14 @@ function buildGanttCode(eng: Eng): string {
 
   const byType = new Map<string, typeof sorted>()
   for (const ev of sorted) {
-    const key = ev.tevent_nom ?? 'Évènements'
+    const key = ev.tevent_nom ?? 'Evenements'
     if (!byType.has(key)) byType.set(key, [])
     byType.get(key)!.push(ev)
   }
 
   const now = new Date()
   for (const [sectionName, events] of byType) {
-    lines.push(`    section ${sectionName.replace(/[:#,]/g, ' ').trim()}`)
+    lines.push(`    section ${toMermaidText(sectionName)}`)
     for (const ev of events) {
       const startDate = new Date(ev.date_heure_prevue)
       const startStr = startDate.toISOString().slice(0, 10)
@@ -233,8 +243,7 @@ function buildGanttCode(eng: Eng): string {
       } else if (startDate < now) {
         status = 'crit, '
       }
-      const safeName = ev.obj_nom.replace(/[:#,]/g, ' ').trim()
-      lines.push(`    ${safeName} :${status}e${ev.id}, ${startStr}, ${endStr}`)
+      lines.push(`    ${toMermaidText(ev.obj_nom)} :${status}e${ev.id}, ${startStr}, ${endStr}`)
     }
   }
 

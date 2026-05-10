@@ -5,6 +5,17 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 
+def _sanitize_mermaid(text: str) -> str:
+    """Retourne une chaîne compatible Mermaid : sans accents, emojis ni caractères spéciaux."""
+    import re
+    import unicodedata
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_text = "".join(c for c in normalized if not unicodedata.combining(c))
+    clean = re.sub(r"[^\x20-\x7E]", " ", ascii_text)
+    clean = re.sub(r"[:#,;{}\[\]]", " ", clean)
+    return re.sub(r" +", " ", clean).strip()
+
+
 def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
     """Génère le code Mermaid Gantt avec palette orange depuis une liste d'EVENTs."""
     from collections import defaultdict
@@ -16,7 +27,7 @@ def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
     lines = [
         f"%%{{init: {{'theme': 'base', 'themeVariables': {{{cscales}}}}}}}%%",
         "gantt",
-        f"    title {eng_nom}",
+        f"    title {_sanitize_mermaid(eng_nom)}",
         "    dateFormat YYYY-MM-DD",
     ]
 
@@ -25,8 +36,7 @@ def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
         by_tevent[ev["tevent_nom"]].append(ev)
 
     for section, evs in by_tevent.items():
-        safe_section = section.replace(":", " ").replace(",", " ")
-        lines.append(f"    section {safe_section}")
+        lines.append(f"    section {_sanitize_mermaid(section)}")
         for ev in evs:
             dp = ev.get("date_prevue")
             if not dp:
@@ -48,7 +58,7 @@ def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
             else:
                 status = ""
 
-            safe_nom = ev["nom"].replace(":", " ").replace(",", " ").replace("#", "").strip()
+            safe_nom = _sanitize_mermaid(ev["nom"])
             lines.append(f"    {safe_nom} :{status}ev{ev['id']}, {start}, {end}")
 
     return "\n".join(lines)
