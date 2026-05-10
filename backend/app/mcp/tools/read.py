@@ -85,8 +85,8 @@ def _generate_gantt_png(eng_nom: str, events: list, now: "datetime") -> bytes:
     chart_e = d_max + _td(days=pad_d * 2)
 
     # ── Figure ────────────────────────────────────────────────
-    fig_h = max(5, n * 0.52 + 2.2)
-    fig, ax = plt.subplots(figsize=(16, fig_h), dpi=130)
+    fig_h = max(4, n * 0.48 + 2.0)
+    fig, ax = plt.subplots(figsize=(14, fig_h), dpi=96)
     ax.set_facecolor("#ffffff")
     fig.patch.set_facecolor("#ffffff")
 
@@ -169,7 +169,8 @@ def _generate_gantt_png(eng_nom: str, events: list, now: "datetime") -> bytes:
 
     fig.tight_layout(pad=1.5)
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
+    fig.savefig(buf, format="jpeg", bbox_inches="tight",
+                facecolor="white", dpi=96, pil_kwargs={"quality": 85, "optimize": True})
     plt.close(fig)
     buf.seek(0)
     return buf.read()
@@ -646,7 +647,7 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     # ── Outil : get_eng ───────────────────────────────────────
 
     @mcp.tool()
-    async def get_eng(eng_id: int, diagram: str = "") -> str:
+    async def get_eng(eng_id: int, diagram: str = ""):
         """Récupère un ENG complet : EVENTs, avancement, diagramme Mermaid optionnel.
 
         Args:
@@ -768,7 +769,7 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             try:
                 from mcp.server.fastmcp.utilities.types import Image as McpImage
                 png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
-                return McpImage(data=png_bytes, format="png")
+                return McpImage(data=png_bytes, format="jpeg")
             except Exception as _exc:
                 # Fallback Mermaid si matplotlib absent ou erreur de génération
                 _reason = f"{type(_exc).__name__}: {_exc}"
