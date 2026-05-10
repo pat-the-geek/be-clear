@@ -17,18 +17,26 @@ def _sanitize_mermaid(text: str) -> str:
 
 
 def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
-    """Génère le code Mermaid Gantt avec palette orange depuis une liste d'EVENTs."""
+    """Génère le code Mermaid Gantt avec palette orange depuis une liste d'EVENTs.
+
+    Durée minimale de 3 jours par barre pour la lisibilité.
+    Double guillemets dans le bloc init pour conformité JSON5.
+    """
     from collections import defaultdict
     from datetime import date as _date, timedelta as _td
 
-    colors = ['#f97316', '#fb923c', '#ea580c', '#fdba74', '#c2410c', '#fed7aa', '#9a3412', '#ffedd5']
-    cscales = ', '.join(f"'cScale{i}': '{c}'" for i, c in enumerate(colors))
+    MIN_DAYS = 3
+
+    colors = ["#f97316", "#fb923c", "#ea580c", "#fdba74", "#c2410c", "#fed7aa", "#9a3412", "#ffedd5"]
+    cscales = ", ".join(f'"cScale{i}": "{c}"' for i, c in enumerate(colors))
 
     lines = [
-        f"%%{{init: {{'theme': 'base', 'themeVariables': {{{cscales}}}}}}}%%",
+        f'%%{{init: {{"theme": "base", "themeVariables": {{{cscales}}}}}}}%%',
         "gantt",
         f"    title {_sanitize_mermaid(eng_nom)}",
         "    dateFormat YYYY-MM-DD",
+        "    axisFormat %d/%m",
+        "    todayMarker on",
     ]
 
     by_tevent: dict[str, list] = defaultdict(list)
@@ -41,15 +49,20 @@ def _build_gantt_mermaid(eng_nom: str, events: list, now_date_str: str) -> str:
             dp = ev.get("date_prevue")
             if not dp:
                 continue
-            start = dp[:10]
+            start_date = _date.fromisoformat(dp[:10])
             done = ev.get("done", False)
             dr = ev.get("date_reelle")
 
             if done and dr:
-                end_candidate = dr[:10]
-                end = end_candidate if end_candidate > start else (_date.fromisoformat(start) + _td(days=1)).isoformat()
+                end_date = _date.fromisoformat(dr[:10])
+                # enforce minimum bar width
+                if (end_date - start_date).days < MIN_DAYS:
+                    end_date = start_date + _td(days=MIN_DAYS)
             else:
-                end = (_date.fromisoformat(start) + _td(days=1)).isoformat()
+                end_date = start_date + _td(days=MIN_DAYS)
+
+            start = start_date.isoformat()
+            end = end_date.isoformat()
 
             if done:
                 status = "done, "
