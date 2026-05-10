@@ -279,14 +279,8 @@ export default function EnvDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['env', envId] }),
   })
 
-  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+  const { mutateAsync: saveDesc, isPending: isSavingDesc } = useMutation({
     mutationFn: (description: string) => envApi.update(envId, { description }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['env', envId] })
-      setEditingDesc(false)
-      toast.success('Description enregistrée')
-    },
-    onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
   const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
@@ -491,7 +485,7 @@ export default function EnvDetailPage() {
                   Annuler
                 </button>
                 <button
-                  onClick={() => saveDesc(descDraft)}
+                  onClick={async () => { try { await saveDesc(descDraft); queryClient.invalidateQueries({ queryKey: ['env', envId] }); setEditingDesc(false); toast.success('Description enregistrée') } catch { toast.error('Erreur lors de la sauvegarde') } }}
                   disabled={isSavingDesc}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
                 >

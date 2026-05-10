@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 
+from datetime import timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload, selectinload
@@ -13,7 +16,7 @@ from app.models.object import Obj, Value
 from app.schemas.eng import EngOut, EngBrief, EngCreate, EngUpdate, OrgRef, EnvRef, EventBrief
 from app.schemas.common import Paginated
 from app.services.log import write_log
-from app.services.gantt import recalculate_eng, _to_timedelta
+from app.services.gantt import recalculate_eng, generate_gantt_png, _to_timedelta
 from app.services.search_service import index_obj, delete_obj
 
 router = APIRouter()
@@ -658,14 +661,44 @@ async def duplicate_eng(
 
 # ─── GET /eng/{id}/gantt ─────────────────────────────────────
 
-@router.get("/{eng_id}/gantt")
+@router.get("/{eng_id}/gantt", response_class=Response)
 async def get_gantt(
     eng_id: int,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Eng).where(Eng.id == eng_id))
-    eng = result.scalar_one_or_none()
+    """Retourne le diagramme Gantt de l'ENG au format JPEG (matplotlib)."""
+    from datetime import datetime, timezone
+    result = await db.execute(
+        select(Eng)
+        .options(
+            joinedload(Eng.obj),
+            selectinload(Eng.events).options(
+                joinedload(Event.obj),
+                joinedload(Event.tevent),
+            ),
+        )
+        .where(Eng.id == eng_id)
+    )
+    eng = result.unique().scalar_one_or_none()
     if eng is None:
         raise HTTPException(status_code=404, detail="Engagement introuvable")
-    return {"mermaid": eng.gantt_mermaid}
+
+    ev_list = [
+        {
+            "id": ev.id,
+            "nom": ev.obj.nom if ev.obj else f"EVENT {ev.id}",
+            "tevent_nom": ev.tevent.nom if ev.tevent else "Évènements",
+            "date_prevue": ev.date_heure_prevue.isoformat() if ev.date_heure_prevue else None,
+            "date_reelle": ev.date_heure_reelle.isoformat() if ev.date_heure_reelle else None,
+            "done": ev.date_heure_reelle is not None,
+        }
+        for ev in eng.events
+    ]
+    eng_nom = eng.obj.nom if eng.obj else f"ENG {eng_id}"
+    try:
+        jpeg_bytes = generate_gantt_png(eng_nom, ev_list, datetime.now(timezone.utc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erreur génération Gantt : {exc}") from exc
+
+    return Response(content=jpeg_bytes, media_type="image/jpeg")

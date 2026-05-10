@@ -754,42 +754,31 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 )
 
         if diagram in ("gantt", "timeline"):
-            ev_list = [
-                {
-                    "id": ev.id,
-                    "nom": ev.obj.nom if ev.obj else f"EVENT {ev.id}",
-                    "tevent_nom": ev.tevent.nom if ev.tevent else "Evenements",
-                    "date_prevue": ev.date_heure_prevue.isoformat() if ev.date_heure_prevue else None,
-                    "date_reelle": ev.date_heure_reelle.isoformat() if ev.date_heure_reelle else None,
-                    "done": ev.date_heure_reelle is not None,
-                }
-                for ev in eng.events
-            ]
-            now_dt = datetime.now(timezone.utc)
-            try:
-                import base64
-                from mcp.types import ImageContent
-                png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
-                return [ImageContent(
-                    type="image",
-                    data=base64.b64encode(png_bytes).decode("utf-8"),
-                    mimeType="image/jpeg",
-                )]
-            except Exception as _exc:
-                # Fallback Mermaid si matplotlib absent ou erreur de génération
-                _reason = f"{type(_exc).__name__}: {_exc}"
-                now_str = now_dt.strftime("%Y-%m-%d")
-                if diagram == "timeline" and eng.gantt_mermaid:
-                    lines.append(
-                        f"\n⚠️ _Génération PNG impossible ({_reason}) — diagramme en Mermaid._"
-                        f"\n## Diagramme Timeline\n```mermaid\n{eng.gantt_mermaid}\n```"
-                    )
-                else:
-                    gantt_code = _build_gantt_mermaid(eng.obj.nom, ev_list, now_str)
-                    lines.append(
-                        f"\n⚠️ _Génération PNG impossible ({_reason}) — diagramme en Mermaid._"
-                        f"\n## Diagramme Gantt\n```mermaid\n{gantt_code}\n```"
-                    )
+            from app.mcp.auth import BECLEAR_API_URL
+            gantt_url = f"{BECLEAR_API_URL}/api/eng/{eng_id}/gantt"
+            if diagram == "timeline" and eng.gantt_mermaid:
+                lines.append(
+                    f"\n## Diagramme Timeline\n```mermaid\n{eng.gantt_mermaid}\n```"
+                    f"\n\n📊 [Voir le Gantt en image]({gantt_url}) — ouvrir dans le navigateur"
+                )
+            else:
+                ev_list = [
+                    {
+                        "id": ev.id,
+                        "nom": ev.obj.nom if ev.obj else f"EVENT {ev.id}",
+                        "tevent_nom": ev.tevent.nom if ev.tevent else "Evenements",
+                        "date_prevue": ev.date_heure_prevue.isoformat() if ev.date_heure_prevue else None,
+                        "date_reelle": ev.date_heure_reelle.isoformat() if ev.date_heure_reelle else None,
+                        "done": ev.date_heure_reelle is not None,
+                    }
+                    for ev in eng.events
+                ]
+                now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                gantt_code = _build_gantt_mermaid(eng.obj.nom, ev_list, now_str)
+                lines.append(
+                    f"\n## Diagramme Gantt\n```mermaid\n{gantt_code}\n```"
+                    f"\n\n📊 [Voir le Gantt en image]({gantt_url}) — ouvrir dans le navigateur"
+                )
 
         elif eng.gantt_mermaid:
             lines.append(f"\n## Gantt\n```mermaid\n{eng.gantt_mermaid}\n```")

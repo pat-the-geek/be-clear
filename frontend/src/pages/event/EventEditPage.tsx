@@ -98,7 +98,7 @@ export default function EventEditPage() {
   }, [event])
 
   // ── Mutation ──────────────────────────────────────────────
-  const { mutate: save, isPending, error } = useMutation({
+  const { mutateAsync: save, isPending, error } = useMutation({
     mutationFn: () => {
       const values = Array.from(drafts.values())
       return eventApi.update(eventId, {
@@ -110,19 +110,18 @@ export default function EventEditPage() {
         values,
       })
     },
-    onSuccess: () => {
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await save()
       toast.success('Évènement mis à jour')
       queryClient.invalidateQueries({ queryKey: ['event', eventId] })
       navigate(`/event/${eventId}`)
-    },
-    onError: () => {
+    } catch {
       toast.error('Échec de la mise à jour')
-    },
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    save()
+    }
   }
 
   const updateDraft = (updated: ValueDraft) => {

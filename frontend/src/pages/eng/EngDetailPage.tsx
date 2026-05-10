@@ -742,7 +742,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
     }
   }, [open])
 
-  const { mutate: update, isPending, error, reset } = useMutation({
+  const { mutateAsync: update, isPending, error, reset } = useMutation({
     mutationFn: () =>
       eventApi.update(eventId!, {
         nom: nom.trim() || undefined,
@@ -752,11 +752,6 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
         description: description.trim() || null,
         values: Array.from(drafts.values()),
       }),
-    onSuccess: () => {
-      onUpdated()
-      onClose()
-      reset()
-    },
   })
 
   const apiError = parseApiError(error)
@@ -895,7 +890,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
               </button>
               <button
                 type="button"
-                onClick={() => update()}
+                onClick={async () => { try { await update(); onUpdated(); onClose(); reset() } catch { /* error shown via apiError */ } }}
                 disabled={isPending || !nom.trim()}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -1165,14 +1160,8 @@ export default function EngDetailPage() {
     onError: () => toast.error('Erreur lors de la mise à jour'),
   })
 
-  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+  const { mutateAsync: saveDesc, isPending: isSavingDesc } = useMutation({
     mutationFn: (description: string) => engApi.update(engId, { description }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
-      setEditingDesc(false)
-      toast.success('Description enregistrée')
-    },
-    onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
   if (isLoading) return <div className="p-6 text-center text-gray-400 py-16">Chargement…</div>
@@ -1448,7 +1437,7 @@ export default function EngDetailPage() {
                   Annuler
                 </button>
                 <button
-                  onClick={() => saveDesc(descDraft)}
+                  onClick={async () => { try { await saveDesc(descDraft); queryClient.invalidateQueries({ queryKey: ['eng', engId] }); setEditingDesc(false); toast.success('Description enregistrée') } catch { toast.error('Erreur lors de la sauvegarde') } }}
                   disabled={isSavingDesc}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >

@@ -117,14 +117,8 @@ export default function OrgDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['org', orgId] }),
   })
 
-  const { mutate: saveDesc, isPending: isSavingDesc } = useMutation({
+  const { mutateAsync: saveDesc, isPending: isSavingDesc } = useMutation({
     mutationFn: (description: string) => orgApi.update(orgId, { description }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['org', orgId] })
-      setEditingDesc(false)
-      toast.success('Description enregistrée')
-    },
-    onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
   const { mutate: generateRpt, isPending: isGeneratingRpt } = useMutation({
@@ -321,7 +315,7 @@ export default function OrgDetailPage() {
                   Annuler
                 </button>
                 <button
-                  onClick={() => saveDesc(descDraft)}
+                  onClick={async () => { try { await saveDesc(descDraft); queryClient.invalidateQueries({ queryKey: ['org', orgId] }); setEditingDesc(false); toast.success('Description enregistrée') } catch { toast.error('Erreur lors de la sauvegarde') } }}
                   disabled={isSavingDesc}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >

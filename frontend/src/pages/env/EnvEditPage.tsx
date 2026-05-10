@@ -92,7 +92,7 @@ export default function EnvEditPage() {
   }, [env])
 
   // ── Mutation ──────────────────────────────────────────────
-  const { mutate: save, isPending, error } = useMutation({
+  const { mutateAsync: save, isPending, error } = useMutation({
     mutationFn: () => {
       const values = Array.from(drafts.values())
       return envApi.update(envId, {
@@ -102,20 +102,19 @@ export default function EnvEditPage() {
         values,
       })
     },
-    onSuccess: () => {
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await save()
       toast.success('Environnement mis à jour')
       queryClient.invalidateQueries({ queryKey: ['env', envId] })
       queryClient.invalidateQueries({ queryKey: ['envs'] })
       navigate(`/env/${envId}`)
-    },
-    onError: () => {
+    } catch {
       toast.error('Échec de la mise à jour')
-    },
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    save()
+    }
   }
 
   const updateDraft = (updated: ValueDraft) => {

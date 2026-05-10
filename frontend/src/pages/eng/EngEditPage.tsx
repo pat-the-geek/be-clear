@@ -124,7 +124,7 @@ export default function EngEditPage() {
   }, [eng])
 
   // ── Mutation ──────────────────────────────────────────────
-  const { mutate: save, isPending, error } = useMutation({
+  const { mutateAsync: save, isPending, error } = useMutation({
     mutationFn: () =>
       engApi.update(engId, {
         nom: nom.trim() || undefined,
@@ -139,14 +139,6 @@ export default function EngEditPage() {
         date_fin: dateInputToIso(dateFin),
         values: Array.from(drafts.values()),
       }),
-    onSuccess: () => {
-      toast.success('Engagement mis à jour')
-      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
-      navigate(`/eng/${engId}`)
-    },
-    onError: () => {
-      toast.error('Échec de la mise à jour')
-    },
   })
 
   const updateDraft = (updated: ValueDraft) => {
@@ -177,6 +169,18 @@ export default function EngEditPage() {
       }
       return next
     })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await save()
+      toast.success('Engagement mis à jour')
+      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+      navigate(`/eng/${engId}`)
+    } catch {
+      toast.error('Échec de la mise à jour')
+    }
   }
 
   // ── Rendu ─────────────────────────────────────────────────
@@ -230,7 +234,7 @@ export default function EngEditPage() {
         </div>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); save() }} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* ── Identité ───────────────────────────────────── */}
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
