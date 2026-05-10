@@ -97,25 +97,41 @@ Connexion depuis Claude Desktop (mode SSE distant) :
 
 | Outil | Description | Paramètres clés |
 |-------|-------------|-----------------|
+| `health` | Vérifie la connectivité (PostgreSQL, Meilisearch) | — |
 | `search` | Recherche full-text Meilisearch | `query`, `entity_type` (org\|env\|eng\|event) |
-| `rag_query` | Question en langage naturel (RAG + LLM) | `question`, `llm_id` |
+| `rag_query` | Question en langage naturel (RAG + LLM Ollama) | `question`, `llm_id` |
 | `list_orgs` | Liste les ORG avec filtre optionnel | `q`, `limit` |
 | `get_org` | Fiche complète d'une ORG (propriétés, ENGs) | `org_id` |
-| `list_engs` | Liste les ENG avec filtres | `org_id`, `env_id`, `status` (actif\|clos), `limit` |
-| `get_eng` | ENG complet : EVENTs, avancement, Gantt | `eng_id` |
+| `list_engs` | Liste les ENG avec filtres | `org_id`, `env_id`, `status` (actif\|en_cours\|clos), `limit` |
+| `list_engs_sans_events` | ENGs actifs sans EVENT futur planifié | `limit` |
+| `get_eng` | ENG complet : EVENTs, avancement, diagramme optionnel | `eng_id`, `diagram` (""\|"timeline"\|"gantt") |
+| `list_envs` | Liste les ENV avec filtre optionnel | `q`, `limit` |
 | `get_env` | Fiche complète d'un ENV | `env_id` |
-| `list_events_due` | EVENTs prévus dans un intervalle | `date_debut`, `date_fin` (ISO) |
+| `list_tevents` | Liste les types d'EVENT (TEVENT) avec leurs IDs | — |
+| `list_events_due` | EVENTs prévus dans un intervalle | `date_debut`, `date_fin` (ISO), `inclure_accomplis` |
 | `get_overdue_events` | EVENTs en retard (non accomplis, date dépassée) | `limit` |
+
+**Notes :**
+
+- **`health`** : à appeler en premier dans toute campagne de tests pour valider la connectivité avant les appels plus lourds.
+- **`search`** : nécessite que **Meilisearch soit accessible depuis le processus MCP**. En mode stdio (Claude Desktop), ajouter `"MEILISEARCH_URL": "http://localhost:7700"` dans la section `"env"` de `claude_desktop_config.json`. En mode SSE Docker, la configuration est automatique. Si Meilisearch est indisponible, utiliser `list_orgs`, `list_engs` (filtre `q`) ou `rag_query` comme alternatives.
+- **`rag_query`** : dépend d'Ollama (LLM local). Timeout de 90 secondes — si Ollama est inaccessible ou surchargé, un message d'erreur explicite est retourné. Pour les questions temporelles précises (retards, jalons), préférer `get_overdue_events` et `list_events_due` qui sont déterministes.
+- **`list_tevents`** : indispensable avant `create_event` — fournit les `tevent_id` valides.
+- **`get_eng`** avec `diagram="gantt"` : génère le code Mermaid Gantt avec palette orange, durée minimale de 3 jours par barre, axe en `dd/mm`, marqueur aujourd'hui. Avec `diagram="timeline"` : retourne le diagramme Timeline pré-calculé par be.CLEAR. Sans paramètre : pas de diagramme (réponse plus légère).
 
 ### Écriture (rôle EDITEUR requis)
 
 | Outil | Description | Paramètres clés |
 |-------|-------------|-----------------|
-| `create_event` | Crée un EVENT dans un ENG | `eng_id`, `nom`, `tevent_id`, `date_heure_prevue` |
+| `create_event` | Crée un EVENT dans un ENG | `eng_id`, `nom`, `tevent_id`, `date_heure_prevue`, `description` |
 | `mark_event_done` | Marque un EVENT accompli | `event_id`, `date_heure_reelle` (optionnel, défaut = maintenant) |
 | `update_value` | Met à jour la valeur d'une propriété (PROP) | `obj_id`, `prop_nom`, `valeur` |
 
 > Les outils d'écriture passent par l'API REST be.CLEAR — toutes les règles métier s'appliquent (RF-15 sur les dates, recalcul Gantt, indexation Meilisearch, journal LOG).
+>
+> **`update_value`** : l'`obj_id` est l'identifiant de la couche objet sous-jacente (visible dans `get_org`/`get_eng` sous le champ `obj_id`), **distinct** de l'ID de l'ORG ou de l'ENG. La résolution suit la chaîne d'héritage de CLA : les propriétés héritées de la super-classe sont également accessibles.
+>
+> **`mark_event_done`** : un avertissement non bloquant est émis si l'écart entre la date réelle fournie et la date prévue dépasse 30 jours.
 
 ---
 
@@ -128,7 +144,9 @@ Les ressources sont des données déclaratives que Claude peut lire directement,
 | `beclear://orgs` | Répertoire de toutes les ORG |
 | `beclear://envs` | Répertoire de tous les ENV |
 | `beclear://org/{org_id}` | Fiche complète d'une ORG |
-| `beclear://eng/{eng_id}/gantt` | Diagramme Gantt Mermaid d'un ENG |
+| `beclear://eng/{eng_id}/gantt` | Diagramme Timeline Mermaid d'un ENG (code pré-calculé par be.CLEAR) |
+
+> Pour le **Gantt avec palette orange**, utiliser l'outil `get_eng(eng_id, diagram="gantt")` plutôt que la ressource `beclear://eng/{eng_id}/gantt`.
 
 ---
 
