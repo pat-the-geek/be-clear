@@ -10,8 +10,9 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     from sqlalchemy.orm import joinedload, selectinload
 
     from app.mcp.auth import get_mcp_user
+    from sqlalchemy import or_
     from app.mcp.db import AsyncSession, _engine
-    from app.models.activity import Eng, Env, Event, Org, eng_env, eng_org
+    from app.models.activity import Eng, Env, Event, Org, Torg, Tenv, eng_env, eng_org
     from app.models.object import Obj, Value
     from app.services import rag_service, search_service
 
@@ -140,7 +141,10 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         """Liste les organisations (ORG) enregistrées dans be.CLEAR.
 
         Args:
-            q: Filtre textuel sur le nom (optionnel).
+            q: Filtre textuel sur le nom de l'ORG ou sur son type (TORG).
+               Exemple : q="Formation" retourne les ORG de type "Secteur Formation…".
+               Pour une recherche full-text élargie (description, propriétés, autres entités),
+               utiliser l'outil `search` à la place.
             limit: Nombre maximum de résultats (défaut 30).
         """
         async with AsyncSession() as db:
@@ -150,7 +154,10 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 .join(Org.obj)
             )
             if q:
-                stmt = stmt.where(Obj.nom.ilike(f"%{q}%"))
+                torg_match = Org.torg_id.in_(
+                    select(Torg.id).where(Torg.nom.ilike(f"%{q}%"))
+                )
+                stmt = stmt.where(or_(Obj.nom.ilike(f"%{q}%"), torg_match))
             stmt = stmt.order_by(Obj.nom).limit(limit)
             orgs = (await db.execute(stmt)).unique().scalars().all()
 
@@ -375,7 +382,8 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
         """Liste les environnements (ENV) enregistrés dans be.CLEAR.
 
         Args:
-            q: Filtre textuel sur le nom (optionnel).
+            q: Filtre textuel sur le nom de l'ENV ou sur son type (TENV).
+               Pour une recherche full-text élargie, utiliser l'outil `search`.
             limit: Nombre maximum de résultats (défaut 30).
         """
         async with AsyncSession() as db:
@@ -385,7 +393,10 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 .join(Env.obj)
             )
             if q:
-                stmt = stmt.where(Obj.nom.ilike(f"%{q}%"))
+                tenv_match = Env.tenv_id.in_(
+                    select(Tenv.id).where(Tenv.nom.ilike(f"%{q}%"))
+                )
+                stmt = stmt.where(or_(Obj.nom.ilike(f"%{q}%"), tenv_match))
             stmt = stmt.order_by(Obj.nom).limit(limit)
             envs = (await db.execute(stmt)).unique().scalars().all()
 
