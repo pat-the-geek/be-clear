@@ -665,7 +665,6 @@ async def duplicate_eng(
 async def get_gantt(
     eng_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
 ):
     """Retourne le diagramme Gantt de l'ENG au format JPEG (matplotlib)."""
     from datetime import datetime, timezone
