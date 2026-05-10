@@ -23,10 +23,11 @@ def _generate_gantt_png(eng_nom: str, events: list, now: "datetime") -> bytes:
     from datetime import datetime as _dt, timedelta as _td
 
     import matplotlib
-    matplotlib.use("Agg")
+    matplotlib.use("Agg")          # doit être appelé avant pyplot
+    import matplotlib.pyplot as plt
+    plt.switch_backend("Agg")      # garantit Agg même si déjà initialisé
     import matplotlib.dates as mdates
     import matplotlib.patches as mpatches
-    import matplotlib.pyplot as plt
     from matplotlib.dates import date2num
 
     # ── Couleurs (palette de l'application) ───────────────────
@@ -768,19 +769,19 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                 from mcp.server.fastmcp.utilities.types import Image as McpImage
                 png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
                 return McpImage(data=png_bytes, format="png")
-            except ImportError:
-                # matplotlib absent (mode stdio sans installation locale) —
-                # fallback Mermaid. Installer avec : pip install matplotlib
+            except Exception as _exc:
+                # Fallback Mermaid si matplotlib absent ou erreur de génération
+                _reason = f"{type(_exc).__name__}: {_exc}"
+                now_str = now_dt.strftime("%Y-%m-%d")
                 if diagram == "timeline" and eng.gantt_mermaid:
                     lines.append(
-                        f"\n⚠️ _matplotlib non disponible — diagramme en Mermaid._"
+                        f"\n⚠️ _Génération PNG impossible ({_reason}) — diagramme en Mermaid._"
                         f"\n## Diagramme Timeline\n```mermaid\n{eng.gantt_mermaid}\n```"
                     )
                 else:
-                    now_str = now_dt.strftime("%Y-%m-%d")
                     gantt_code = _build_gantt_mermaid(eng.obj.nom, ev_list, now_str)
                     lines.append(
-                        f"\n⚠️ _matplotlib non disponible — diagramme en Mermaid._"
+                        f"\n⚠️ _Génération PNG impossible ({_reason}) — diagramme en Mermaid._"
                         f"\n## Diagramme Gantt\n```mermaid\n{gantt_code}\n```"
                     )
 
