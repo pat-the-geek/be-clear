@@ -111,9 +111,10 @@ def register_write_tools(mcp) -> None:  # noqa: ANN001
         except Exception:
             pass  # L'indexation est best-effort — la création a réussi
 
+        desc_line = f"\nDescription : {description}" if description else ""
         return (
             f"✅ EVENT **#{event_id}** « {nom} » créé dans ENG #{eng_id}.\n"
-            f"Date prévue : {date_heure_prevue}"
+            f"Date prévue : {date_heure_prevue}{desc_line}"
         )
 
     # ── Outil : mark_event_done ───────────────────────────────

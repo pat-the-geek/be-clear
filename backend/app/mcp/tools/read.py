@@ -121,17 +121,28 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
     async def rag_query(question: str, llm_id: int = 0) -> str:
         """Requête en langage naturel (RAG) sur toutes les données be.CLEAR.
 
+        Pour les questions sur les retards ou jalons, préférez `get_overdue_events`
+        et `list_events_due` qui retournent des données déterministes fiables.
+
         Args:
             question: Question en français sur les données du système.
             llm_id: ID du LLM à utiliser (0 = auto, laisse be.CLEAR choisir).
         """
-        async with AsyncSession() as db:
-            user = await get_mcp_user(db)
-            result = await rag_service.rag_query(
-                db=db,
-                question=question,
-                user_id=user.id,
-                llm_id=llm_id if llm_id else None,
+        try:
+            async with asyncio.timeout(90):
+                async with AsyncSession() as db:
+                    user = await get_mcp_user(db)
+                    result = await rag_service.rag_query(
+                        db=db,
+                        question=question,
+                        user_id=user.id,
+                        llm_id=llm_id if llm_id else None,
+                    )
+        except TimeoutError:
+            return (
+                "⏱️ Délai dépassé (90 s) — Ollama est inaccessible ou surchargé. "
+                "Réessayez dans quelques minutes, ou utilisez les outils déterministes "
+                "(`get_overdue_events`, `list_events_due`, `list_engs`…) qui ne dépendent pas du LLM."
             )
         answer = result.get("answer", "Pas de réponse générée.")
         sources = result.get("sources", [])
@@ -614,12 +625,12 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             )
 
         async with AsyncSession() as db:
-            where = [
+            where_base = [
                 Event.date_heure_prevue >= dt_from,
                 Event.date_heure_prevue <= dt_to,
             ]
             if not inclure_accomplis:
-                where.append(Event.date_heure_reelle.is_(None))
+                where_base.append(Event.date_heure_reelle.is_(None))
             result = await db.execute(
                 select(Event)
                 .options(
@@ -627,17 +638,36 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
                     joinedload(Event.tevent),
                     joinedload(Event.eng).joinedload(Eng.obj),
                 )
-                .where(*where)
+                .where(*where_base)
                 .order_by(Event.date_heure_prevue)
             )
             events = result.unique().scalars().all()
 
+            # Compte les accomplis dans la fenêtre si on les a exclus
+            accomplis_count = 0
+            if not inclure_accomplis:
+                r2 = await db.execute(
+                    select(Event.id)
+                    .where(
+                        Event.date_heure_prevue >= dt_from,
+                        Event.date_heure_prevue <= dt_to,
+                        Event.date_heure_reelle.is_not(None),
+                    )
+                )
+                accomplis_count = len(r2.fetchall())
+
         label = "" if inclure_accomplis else " (non accomplis)"
         if not events:
-            return (
+            base = (
                 f"Aucun EVENT{label} prévu du {dt_from.strftime('%d/%m/%Y')} "
                 f"au {dt_to.strftime('%d/%m/%Y')}."
             )
+            if accomplis_count:
+                base += (
+                    f" ({accomplis_count} EVENT{'s' if accomplis_count > 1 else ''} accompli{'s' if accomplis_count > 1 else ''} "
+                    "dans cette fenêtre — passez `inclure_accomplis=true` pour les voir.)"
+                )
+            return base
         lines = [
             f"## EVENTs{label} du {dt_from.strftime('%d/%m/%Y')} "
             f"au {dt_to.strftime('%d/%m/%Y')} ({len(events)})\n"
