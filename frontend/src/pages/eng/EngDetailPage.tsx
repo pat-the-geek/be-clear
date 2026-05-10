@@ -180,74 +180,261 @@ function MermaidModal({ open, onClose, id, code, title, stripInit = false }: Mer
   )
 }
 
-// ─── Génération du code Mermaid Gantt ────────────────────────
+// ─── Composant : Gantt React custom ──────────────────────────
 
-const GANTT_COLORS = ['#f97316', '#fb923c', '#ea580c', '#fdba74', '#c2410c', '#fed7aa', '#9a3412', '#ffedd5']
+const GANTT_LEFT_COL = 220 // px — largeur colonne noms
 
-function toMermaidText(text: string): string {
-  return text
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')    // supprimer les diacritiques
-    .replace(/[^\x20-\x7E]/g, ' ')     // supprimer les non-ASCII (emojis inclus)
-    .replace(/[:#,;{}[\]]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void; eng: Eng }) {
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
-function buildGanttCode(eng: Eng): string {
-  const cScales = GANTT_COLORS.map((c, i) => `'cScale${i}': '${c}'`).join(', ')
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open])
 
-  const lines: string[] = [
-    `%%{init: {'theme': 'base', 'themeVariables': {${cScales}}}}%%`,
-    'gantt',
-    `    title ${toMermaidText(eng.obj.nom)}`,
-    '    dateFormat YYYY-MM-DD',
-  ]
+  if (!open) return null
 
-  const sorted = [...(eng.events ?? [])].sort(
+  const events = [...(eng.events ?? [])].sort(
     (a, b) => new Date(a.date_heure_prevue).getTime() - new Date(b.date_heure_prevue).getTime(),
   )
 
-  const byType = new Map<string, typeof sorted>()
-  for (const ev of sorted) {
-    const key = ev.tevent_nom ?? 'Evenements'
-    if (!byType.has(key)) byType.set(key, [])
-    byType.get(key)!.push(ev)
-  }
-
   const now = new Date()
-  for (const [sectionName, events] of byType) {
-    lines.push(`    section ${toMermaidText(sectionName)}`)
-    for (const ev of events) {
-      const startDate = new Date(ev.date_heure_prevue)
-      const startStr = startDate.toISOString().slice(0, 10)
-      let endStr: string
-      if (ev.date_heure_reelle) {
-        const endDate = new Date(ev.date_heure_reelle)
-        const candidateEnd = endDate.toISOString().slice(0, 10)
-        if (candidateEnd <= startStr) {
-          const d = new Date(startDate)
-          d.setDate(d.getDate() + 1)
-          endStr = d.toISOString().slice(0, 10)
-        } else {
-          endStr = candidateEnd
-        }
-      } else {
-        const d = new Date(startDate)
-        d.setDate(d.getDate() + 1)
-        endStr = d.toISOString().slice(0, 10)
-      }
-      let status = ''
-      if (ev.est_accompli) {
-        status = 'done, '
-      } else if (startDate < now) {
-        status = 'crit, '
-      }
-      lines.push(`    ${toMermaidText(ev.obj_nom)} :${status}e${ev.id}, ${startStr}, ${endStr}`)
-    }
+
+  // Plage de dates du chart
+  const allTs: number[] = []
+  for (const ev of events) {
+    allTs.push(new Date(ev.date_heure_prevue).getTime())
+    if (ev.date_heure_reelle) allTs.push(new Date(ev.date_heure_reelle).getTime())
+  }
+  const minTs = allTs.length ? Math.min(...allTs) : now.getTime()
+  const maxTs = allTs.length ? Math.max(...allTs) : now.getTime() + 7 * 86400_000
+  const spanMs = Math.max(maxTs - minTs, 7 * 86400_000)
+  const padMs = Math.max(spanMs * 0.08, 2 * 86400_000)
+  const chartStart = new Date(minTs - padMs)
+  const chartEnd = new Date(maxTs + padMs * 2)
+  const chartMs = chartEnd.getTime() - chartStart.getTime()
+
+  const toLeft = (d: Date) =>
+    Math.max(0, Math.min(100, (d.getTime() - chartStart.getTime()) / chartMs * 100))
+  const toWidth = (s: Date, e: Date) =>
+    Math.max(0.4, (e.getTime() - s.getTime()) / chartMs * 100)
+
+  // Graduations temporelles
+  const spanDays = chartMs / 86400_000
+  const useMonthly = spanDays > 70
+  const useWeekly = spanDays > 14 && !useMonthly
+
+  const ticks: Date[] = []
+  const tickCursor = new Date(chartStart)
+  if (useMonthly) {
+    tickCursor.setDate(1); tickCursor.setHours(0, 0, 0, 0)
+    tickCursor.setMonth(tickCursor.getMonth() + 1)
+    while (tickCursor <= chartEnd) { ticks.push(new Date(tickCursor)); tickCursor.setMonth(tickCursor.getMonth() + 1) }
+  } else if (useWeekly) {
+    tickCursor.setHours(0, 0, 0, 0)
+    const dow = tickCursor.getDay()
+    tickCursor.setDate(tickCursor.getDate() + (dow === 1 ? 0 : (8 - dow) % 7))
+    while (tickCursor <= chartEnd) { ticks.push(new Date(tickCursor)); tickCursor.setDate(tickCursor.getDate() + 7) }
+  } else {
+    tickCursor.setHours(0, 0, 0, 0); tickCursor.setDate(tickCursor.getDate() + 1)
+    while (tickCursor <= chartEnd) { ticks.push(new Date(tickCursor)); tickCursor.setDate(tickCursor.getDate() + 1) }
   }
 
-  return lines.join('\n')
+  const formatTick = (d: Date) =>
+    useMonthly
+      ? d.toLocaleDateString('fr-CH', { month: 'short', year: '2-digit' })
+      : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+
+  // Sections par TEVENT
+  const sections = new Map<string, typeof events>()
+  for (const ev of events) {
+    const key = ev.tevent_nom ?? 'Évènements'
+    if (!sections.has(key)) sections.set(key, [])
+    sections.get(key)!.push(ev)
+  }
+
+  const sectionEntries = [...sections.entries()]
+  const showToday = now >= chartStart && now <= chartEnd
+  const todayLeft = toLeft(now)
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto"
+      onClick={() => onCloseRef.current()}
+    >
+      <div
+        className="relative bg-white rounded-xl shadow-2xl w-full max-w-[96vw] my-4 p-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => onCloseRef.current()}
+          className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+        >
+          <X size={18} />
+        </button>
+
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Gantt</p>
+        <p className="text-lg font-bold text-gray-800 mb-4">{eng.obj.nom}</p>
+
+        {/* Légende */}
+        <div className="flex flex-wrap items-center gap-4 mb-5 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-green-500" />Accompli</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-violet-500" />Planifié</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-red-400" />En retard</span>
+          {showToday && (
+            <span className="flex items-center gap-1.5"><span className="inline-block w-0.5 h-4 bg-amber-400" />Aujourd'hui</span>
+          )}
+        </div>
+
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: '680px' }}>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+
+              {/* En-tête avec axe temporel */}
+              <div className="flex border-b-2 border-gray-300 bg-gray-50">
+                <div
+                  style={{ width: GANTT_LEFT_COL, minWidth: GANTT_LEFT_COL }}
+                  className="shrink-0 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-r-2 border-gray-300"
+                >
+                  Évènement
+                </div>
+                <div className="flex-1 relative h-9 overflow-hidden">
+                  {ticks.map((tick, i) => (
+                    <div
+                      key={i}
+                      className="absolute top-0 h-full flex flex-col justify-end"
+                      style={{ left: `${toLeft(tick)}%` }}
+                    >
+                      <div className="absolute top-0 w-px h-full bg-gray-300" />
+                      <span className="relative pl-1 pb-1 text-xs text-gray-400 whitespace-nowrap leading-none select-none">
+                        {formatTick(tick)}
+                      </span>
+                    </div>
+                  ))}
+                  {showToday && (
+                    <div
+                      className="absolute top-0 h-full flex flex-col justify-end z-10"
+                      style={{ left: `${todayLeft}%` }}
+                    >
+                      <div className="absolute top-0 w-0.5 h-full bg-amber-400" />
+                      <span className="relative pl-1 pb-1 text-xs font-bold text-amber-600 whitespace-nowrap leading-none select-none">
+                        Auj.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sections et lignes d'EVENTs */}
+              {sectionEntries.map(([section, sectionEvents], sIdx) => (
+                <div key={section}>
+                  {/* En-tête section */}
+                  <div className="flex bg-violet-50 border-b border-violet-100">
+                    <div
+                      style={{ width: GANTT_LEFT_COL, minWidth: GANTT_LEFT_COL }}
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold text-violet-700 border-r-2 border-gray-300"
+                    >
+                      {section}
+                    </div>
+                    <div className="flex-1 relative h-7">
+                      {ticks.map((tick, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-0 h-full w-px bg-violet-200"
+                          style={{ left: `${toLeft(tick)}%` }}
+                        />
+                      ))}
+                      {showToday && (
+                        <div
+                          className="absolute top-0 h-full w-0.5 bg-amber-300 z-10"
+                          style={{ left: `${todayLeft}%` }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lignes d'EVENTs */}
+                  {sectionEvents.map((ev, evIdx) => {
+                    const startDate = new Date(ev.date_heure_prevue)
+                    let endDate = ev.date_heure_reelle ? new Date(ev.date_heure_reelle) : null
+                    if (!endDate || endDate <= startDate) {
+                      endDate = new Date(startDate.getTime() + 86400_000)
+                    }
+
+                    const isOverdue = !ev.est_accompli && startDate < now
+                    const barBg = ev.est_accompli
+                      ? 'bg-green-500'
+                      : isOverdue
+                      ? 'bg-red-400'
+                      : 'bg-violet-500'
+
+                    const isLastInSection = evIdx === sectionEvents.length - 1
+                    const isLastSection = sIdx === sectionEntries.length - 1
+
+                    return (
+                      <div
+                        key={ev.id}
+                        className={`flex hover:bg-gray-50 transition-colors ${
+                          isLastInSection && !isLastSection
+                            ? 'border-b-2 border-gray-200'
+                            : isLastInSection
+                            ? ''
+                            : 'border-b border-gray-100'
+                        }`}
+                      >
+                        {/* Nom de l'EVENT */}
+                        <div
+                          style={{ width: GANTT_LEFT_COL, minWidth: GANTT_LEFT_COL }}
+                          className="shrink-0 px-3 py-0 text-sm text-gray-700 border-r-2 border-gray-300 flex items-center h-11"
+                        >
+                          <span className="truncate" title={ev.obj_nom}>{ev.obj_nom}</span>
+                        </div>
+
+                        {/* Zone de la barre */}
+                        <div className="flex-1 relative h-11 overflow-hidden">
+                          {/* Lignes de grille verticales */}
+                          {ticks.map((tick, i) => (
+                            <div
+                              key={i}
+                              className="absolute top-0 h-full w-px bg-gray-100"
+                              style={{ left: `${toLeft(tick)}%` }}
+                            />
+                          ))}
+                          {/* Ligne Aujourd'hui */}
+                          {showToday && (
+                            <div
+                              className="absolute top-0 h-full w-0.5 bg-amber-300/70 z-10"
+                              style={{ left: `${todayLeft}%` }}
+                            />
+                          )}
+                          {/* Barre de l'EVENT */}
+                          <div
+                            className={`absolute top-2.5 h-6 rounded-md shadow-sm ${barBg}`}
+                            style={{
+                              left: `${toLeft(startDate)}%`,
+                              width: `max(${toWidth(startDate, endDate)}%, 8px)`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+
+              {events.length === 0 && (
+                <div className="p-8 text-center text-gray-400 text-sm">Aucun évènement à afficher.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
 }
 
 // Référence stable pour éviter qu'un `= []` inline recrée un tableau à chaque render
@@ -1498,12 +1685,10 @@ export default function EngDetailPage() {
         />
       )}
 
-      <MermaidModal
+      <GanttModal
         open={showGantt}
         onClose={() => setShowGantt(false)}
-        id={`gantt-${engId}`}
-        code={buildGanttCode(eng)}
-        title="Gantt"
+        eng={eng}
       />
     </div>
   )
