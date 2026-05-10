@@ -767,9 +767,14 @@ def register_read_tools(mcp) -> None:  # noqa: ANN001
             ]
             now_dt = datetime.now(timezone.utc)
             try:
-                from mcp.server.fastmcp.utilities.types import Image as McpImage
+                import base64
+                from mcp.types import ImageContent
                 png_bytes = _generate_gantt_png(eng.obj.nom, ev_list, now_dt)
-                return McpImage(data=png_bytes, format="jpeg")
+                return [ImageContent(
+                    type="image",
+                    data=base64.b64encode(png_bytes).decode("utf-8"),
+                    mimeType="image/jpeg",
+                )]
             except Exception as _exc:
                 # Fallback Mermaid si matplotlib absent ou erreur de génération
                 _reason = f"{type(_exc).__name__}: {_exc}"
