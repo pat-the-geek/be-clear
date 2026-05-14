@@ -68,7 +68,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
             onClick={() => setStatus(value)}
             className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
               status === value
-                ? 'bg-violet-100 text-violet-800 border-violet-200 font-medium'
+                ? 'bg-sky-100 text-sky-800 border-sky-200 font-medium'
                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
             }`}
           >
@@ -83,7 +83,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher…"
-            className="pl-6 pr-5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-violet-400 w-36"
+            className="pl-6 pr-5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400 w-36"
           />
           {search && (
             <button
@@ -102,7 +102,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-violet-400"
+              className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-400"
             />
           </label>
           <label className="flex items-center gap-1">
@@ -111,7 +111,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-violet-400"
+              className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-400"
             />
           </label>
           {(dateFrom || dateTo) && (
@@ -148,7 +148,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
                     ? 'bg-white border-gray-100 hover:border-green-200 hover:bg-green-50'
                     : overdue
                     ? 'bg-white border-red-100 hover:border-red-300 hover:bg-red-50'
-                    : 'bg-white border-gray-100 hover:border-violet-200 hover:bg-violet-50'
+                    : 'bg-white border-gray-100 hover:border-sky-200 hover:bg-sky-50'
                 }`}
               >
                 {ev.est_accompli ? (
@@ -164,7 +164,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
                     {ev.obj.nom}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-600">
                       {ev.tevent.nom}
                     </span>
                     {ev.eng_nom && !engId && (
@@ -198,7 +198,7 @@ export default function EventsInlineList({ orgId, envId, engId }: Props) {
           })}
           {(data?.total ?? 0) > 100 && (
             <p className="text-xs text-gray-400 text-center pt-1">
-              Affichage limité à 100 — <Link to="/events" className="text-violet-500 hover:underline">voir tous</Link>
+              Affichage limité à 100 — <Link to="/events" className="text-sky-500 hover:underline">voir tous</Link>
             </p>
           )}
         </div>

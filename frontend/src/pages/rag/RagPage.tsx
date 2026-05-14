@@ -4,39 +4,15 @@ import { Send, Bot, User as UserIcon } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ragApi } from '@/services/api'
+import { ENTITY_COLORS as EC } from '@/lib/entityColors'
 
-// ─── Couleurs par type d'entité ──────────────────────────────
+// ─── Styles RAG dérivés de la charte entityColors ────────────
 
-const ENTITY_COLORS: Record<string, {
-  pill: string
-  badge: string
-  highlight: string
-  dot: string
-}> = {
-  org:   {
-    pill:      'bg-blue-100 text-blue-700 border-blue-200 hover:border-blue-400 hover:bg-blue-200',
-    badge:     'bg-blue-100 text-blue-700',
-    highlight: 'bg-blue-100/70 text-blue-900',
-    dot:       'bg-blue-400',
-  },
-  env:   {
-    pill:      'bg-orange-100 text-orange-700 border-orange-200 hover:border-orange-400 hover:bg-orange-200',
-    badge:     'bg-orange-100 text-orange-700',
-    highlight: 'bg-orange-100/70 text-orange-900',
-    dot:       'bg-orange-400',
-  },
-  eng:   {
-    pill:      'bg-amber-100 text-amber-700 border-amber-200 hover:border-amber-400 hover:bg-amber-200',
-    badge:     'bg-amber-100 text-amber-700',
-    highlight: 'bg-amber-100/70 text-amber-900',
-    dot:       'bg-amber-400',
-  },
-  event: {
-    pill:      'bg-violet-100 text-violet-700 border-violet-200 hover:border-violet-400 hover:bg-violet-200',
-    badge:     'bg-violet-100 text-violet-700',
-    highlight: 'bg-violet-100/70 text-violet-900',
-    dot:       'bg-violet-400',
-  },
+const RAG_STYLES: Record<string, { pill: string; badge: string; highlight: string; dot: string }> = {
+  org:   { pill: `${EC.org.chipBg} ${EC.org.chipText} border-blue-200 hover:border-blue-400 hover:bg-blue-200`,     badge: `${EC.org.chipBg} ${EC.org.chipText}`,     highlight: 'bg-blue-100/70 text-blue-900',   dot: 'bg-blue-400' },
+  env:   { pill: `${EC.env.chipBg} ${EC.env.chipText} border-orange-200 hover:border-orange-400 hover:bg-orange-200`, badge: `${EC.env.chipBg} ${EC.env.chipText}`,   highlight: 'bg-orange-100/70 text-orange-900', dot: 'bg-orange-400' },
+  eng:   { pill: `${EC.eng.chipBg} ${EC.eng.chipText} border-amber-200 hover:border-amber-400 hover:bg-amber-200`,   badge: `${EC.eng.chipBg} ${EC.eng.chipText}`,   highlight: 'bg-amber-100/70 text-amber-900',   dot: 'bg-amber-400' },
+  event: { pill: `${EC.event.chipBg} ${EC.event.chipText} border-sky-200 hover:border-sky-400 hover:bg-sky-200`,     badge: `${EC.event.chipBg} ${EC.event.chipText}`, highlight: 'bg-sky-100/70 text-sky-900',     dot: 'bg-sky-400' },
 }
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -44,7 +20,7 @@ const ENTITY_LABELS: Record<string, string> = {
 }
 
 function entityColors(type: string) {
-  return ENTITY_COLORS[type.toLowerCase()] ?? {
+  return RAG_STYLES[type.toLowerCase()] ?? {
     pill:      'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-400',
     badge:     'bg-gray-100 text-gray-600',
     highlight: 'bg-gray-100/70 text-gray-800',

@@ -1,4 +1,4 @@
-import { Building2, TreePine, Handshake, CalendarDays } from 'lucide-react'
+import { Building2, Globe, Handshake, CalendarClock } from 'lucide-react'
 import type { Img } from '@/types'
 import { imgUrl } from '@/components/shared/ImageManager'
 import SmartImage from '@/components/shared/SmartImage'
@@ -13,9 +13,9 @@ const CONFIG: Record<EntityType, {
   iconColor: string
 }> = {
   org:   { Icon: Building2,    bg: 'bg-blue-50   border-blue-100',   iconColor: 'text-blue-400'   },
-  env:   { Icon: TreePine,     bg: 'bg-orange-50 border-orange-100', iconColor: 'text-orange-400' },
+  env:   { Icon: Globe,        bg: 'bg-orange-50 border-orange-100', iconColor: 'text-orange-400' },
   eng:   { Icon: Handshake,    bg: 'bg-amber-50  border-amber-100',  iconColor: 'text-amber-400'  },
-  event: { Icon: CalendarDays, bg: 'bg-violet-50 border-violet-100', iconColor: 'text-violet-400' },
+  event: { Icon: CalendarClock, bg: 'bg-sky-50   border-sky-100',    iconColor: 'text-sky-400'    },
 }
 
 // ─── Tailles ─────────────────────────────────────────────────

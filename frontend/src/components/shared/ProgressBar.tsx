@@ -9,8 +9,8 @@ export default function ProgressBar({ value, className }: Props) {
   const pct = Math.min(100, Math.max(0, value))
   const color =
     pct >= 100 ? 'bg-green-500'
-    : pct >= 50 ? 'bg-blue-500'
-    : pct > 0   ? 'bg-yellow-400'
+    : pct >= 50 ? 'bg-amber-500'
+    : pct > 0   ? 'bg-amber-400'
     : 'bg-gray-200'
 
   return (

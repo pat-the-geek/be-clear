@@ -143,7 +143,7 @@ export default function CalendarView({ orgId, envId, engId }: Props) {
                       <span
                         className={`inline-flex items-center justify-center w-5 h-5 text-xs rounded-full mb-1 ${
                           isToday
-                            ? 'bg-violet-600 text-white font-bold'
+                            ? 'bg-sky-600 text-white font-bold'
                             : 'text-gray-500'
                         }`}
                       >
@@ -163,7 +163,7 @@ export default function CalendarView({ orgId, envId, engId }: Props) {
                                   ? 'bg-green-100 text-green-700'
                                   : overdue
                                   ? 'bg-red-100 text-red-600'
-                                  : 'bg-violet-100 text-violet-700'
+                                  : 'bg-sky-100 text-sky-700'
                               }`}
                             >
                               {ev.obj.nom}
@@ -187,7 +187,7 @@ export default function CalendarView({ orgId, envId, engId }: Props) {
 
       {/* Legend */}
       <div className="flex items-center gap-4 px-4 py-2.5 border-t border-gray-100 text-[11px] text-gray-400">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-violet-200 inline-block" /> À venir</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-sky-200 inline-block" /> À venir</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-green-200 inline-block" /> Accompli</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-200 inline-block" /> En retard</span>
         {events.length > 0 && <span className="ml-auto">{events.length} événement{events.length > 1 ? 's' : ''} ce mois</span>}

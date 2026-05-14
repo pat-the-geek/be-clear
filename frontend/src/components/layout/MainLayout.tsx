@@ -203,13 +203,13 @@ export default function MainLayout() {
                 )}
                 {(upcomingData ?? []).length > 0 && (
                   <div>
-                    <p className="px-3 py-2 text-[10px] font-semibold text-violet-500 uppercase tracking-wide bg-violet-50 border-b border-violet-100">
+                    <p className="px-3 py-2 text-[10px] font-semibold text-sky-500 uppercase tracking-wide bg-sky-50 border-b border-sky-100">
                       À venir ({upcomingData!.length})
                     </p>
                     {upcomingData!.slice(0, 5).map((ev) => (
                       <Link key={ev.id} to={`/event/${ev.id}`} onClick={() => setBellOpen(false)}
-                        className="flex items-start gap-2 px-3 py-2 hover:bg-violet-50 transition-colors border-b border-gray-100 last:border-0">
-                        <Clock size={11} className="text-violet-400 mt-0.5 shrink-0" />
+                        className="flex items-start gap-2 px-3 py-2 hover:bg-sky-50 transition-colors border-b border-gray-100 last:border-0">
+                        <Clock size={11} className="text-sky-400 mt-0.5 shrink-0" />
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-gray-900 truncate">{ev.nom}</p>
                           <p className="text-[10px] text-gray-400 truncate">{formatDateTime(ev.date_heure_prevue)}</p>

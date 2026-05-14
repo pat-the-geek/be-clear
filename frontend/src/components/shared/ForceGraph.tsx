@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ENTITY_COLORS } from '@/lib/entityColors'
 
 export interface GNode {
   id: string
@@ -23,9 +24,10 @@ interface Props {
 }
 
 const COL: Record<string, string> = {
-  org: '#3b82f6',
-  env: '#f97316',
-  eng: '#f59e0b',
+  org:   ENTITY_COLORS.org.hex,
+  env:   ENTITY_COLORS.env.hex,
+  eng:   ENTITY_COLORS.eng.hex,
+  event: ENTITY_COLORS.event.hex,
 }
 
 const TYPE_LABEL: Record<string, string> = {

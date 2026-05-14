@@ -133,9 +133,9 @@ export default function PanelPage() {
               {globalStats.nb_engs_en_cours} en cours · {globalStats.nb_engs_termines} terminés
             </p>
           </Link>
-          <Link to="/events" className="bg-white border border-gray-200 rounded-xl p-4 hover:border-violet-300 hover:bg-violet-50 transition-colors group">
+          <Link to="/events" className="bg-white border border-gray-200 rounded-xl p-4 hover:border-sky-300 hover:bg-sky-50 transition-colors group">
             <div className="flex items-center gap-2 mb-1">
-              <CalendarClock size={14} className="text-violet-400 group-hover:text-violet-600" />
+              <CalendarClock size={14} className="text-sky-400 group-hover:text-sky-600" />
               <span className="text-xs text-gray-500 font-medium">Événements</span>
             </div>
             <p className="text-2xl font-bold text-gray-900">{globalStats.nb_events}</p>
@@ -249,11 +249,11 @@ export default function PanelPage() {
               <Link
                 key={ev.id}
                 to={`/event/${ev.id}`}
-                className="flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-violet-300 hover:bg-violet-50 transition-colors group"
+                className="flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-sky-300 hover:bg-sky-50 transition-colors group"
               >
-                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0 mt-2" />
+                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0 mt-2" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-violet-700">
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-sky-700">
                     {ev.nom}
                   </p>
                   <p className="text-xs text-gray-500 truncate">{ev.eng_nom}</p>
@@ -266,7 +266,7 @@ export default function PanelPage() {
                     )}
                   </p>
                 </div>
-                <ExternalLink size={11} className="text-gray-300 group-hover:text-violet-400 shrink-0 mt-1" />
+                <ExternalLink size={11} className="text-gray-300 group-hover:text-sky-400 shrink-0 mt-1" />
               </Link>
             ))}
           </div>

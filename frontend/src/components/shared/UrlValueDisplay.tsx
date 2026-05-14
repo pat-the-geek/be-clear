@@ -162,7 +162,7 @@ export default function UrlValueDisplay({ url, onApplyDescription }: UrlValueDis
             onClick={() => { setIndexMsg(null); indexUrl() }}
             disabled={indexPending}
             title="Indexer pour le Terminal IA (RAG)"
-            className="p-1 text-gray-400 hover:text-violet-600 rounded transition-colors disabled:opacity-40"
+            className="p-1 text-gray-400 hover:text-sky-600 rounded transition-colors disabled:opacity-40"
           >
             {indexPending ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
           </button>
@@ -267,7 +267,7 @@ export default function UrlValueDisplay({ url, onApplyDescription }: UrlValueDis
       {/* ── Message indexation ── */}
       {indexMsg && (
         <div className={`flex items-start gap-2 text-xs rounded-lg px-3 py-2 ${
-          indexMsg.success ? 'bg-violet-50 text-violet-700 border border-violet-200'
+          indexMsg.success ? 'bg-sky-50 text-sky-700 border border-sky-200'
                            : 'bg-red-50 text-red-600 border border-red-200'
         }`}>
           {indexMsg.success ? <Bot size={13} className="shrink-0 mt-0.5" /> : <AlertCircle size={13} className="shrink-0 mt-0.5" />}

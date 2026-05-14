@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound, BarChart3, CheckCircle2, Clock, AlertTriangle, Users, Handshake, Leaf, Building2, CalendarClock, Activity, UserCheck, UserX } from 'lucide-react'
+import { Plus, Trash2, Edit, ChevronRight, ChevronDown, List, X, Loader2, KeyRound, BarChart3, CheckCircle2, Clock, AlertTriangle, Users, Handshake, Globe, Building2, CalendarClock, Activity, UserCheck, UserX } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { claApi, logApi, torgApi, tenvApi, tengApi, teventApi, userApi, configApi, statsApi, searchApi, api } from '@/services/api'
 import { toast } from '@/lib/toast'
@@ -1601,7 +1601,7 @@ function TabTypesEngEvent() {
                       <td className="px-4 py-2.5 font-medium text-gray-900">
                         <button
                           onClick={() => setExpandedTengId(expandedTengId === t.id ? null : t.id)}
-                          className="flex items-center gap-1.5 hover:text-violet-700 transition-colors"
+                          className="flex items-center gap-1.5 hover:text-sky-700 transition-colors"
                         >
                           <ChevronRight size={13} className={cn('transition-transform', expandedTengId === t.id && 'rotate-90')} />
                           {t.nom}
@@ -2230,7 +2230,7 @@ function TabStats() {
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Entités</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <StatCard icon={<Building2 size={14} />}    label="Organisations"  value={data.nb_orgs} />
-          <StatCard icon={<Leaf size={14} />}          label="Environnements" value={data.nb_envs} />
+          <StatCard icon={<Globe size={14} />}          label="Environnements" value={data.nb_envs} />
           <StatCard icon={<Handshake size={14} />}     label="Engagements"    value={data.nb_engs} />
           <StatCard icon={<CalendarClock size={14} />} label="Événements"     value={data.nb_events} />
           <StatCard icon={<Users size={14} />}         label="Utilisateurs"   value={data.nb_users} />

@@ -32,14 +32,14 @@ const TYPE_LABELS: Record<Props['type'], string> = {
   org: 'Organisation',
   env: 'Environnement',
   eng: 'Engagement',
-  event: 'Évènement',
+  event: 'Événement',
 }
 
 const TYPE_CARD_COLORS: Record<Props['type'], string> = {
   org:   'bg-blue-50   border-blue-100   hover:border-blue-300   hover:shadow-blue-100',
   env:   'bg-orange-50 border-orange-100 hover:border-orange-300 hover:shadow-orange-100',
   eng:   'bg-amber-50  border-amber-100  hover:border-amber-300  hover:shadow-amber-100',
-  event: 'bg-violet-50 border-violet-100 hover:border-violet-300 hover:shadow-violet-100',
+  event: 'bg-sky-50 border-sky-100 hover:border-sky-300 hover:shadow-sky-100',
 }
 
 export default function ObjCard({ id, nom, type, cla, imagePrincipale, badge, badgeColor, updatedAt }: Props) {

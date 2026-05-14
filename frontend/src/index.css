@@ -1,10 +1,6 @@
 @import "tailwindcss";
 
 @layer base {
-  :root {
-    --radius: 0.5rem;
-  }
-
   * {
     box-sizing: border-box;
   }

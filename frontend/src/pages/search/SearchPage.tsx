@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Building2, Leaf, Handshake, CalendarClock } from 'lucide-react'
+import { Search, Building2, Globe, Handshake, CalendarClock } from 'lucide-react'
 import { searchApi } from '@/services/api'
 import { imgUrl } from '@/components/shared/ImageManager'
+import { ENTITY_COLORS } from '@/lib/entityColors'
 
 // ─── Types Meilisearch ───────────────────────────────────────
 
@@ -30,10 +31,10 @@ interface SearchResponse {
 // ─── Styles badges par type entité ──────────────────────────
 
 const TYPE_BADGE: Record<SearchHit['entity_type'], { label: string; className: string; Icon: React.ElementType }> = {
-  org:   { label: 'Organisation',   className: 'bg-blue-100 text-blue-700',     Icon: Building2 },
-  env:   { label: 'Environnement',  className: 'bg-emerald-100 text-emerald-700', Icon: Leaf },
-  eng:   { label: 'Engagement',     className: 'bg-violet-100 text-violet-700', Icon: Handshake },
-  event: { label: 'Évènement',      className: 'bg-orange-100 text-orange-700', Icon: CalendarClock },
+  org:   { label: 'Organisation',   className: `${ENTITY_COLORS.org.chipBg} ${ENTITY_COLORS.org.chipText}`,     Icon: Building2 },
+  env:   { label: 'Environnement',  className: `${ENTITY_COLORS.env.chipBg} ${ENTITY_COLORS.env.chipText}`,   Icon: Globe },
+  eng:   { label: 'Engagement',     className: `${ENTITY_COLORS.eng.chipBg} ${ENTITY_COLORS.eng.chipText}`,   Icon: Handshake },
+  event: { label: 'Événement',      className: `${ENTITY_COLORS.event.chipBg} ${ENTITY_COLORS.event.chipText}`, Icon: CalendarClock },
 }
 
 // ─── Composant : carte résultat ──────────────────────────────
@@ -138,7 +139,7 @@ const TYPE_CHIPS: { label: string; value: EntityTypeFilter }[] = [
   { label: 'Organisations', value: 'org' },
   { label: 'Environnements', value: 'env' },
   { label: 'Engagements', value: 'eng' },
-  { label: 'Évènements', value: 'event' },
+  { label: 'Événements', value: 'event' },
 ]
 
 export default function SearchPage() {

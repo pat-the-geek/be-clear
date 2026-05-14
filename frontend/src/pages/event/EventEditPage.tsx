@@ -116,7 +116,7 @@ export default function EventEditPage() {
     e.preventDefault()
     try {
       await save()
-      toast.success('Évènement mis à jour')
+      toast.success('Événement mis à jour')
       queryClient.invalidateQueries({ queryKey: ['event', eventId] })
       navigate(`/event/${eventId}`)
     } catch {
@@ -138,7 +138,7 @@ export default function EventEditPage() {
     )
   }
   if (!event) {
-    return <p className="p-6 text-red-500">Évènement introuvable.</p>
+    return <p className="p-6 text-red-500">Événement introuvable.</p>
   }
 
   const claPropsSet = new Set((event.obj.cla.props ?? []).map((p) => p.id))
@@ -192,7 +192,7 @@ export default function EventEditPage() {
             <input
               type="text"
               required
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               value={nom}
               onChange={(e) => setNom(e.target.value)}
             />
@@ -204,7 +204,7 @@ export default function EventEditPage() {
               Type d'évènement
             </label>
             <select
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white"
               value={teventId ?? ''}
               onChange={(e) => setTeventId(e.target.value ? Number(e.target.value) : null)}
             >
@@ -229,7 +229,7 @@ export default function EventEditPage() {
               <input
                 type="datetime-local"
                 required
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 value={dateHeurePrevue}
                 onChange={(e) => setDateHeurePrevue(e.target.value)}
               />
@@ -244,7 +244,7 @@ export default function EventEditPage() {
               <div className="flex gap-2">
                 <input
                   type="datetime-local"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   value={dateHeureReelle}
                   onChange={(e) => setDateHeureReelle(e.target.value)}
                 />
@@ -268,7 +268,7 @@ export default function EventEditPage() {
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Description</h2>
           <textarea
             ref={descRef}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent font-mono resize-none min-h-[120px]"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono resize-none min-h-[120px]"
             placeholder="Description en Markdown…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -341,7 +341,7 @@ export default function EventEditPage() {
           <button
             type="submit"
             disabled={isPending || !nom.trim() || !dateHeurePrevue}
-            className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             Enregistrer

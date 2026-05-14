@@ -251,7 +251,7 @@ function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void
   // Sections par TEVENT
   const sections = new Map<string, typeof events>()
   for (const ev of events) {
-    const key = ev.tevent_nom ?? 'Évènements'
+    const key = ev.tevent_nom ?? 'Événements'
     if (!sections.has(key)) sections.set(key, [])
     sections.get(key)!.push(ev)
   }
@@ -282,7 +282,7 @@ function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void
         {/* Légende */}
         <div className="flex flex-wrap items-center gap-4 mb-5 text-xs text-gray-500">
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-green-500" />Accompli</span>
-          <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-violet-500" />Planifié</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-sky-500" />Planifié</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-2.5 rounded-sm bg-red-400" />En retard</span>
           {showToday && (
             <span className="flex items-center gap-1.5"><span className="inline-block w-0.5 h-4 bg-amber-400" />Aujourd'hui</span>
@@ -299,7 +299,7 @@ function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void
                   style={{ width: GANTT_LEFT_COL, minWidth: GANTT_LEFT_COL }}
                   className="shrink-0 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-r-2 border-gray-300"
                 >
-                  Évènement
+                  Événement
                 </div>
                 <div className="flex-1 relative h-9 overflow-hidden">
                   {ticks.map((tick, i) => (
@@ -332,10 +332,10 @@ function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void
               {sectionEntries.map(([section, sectionEvents], sIdx) => (
                 <div key={section}>
                   {/* En-tête section */}
-                  <div className="flex bg-violet-50 border-b border-violet-100">
+                  <div className="flex bg-sky-50 border-b border-sky-100">
                     <div
                       style={{ width: GANTT_LEFT_COL, minWidth: GANTT_LEFT_COL }}
-                      className="shrink-0 px-3 py-1.5 text-xs font-semibold text-violet-700 border-r-2 border-gray-300"
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold text-sky-700 border-r-2 border-gray-300"
                     >
                       {section}
                     </div>
@@ -343,7 +343,7 @@ function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void
                       {ticks.map((tick, i) => (
                         <div
                           key={i}
-                          className="absolute top-0 h-full w-px bg-violet-200"
+                          className="absolute top-0 h-full w-px bg-sky-200"
                           style={{ left: `${toLeft(tick)}%` }}
                         />
                       ))}
@@ -369,7 +369,7 @@ function GanttModal({ open, onClose, eng }: { open: boolean; onClose: () => void
                       ? 'bg-green-500'
                       : isOverdue
                       ? 'bg-red-400'
-                      : 'bg-violet-500'
+                      : 'bg-sky-500'
 
                     const isLastInSection = evIdx === sectionEvents.length - 1
                     const isLastSection = sIdx === sectionEntries.length - 1
@@ -545,7 +545,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
   }
 
   const inputClass =
-    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white'
+    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white'
 
   return (
     <Modal open={open} onClose={onClose} title="Ajouter un évènement" size="md">
@@ -648,7 +648,7 @@ function EventCreateModal({ open, onClose, engId, onCreated }: EventCreateModalP
             type="button"
             onClick={handleSubmit}
             disabled={isPending}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             Créer
@@ -757,7 +757,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
   const apiError = parseApiError(error)
 
   const inputClass =
-    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white'
+    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white'
 
   return (
     <Modal open={open} onClose={onClose} title="Modifier l'évènement" size="md">
@@ -892,7 +892,7 @@ function EventEditModal({ open, onClose, eventId, onUpdated }: EventEditModalPro
                 type="button"
                 onClick={async () => { try { await update(); onUpdated(); onClose(); reset() } catch { /* error shown via apiError */ } }}
                 disabled={isPending || !nom.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isPending ? <Loader2 size={14} className="animate-spin" /> : null}
                 Enregistrer
@@ -972,7 +972,7 @@ function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting,
         <button
           type="button"
           onClick={() => onToggleSelect?.(event.id)}
-          className={`shrink-0 transition-colors ${selected ? 'text-violet-600' : 'text-gray-300 hover:text-violet-400'}`}
+          className={`shrink-0 transition-colors ${selected ? 'text-sky-600' : 'text-gray-300 hover:text-sky-400'}`}
           title={selected ? 'Désélectionner' : 'Sélectionner'}
         >
           {selected ? <CheckSquare size={16} /> : <Square size={16} />}
@@ -985,7 +985,7 @@ function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting,
             ? 'bg-green-50 border-green-100 hover:border-green-300'
             : isOverdue
             ? 'bg-red-50 border-red-200 hover:border-red-400'
-            : 'bg-violet-50 border-violet-100 hover:border-violet-300'
+            : 'bg-sky-50 border-sky-100 hover:border-sky-300'
         }`}
       >
         {event.est_accompli ? (
@@ -1001,7 +1001,7 @@ function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting,
             {event.obj_nom}
           </p>
           <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-violet-100 text-violet-700'}`}>
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-sky-100 text-sky-700'}`}>
               {event.tevent_nom}
             </span>
             · Prévu : {formatDateTime(event.date_heure_prevue)}
@@ -1057,7 +1057,7 @@ function EventRow({ event, isEditeur, onEdit, onDelete, onAccomplir, isDeleting,
               )}
               <button
                 onClick={onEdit}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-sky-600 transition-colors"
                 title="Modifier"
               >
                 <Pencil size={13} />
@@ -1220,11 +1220,11 @@ export default function EngDetailPage() {
               {/* Boutons d'action */}
               <div className="flex items-center gap-2 shrink-0">
                 {(eng.gantt_mermaid || sortedEvents.length > 0) && (
-                  <div className="flex items-center border border-violet-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center border border-sky-200 rounded-lg overflow-hidden">
                     {eng.gantt_mermaid && (
                       <button
                         onClick={() => setShowTimeline(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-50 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 transition-colors"
                       >
                         <CalendarDays size={14} />
                         Timeline
@@ -1233,7 +1233,7 @@ export default function EngDetailPage() {
                     {sortedEvents.length > 0 && (
                       <button
                         onClick={() => setShowGantt(true)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-50 transition-colors${eng.gantt_mermaid ? ' border-l border-violet-200' : ''}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 transition-colors${eng.gantt_mermaid ? ' border-l border-sky-200' : ''}`}
                       >
                         <GanttChartSquare size={14} />
                         Gantt
@@ -1411,7 +1411,7 @@ export default function EngDetailPage() {
             {isEditeur() && !editingDesc && (
               <button
                 onClick={() => { setDescDraft(eng.obj.description ?? ''); setEditingDesc(true) }}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-violet-600 transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-sky-600 transition-colors"
               >
                 <Pencil size={12} />
                 Modifier
@@ -1422,7 +1422,7 @@ export default function EngDetailPage() {
             <div className="space-y-2">
               <textarea
                 ref={descRef}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-none min-h-[160px]"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-mono resize-none min-h-[160px]"
                 placeholder="Description en Markdown…"
                 value={descDraft}
                 onChange={(e) => setDescDraft(e.target.value)}
@@ -1439,7 +1439,7 @@ export default function EngDetailPage() {
                 <button
                   onClick={async () => { try { await saveDesc(descDraft); queryClient.invalidateQueries({ queryKey: ['eng', engId] }); setEditingDesc(false); toast.success('Description enregistrée') } catch { toast.error('Erreur lors de la sauvegarde') } }}
                   disabled={isSavingDesc}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
                 >
                   {isSavingDesc ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                   Enregistrer
@@ -1451,7 +1451,7 @@ export default function EngDetailPage() {
           ) : (
             <button
               onClick={() => { setDescDraft(''); setEditingDesc(true) }}
-              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-violet-300 hover:text-violet-500 transition-colors"
+              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-sky-300 hover:text-sky-500 transition-colors"
             >
               + Ajouter une description
             </button>
@@ -1542,11 +1542,11 @@ export default function EngDetailPage() {
         </section>
       )}
 
-      {/* ─── Évènements ───────────────────────── */}
+      {/* ─── Événements ───────────────────────── */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-            Évènements ({sortedEvents.length})
+            Événements ({sortedEvents.length})
           </h2>
           <div className="flex items-center gap-2">
             {/* Toggle vue */}
@@ -1555,7 +1555,7 @@ export default function EngDetailPage() {
                 onClick={() => setEventsView('list')}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
                   eventsView === 'list'
-                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    ? 'bg-sky-100 text-sky-700 font-medium'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -1566,7 +1566,7 @@ export default function EngDetailPage() {
                 onClick={() => setEventsView('calendar')}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border-l border-gray-200 transition-colors ${
                   eventsView === 'calendar'
-                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    ? 'bg-sky-100 text-sky-700 font-medium'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -1577,7 +1577,7 @@ export default function EngDetailPage() {
             {isEditeur() && (
               <button
                 onClick={() => setShowCreateEvent(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 transition-colors"
               >
                 <Plus size={14} />
                 Ajouter

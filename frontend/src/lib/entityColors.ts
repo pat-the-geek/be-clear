@@ -1,51 +1,46 @@
 /**
- * Charte chromatique des types d'entités — be.CLEAR
+ * Charte chromatique des entités — be.CLEAR (source unique de vérité)
  *
- * TORG   → bleu   (blue)
- * TENV   → orange (orange)
- * TENG   → jaune  (amber)
- * TEVENT → violet (violet)
+ * ORG   → bleu   (blue)
+ * ENV   → orange (orange)
+ * ENG   → ambre  (amber)
+ * EVENT → ciel   (sky)   ← anciennement violet (réservé Obsidian)
  */
 
-export const entityColors = {
-  torg: {
-    pill:          'bg-blue-100 text-blue-700',
-    pillSoft:      'bg-blue-50 text-blue-700 hover:bg-blue-100',
-    selectedItem:  'bg-blue-50 border-r-2 border-blue-500',
-    selectedNode:  'bg-blue-100 text-blue-800 font-medium',
-    iconSelected:  'text-blue-500',
-    iconBox:       'bg-blue-100 border-blue-200',
-    textSelected:  'text-blue-700',
-    hoverBtn:      'hover:text-blue-600 hover:bg-blue-50',
-    hoverText:     'hover:text-blue-600',
-    ring:          'focus:ring-blue-500',
-    btn:           'bg-blue-600 hover:bg-blue-700',
-    sortActive:    'text-blue-600',
-    rowHover:      'hover:bg-blue-50',
-    externalLink:  'hover:text-blue-500',
-  },
-  tenv: {
-    pill:          'bg-orange-100 text-orange-700',
-    pillSoft:      'bg-orange-50 text-orange-700 hover:bg-orange-100',
-    selectedItem:  'bg-orange-50 border-r-2 border-orange-500',
-    selectedNode:  'bg-orange-100 text-orange-800 font-medium',
-    iconSelected:  'text-orange-500',
-    iconBox:       'bg-orange-100 border-orange-200',
-    textSelected:  'text-orange-700',
-    hoverBtn:      'hover:text-orange-600 hover:bg-orange-50',
-    hoverText:     'hover:text-orange-600',
-    ring:          'focus:ring-orange-500',
-    btn:           'bg-orange-600 hover:bg-orange-700',
-    sortActive:    'text-orange-600',
-    rowHover:      'hover:bg-orange-50',
-    externalLink:  'hover:text-orange-500',
-  },
-  teng: {
-    pill:          'bg-amber-100 text-amber-700',
-  },
-  tevent: {
-    pill:          'bg-violet-100 text-violet-700',
-  },
-} as const
+export type EntityColorConfig = {
+  pill: string; chipBg: string; chipText: string;
+  buttonPrimary: string; buttonHover: string;
+  sidebarActive: string; sidebarText: string;
+  focusRing: string; hex: string;
+};
 
-export type EntityTypeName = keyof typeof entityColors
+export const ENTITY_COLORS: Record<string, EntityColorConfig> = {
+  org: {
+    pill:          'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    chipBg:        'bg-blue-100',    chipText:      'text-blue-700',
+    buttonPrimary: 'bg-blue-600',    buttonHover:   'hover:bg-blue-700',
+    sidebarActive: 'bg-blue-50',     sidebarText:   'text-blue-700',
+    focusRing:     'focus:ring-blue-500', hex:       '#3b82f6',
+  },
+  env: {
+    pill:          'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    chipBg:        'bg-orange-100',  chipText:      'text-orange-700',
+    buttonPrimary: 'bg-orange-600',  buttonHover:   'hover:bg-orange-700',
+    sidebarActive: 'bg-orange-50',   sidebarText:   'text-orange-700',
+    focusRing:     'focus:ring-orange-500', hex:    '#f97316',
+  },
+  eng: {
+    pill:          'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    chipBg:        'bg-amber-100',   chipText:      'text-amber-700',
+    buttonPrimary: 'bg-amber-600',   buttonHover:   'hover:bg-amber-700',
+    sidebarActive: 'bg-amber-50',    sidebarText:   'text-amber-700',
+    focusRing:     'focus:ring-amber-500', hex:     '#f59e0b',
+  },
+  event: {
+    pill:          'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+    chipBg:        'bg-sky-100',     chipText:      'text-sky-700',
+    buttonPrimary: 'bg-sky-600',     buttonHover:   'hover:bg-sky-700',
+    sidebarActive: 'bg-sky-50',      sidebarText:   'text-sky-700',
+    focusRing:     'focus:ring-sky-500', hex:       '#0ea5e9',
+  },
+};

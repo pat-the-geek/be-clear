@@ -102,7 +102,7 @@ export default function EventCreatePage() {
     if (isPending || isSuccess) return
     try {
       const res = await createAsync()
-      toast.success('Évènement créé')
+      toast.success('Événement créé')
       queryClient.invalidateQueries({ queryKey: ['events'] })
       queryClient.invalidateQueries({ queryKey: ['eng', engId] })
       navigate(`/event/${res.data.id}`)
@@ -133,7 +133,7 @@ export default function EventCreatePage() {
   const canSubmit = !!nom.trim() && !!teventId && !!engId && !!dateHeurePrevue && !isPending && !isSuccess
 
   const inputClass =
-    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white'
+    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white'
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -226,7 +226,7 @@ export default function EventCreatePage() {
                     type="button"
                     onClick={applyDateSuggestion}
                     disabled={isSuggesting}
-                    className="flex items-center gap-1 text-[10px] text-violet-600 hover:text-violet-800 transition-colors"
+                    className="flex items-center gap-1 text-[10px] text-sky-600 hover:text-sky-800 transition-colors"
                     title="Appliquer la date suggérée"
                   >
                     {isSuggesting ? (
@@ -255,7 +255,7 @@ export default function EventCreatePage() {
               <div className="flex gap-2">
                 <input
                   type="datetime-local"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   value={dateHeureReelle}
                   onChange={(e) => setDateHeureReelle(e.target.value)}
                 />
@@ -335,7 +335,7 @@ export default function EventCreatePage() {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             Créer

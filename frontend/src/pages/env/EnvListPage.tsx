@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Search, Server, ChevronRight, ChevronDown, ExternalLink, Loader2, X, Pencil, Check, Trash2, TableProperties } from 'lucide-react'
+import { Plus, Search, Globe, ChevronRight, ChevronDown, ExternalLink, Loader2, X, Pencil, Check, Trash2, TableProperties } from 'lucide-react'
 import { tenvApi, envApi, engApi, tengApi } from '@/services/api'
 import EntityPropsTable from '@/components/shared/EntityPropsTable'
 import ResizeHandle, { useResizable } from '@/components/shared/ResizeHandle'
@@ -588,7 +588,7 @@ export default function EnvListPage() {
                         <SmartImage src={imgUrl(env.image_principale.chemin)} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0 border border-gray-200" cropWidth={32} cropHeight={32} />
                       ) : (
                         <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border', selectedEnvId === env.id ? 'bg-orange-200 border-orange-300' : 'bg-orange-100 border-orange-200')}>
-                          <Server size={14} className={selectedEnvId === env.id ? 'text-orange-500' : 'text-gray-400'} />
+                          <Globe size={14} className={selectedEnvId === env.id ? 'text-orange-500' : 'text-gray-400'} />
                         </div>
                       )}
                       <div className="min-w-0">

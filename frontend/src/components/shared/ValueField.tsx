@@ -373,7 +373,7 @@ function ReferenceField({ propNom, draft, onChange, disabled }: ReferenceFieldPr
               <button
                 key={hit.id}
                 type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-violet-50 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-sky-50 flex items-center gap-2"
                 onMouseDown={() => selectHit(hit)}
               >
                 <span className="font-medium text-gray-900 truncate">{hit.nom}</span>
@@ -384,7 +384,7 @@ function ReferenceField({ propNom, draft, onChange, disabled }: ReferenceFieldPr
         )}
       </div>
       {draft.valeur_ref_obj_id != null && (
-        <p className="text-[11px] text-violet-600 mt-1">ID : {draft.valeur_ref_obj_id}</p>
+        <p className="text-[11px] text-sky-600 mt-1">ID : {draft.valeur_ref_obj_id}</p>
       )}
     </div>
   )

@@ -389,7 +389,7 @@ export default function EnvDetailPage() {
 
               <button
                 onClick={() => setShowTimeline(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 transition-colors"
                 title="Voir la timeline des engagements"
               >
                 <CalendarDays size={14} />

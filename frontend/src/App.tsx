@@ -75,7 +75,7 @@ export default function App() {
         <Route path="/eng/:id" element={<EngDetailPage />} />
         <Route path="/eng/:id/edit" element={<EngEditPage />} />
 
-        {/* Évènements */}
+        {/* Événements */}
         <Route path="/events" element={<EventListPage />} />
         <Route path="/event/new" element={<EventCreatePage />} />
         <Route path="/event/:id" element={<EventDetailPage />} />

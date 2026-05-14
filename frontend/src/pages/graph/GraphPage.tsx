@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2, Search, X } from 'lucide-react'
 import { graphApi } from '@/services/api'
 import ForceGraph, { type GNode, type GEdge } from '@/components/shared/ForceGraph'
+import { ENTITY_COLORS } from '@/lib/entityColors'
 
 const TYPE_COLORS: Record<string, string> = {
   org: 'bg-blue-500',
@@ -80,7 +81,7 @@ export default function GraphPage() {
                     ? 'bg-white text-gray-400 border-gray-200'
                     : 'border-transparent text-white'
                 }`}
-                style={hidden ? {} : { backgroundColor: type === 'org' ? '#3b82f6' : type === 'env' ? '#f97316' : '#f59e0b' }}
+                style={hidden ? {} : { backgroundColor: ENTITY_COLORS[type].hex }}
                 title={hidden ? `Afficher les ${TYPE_LABELS[type]}` : `Masquer les ${TYPE_LABELS[type]}`}
               >
                 <span className={`w-2 h-2 rounded-full ${hidden ? TYPE_COLORS[type] + '/40' : 'bg-white/70'}`} />

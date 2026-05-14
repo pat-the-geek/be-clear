@@ -114,7 +114,7 @@ export default function EventDetailPage() {
   const { mutate: deleteEvent, isPending: isDeleting } = useMutation({
     mutationFn: () => eventApi.delete(eventId),
     onSuccess: () => {
-      toast.success('Évènement supprimé')
+      toast.success('Événement supprimé')
       queryClient.invalidateQueries({ queryKey: ['events'] })
       navigate(-1)
     },
@@ -169,7 +169,7 @@ export default function EventDetailPage() {
               <h1 className="text-2xl font-bold text-gray-900 leading-tight">
                 {event.obj.nom}
               </h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-700">
                 {event.tevent.nom}
               </span>
               {overdue && (
@@ -264,7 +264,7 @@ export default function EventDetailPage() {
                   to={`/event/${sib.id}`}
                   className={`flex-shrink-0 flex flex-col gap-1 px-3 py-2 rounded-lg border text-xs transition-colors min-w-[120px] max-w-[160px] ${
                     isCurrent
-                      ? 'bg-violet-100 border-violet-300 text-violet-800 font-semibold'
+                      ? 'bg-sky-100 border-sky-300 text-sky-800 font-semibold'
                       : isAccompli
                       ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
                       : isLate
@@ -302,7 +302,7 @@ export default function EventDetailPage() {
             {isEditeur() && !editingDesc && (
               <button
                 onClick={() => { setDescDraft(event.obj.description ?? ''); setEditingDesc(true) }}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-violet-600 transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-sky-600 transition-colors"
               >
                 <Pencil size={12} />
                 Modifier
@@ -313,7 +313,7 @@ export default function EventDetailPage() {
             <div className="space-y-2">
               <textarea
                 ref={descRef}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white font-mono resize-none min-h-[160px]"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-mono resize-none min-h-[160px]"
                 placeholder="Description en Markdown (Mermaid et syntaxe Obsidian supportés)…"
                 value={descDraft}
                 onChange={(e) => setDescDraft(e.target.value)}
@@ -330,7 +330,7 @@ export default function EventDetailPage() {
                 <button
                   onClick={() => saveDesc(descDraft)}
                   disabled={isSavingDesc}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
                 >
                   {isSavingDesc ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                   Enregistrer
@@ -342,7 +342,7 @@ export default function EventDetailPage() {
           ) : (
             <button
               onClick={() => { setDescDraft(''); setEditingDesc(true) }}
-              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-violet-300 hover:text-violet-500 transition-colors"
+              className="w-full py-6 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg hover:border-sky-300 hover:text-sky-500 transition-colors"
             >
               + Ajouter une description
             </button>

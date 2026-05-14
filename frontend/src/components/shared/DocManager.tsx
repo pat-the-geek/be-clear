@@ -378,7 +378,7 @@ export default function DocManager({ objId, documents, queryKey, readOnly = fals
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => setViewingDoc(doc)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-sky-600 transition-colors"
                   title="Visualiser"
                 >
                   <Eye size={14} />

@@ -54,9 +54,9 @@ function CalendarGrid({ year, month, events }: { year: number; month: number; ev
           return (
             <div
               key={i}
-              className={`min-h-16 rounded-lg p-1 border ${isToday ? 'border-violet-300 bg-violet-50' : 'border-gray-100 bg-white'}`}
+              className={`min-h-16 rounded-lg p-1 border ${isToday ? 'border-sky-300 bg-sky-50' : 'border-gray-100 bg-white'}`}
             >
-              <p className={`text-xs font-medium mb-0.5 ${isToday ? 'text-violet-700' : 'text-gray-400'}`}>{cell.day}</p>
+              <p className={`text-xs font-medium mb-0.5 ${isToday ? 'text-sky-700' : 'text-gray-400'}`}>{cell.day}</p>
               <div className="space-y-0.5">
                 {cell.evs.slice(0, 3).map((ev) => {
                   const overdue = !ev.est_accompli && new Date(ev.date_heure_prevue) < today
@@ -69,7 +69,7 @@ function CalendarGrid({ year, month, events }: { year: number; month: number; ev
                           ? 'bg-green-100 text-green-700 hover:bg-green-200'
                           : overdue
                           ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                          : 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                          : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
                       }`}
                       title={ev.obj.nom}
                     >
@@ -187,7 +187,7 @@ export default function EventListPage() {
                 onClick={() => setViewMode('list')}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs transition-colors ${
                   viewMode === 'list'
-                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    ? 'bg-sky-100 text-sky-700 font-medium'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -198,7 +198,7 @@ export default function EventListPage() {
                 onClick={() => setViewMode('calendar')}
                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border-l border-gray-200 transition-colors ${
                   viewMode === 'calendar'
-                    ? 'bg-violet-100 text-violet-700 font-medium'
+                    ? 'bg-sky-100 text-sky-700 font-medium'
                     : 'bg-white text-gray-500 hover:bg-gray-50'
                 }`}
               >
@@ -208,7 +208,7 @@ export default function EventListPage() {
             </div>
             <button
               onClick={() => navigate('/event/new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors"
             >
               <Plus size={14} />
               Nouvel évènement
@@ -225,7 +225,7 @@ export default function EventListPage() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               placeholder="Rechercher un événement…"
-              className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -253,7 +253,7 @@ export default function EventListPage() {
               onClick={() => { setAccompli(value); setPage(1) }}
               className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 accompli === value
-                  ? 'bg-violet-100 text-violet-800 border-violet-200 font-medium'
+                  ? 'bg-sky-100 text-sky-800 border-sky-200 font-medium'
                   : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
             >
@@ -288,7 +288,7 @@ export default function EventListPage() {
               onClick={() => { setSelectedTeventId(selectedTeventId === t.id ? null : t.id); setPage(1) }}
               className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
                 selectedTeventId === t.id
-                  ? 'bg-violet-100 text-violet-800 border-violet-200 font-medium'
+                  ? 'bg-sky-100 text-sky-800 border-sky-200 font-medium'
                   : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
             >
@@ -303,7 +303,7 @@ export default function EventListPage() {
             <select
               value={selectedEngId ?? ''}
               onChange={(e) => { setSelectedEngId(e.target.value ? Number(e.target.value) : null); setPage(1) }}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-gray-700"
             >
               <option value="">Tous les ENG</option>
               {engList.map((e) => (
@@ -315,7 +315,7 @@ export default function EventListPage() {
             <select
               value={selectedOrgId ?? ''}
               onChange={(e) => { setSelectedOrgId(e.target.value ? Number(e.target.value) : null); setPage(1) }}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-gray-700"
             >
               <option value="">Toutes les ORG</option>
               {orgList.map((o) => (
@@ -327,7 +327,7 @@ export default function EventListPage() {
             <select
               value={selectedEnvId ?? ''}
               onChange={(e) => { setSelectedEnvId(e.target.value ? Number(e.target.value) : null); setPage(1) }}
-              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 text-gray-700"
+              className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-gray-700"
             >
               <option value="">Tous les ENV</option>
               {envList.map((e) => (
@@ -346,7 +346,7 @@ export default function EventListPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-              className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </label>
           <label className="flex items-center gap-1.5 text-xs">
@@ -355,7 +355,7 @@ export default function EventListPage() {
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-              className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </label>
         </div>
@@ -412,7 +412,7 @@ export default function EventListPage() {
                       ? 'bg-white border-gray-100 hover:border-green-200 hover:bg-green-50'
                       : overdue
                       ? 'bg-white border-red-100 hover:border-red-300 hover:bg-red-50'
-                      : 'bg-white border-gray-100 hover:border-violet-200 hover:bg-violet-50'
+                      : 'bg-white border-gray-100 hover:border-sky-200 hover:bg-sky-50'
                   }`}
                 >
                   {ev.est_accompli ? (
@@ -428,7 +428,7 @@ export default function EventListPage() {
                       {ev.obj.nom}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-600">
                         {ev.tevent.nom}
                       </span>
                       {ev.eng_nom && (

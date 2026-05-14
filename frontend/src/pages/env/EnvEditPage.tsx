@@ -15,6 +15,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { envApi, tenvApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import type { Env, Tenv } from '@/types'
+import { Button } from '@/components/shared/Button'
 import ValueField, { type ValueDraft, emptyDraft } from '@/components/shared/ValueField'
 import ImageManager from '@/components/shared/ImageManager'
 import DocManager from '@/components/shared/DocManager'
@@ -291,14 +292,10 @@ export default function EnvEditPage() {
           >
             Annuler
           </button>
-          <button
-            type="submit"
-            disabled={isPending || !nom.trim()}
-            className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
+          <Button entity="env" variant="primary" type="submit" disabled={isPending || !nom.trim()} className="px-5 py-2">
             {isPending ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             Enregistrer
-          </button>
+          </Button>
         </div>
       </form>
     </div>

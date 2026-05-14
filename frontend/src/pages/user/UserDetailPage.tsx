@@ -127,7 +127,7 @@ export default function UserDetailPage() {
           <User size={26} className="text-gray-400" />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">
+          <span className="text-sm px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">
             {user.tuser.valeur}
           </span>
           {user.role && (
