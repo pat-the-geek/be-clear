@@ -17,26 +17,39 @@ def upgrade():
     op.execute("DELETE FROM torg")
     op.execute("DELETE FROM tenv")
 
-    # ── 2. Résoudre le conflit de nom "Formation" ─────────────────────────────
-    #   Après 0005, TENG "Formation" possède une CLA "Formation" (sub Engagement).
-    #   TORG "Formation" a besoin du même nom → renommer la CLA de TENG.
+    # ── 2. Résoudre le conflit de nom "Formation" côté TENG ───────────────────
+    #   Après 0005, TENG "Formation" peut pointer vers une CLA "Formation"
+    #   qui n'est pas forcément sous Engagement (collision globale sur cla.nom).
+    #   On force l'existence d'une CLA dédiée "Formation Engagement" sous
+    #   Engagement puis on rattache explicitement TENG "Formation" à cette CLA.
     op.execute("""
         UPDATE cla
         SET nom = 'Formation Engagement', updated_at = NOW()
         WHERE nom = 'Formation'
           AND super_classe_id = (SELECT id FROM cla WHERE nom = 'Engagement')
     """)
-
-    # ── 3. Supprimer les sous-CLAs d'Organisation et d'Environnement ─────────
-    #   TORG/TENV ont été vidés → ON DELETE RESTRICT ne bloque plus.
     op.execute("""
-        DELETE FROM cla
-        WHERE super_classe_id IN (
-            SELECT id FROM cla WHERE nom IN ('Organisation', 'Environnement')
+        INSERT INTO cla (nom, super_classe_id, created_at, updated_at)
+        SELECT 'Formation Engagement',
+               (SELECT id FROM cla WHERE nom = 'Engagement'),
+               NOW(), NOW()
+        WHERE NOT EXISTS (
+            SELECT 1 FROM cla WHERE nom = 'Formation Engagement'
         )
     """)
+    op.execute("""
+        UPDATE teng
+        SET cla_id = (
+            SELECT id FROM cla
+            WHERE nom = 'Formation Engagement'
+              AND super_classe_id = (SELECT id FROM cla WHERE nom = 'Engagement')
+        )
+        WHERE nom = 'Formation'
+    """)
 
-    # ── 4. CLAs TORG (sous-classes d'Organisation) ────────────────────────────
+    # ── 3. Repositionner les CLAs des exemples (sans suppression destructive) ─
+    #   On évite DELETE pour ne pas casser si ces CLAs sont encore référencées
+    #   (cas réel : FK de teng/obj/... en base partiellement migrée).
     op.execute("""
         INSERT INTO cla (nom, super_classe_id, created_at, updated_at)
         SELECT t.nom,
@@ -48,10 +61,13 @@ def upgrade():
             ('Production'),
             ('Recette')
         ) AS t(nom)
-        ON CONFLICT (nom) DO NOTHING
+        ON CONFLICT (nom)
+        DO UPDATE SET
+            super_classe_id = EXCLUDED.super_classe_id,
+            updated_at = NOW()
     """)
 
-    # ── 5. TORG ───────────────────────────────────────────────────────────────
+    # ── 4. TORG ───────────────────────────────────────────────────────────────
     op.execute("""
         INSERT INTO torg (nom, cla_id, created_at, updated_at)
         SELECT t.nom, c.id, NOW(), NOW()
@@ -65,7 +81,7 @@ def upgrade():
         WHERE NOT EXISTS (SELECT 1 FROM torg WHERE torg.nom = t.nom)
     """)
 
-    # ── 6. CLAs TENV (sous-classes d'Environnement) ───────────────────────────
+    # ── 5. CLAs TENV (sous-classes d'Environnement) ───────────────────────────
     op.execute("""
         INSERT INTO cla (nom, super_classe_id, created_at, updated_at)
         SELECT t.nom,
@@ -77,10 +93,13 @@ def upgrade():
             ('Fournisseur'),
             ('Interne')
         ) AS t(nom)
-        ON CONFLICT (nom) DO NOTHING
+        ON CONFLICT (nom)
+        DO UPDATE SET
+            super_classe_id = EXCLUDED.super_classe_id,
+            updated_at = NOW()
     """)
 
-    # ── 7. TENV ───────────────────────────────────────────────────────────────
+    # ── 6. TENV ───────────────────────────────────────────────────────────────
     op.execute("""
         INSERT INTO tenv (nom, cla_id, created_at, updated_at)
         SELECT t.nom, c.id, NOW(), NOW()

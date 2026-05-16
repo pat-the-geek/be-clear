@@ -98,8 +98,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────
-  # MCP — Serveur Model Context Protocol (optionnel)
-  # Activer avec : docker compose --profile mcp up
+  # MCP — Serveur Model Context Protocol
   #
   # Prérequis : définir BECLEAR_MCP_TOKEN dans .env
   # (token API créé via l'interface admin de be.CLEAR)
@@ -117,10 +116,7 @@ services:
   mcp:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-    profiles:
-      - mcp
-    entrypoint: []
+      dockerfile: Dockerfile.mcp
     command: ["python", "mcp_server.py"]
     ports:
       - "${MCP_PORT:-8001}:8001"
@@ -137,6 +133,8 @@ services:
       - MCP_TRANSPORT=sse
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8001
+      # Désactive la protection DNS rebinding (réseau privé Tailscale)
+      - FASTMCP_TRANSPORT_SECURITY__ENABLE_DNS_REBINDING_PROTECTION=false
     volumes:
       - vol_media:/media
     depends_on:

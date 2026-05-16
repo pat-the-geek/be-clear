@@ -1,4 +1,4 @@
-.PHONY: help up down restart logs build test lint
+.PHONY: help up down restart logs build test lint backup restore
 
 # ─── Variables ───────────────────────────────────────────────────────────────
 
@@ -23,9 +23,10 @@ up: ## Démarre tous les services (build si nécessaire)
 	$(COMPOSE) up --build -d
 	@echo ""
 	@echo "✅  be.CLEAR démarré :"
-	@echo "   Frontend  →  http://localhost:3000"
-	@echo "   Backend   →  http://localhost:8000/docs"
-	@echo "   Search    →  http://localhost:7700"
+	@echo "   Frontend  →  http://localhost:$${FRONTEND_PORT:-3000}"
+	@echo "   Backend   →  http://localhost:$${BACKEND_PORT:-8000}/docs"
+	@echo "   MCP       →  http://localhost:$${MCP_PORT:-8001}/sse"
+	@echo "   Search    →  http://localhost:$${MEILI_PORT:-7700}"
 
 down: ## Arrête tous les services
 	$(COMPOSE) down
@@ -44,6 +45,9 @@ logs-back: ## Suit les logs du backend uniquement
 
 logs-front: ## Suit les logs du frontend uniquement
 	$(COMPOSE) logs -f frontend
+
+logs-mcp: ## Suit les logs du serveur MCP uniquement
+	$(COMPOSE) logs -f mcp
 
 # ─── Base de données ──────────────────────────────────────────────────────────
 
@@ -92,3 +96,9 @@ search-setup: ## Crée l'index Meilisearch et configure les searchableAttributes
 
 clean: ## Supprime les containers et volumes (⚠️ efface les données)
 	$(COMPOSE) down -v --remove-orphans
+
+backup: ## Sauvegarde complete vers /Volumes/USB1/be.CLEAR-Backup
+	bash ./backup.sh
+
+restore: ## Restaure depuis USB1 (optionnel: make restore SRC=/chemin/backup)
+	bash ./restore.sh $(if $(SRC),--source-dir=$(SRC),)

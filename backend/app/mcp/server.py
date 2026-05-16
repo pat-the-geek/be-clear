@@ -1,5 +1,6 @@
 """Serveur MCP be.CLEAR — instance FastMCP principale."""
 from mcp.server.fastmcp import FastMCP
+from mcp.server.sse import TransportSecuritySettings
 
 from app.mcp.resources import register_resources
 from app.mcp.tools.read import register_read_tools
@@ -15,6 +16,8 @@ mcp = FastMCP(
         "Pour les opérations d'écriture (create_event, mark_event_done, update_value), "
         "présente le plan et demande confirmation avant d'agir."
     ),
+    # Désactive la protection DNS rebinding pour permettre l'accès distant (Tailscale)
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
 register_read_tools(mcp)

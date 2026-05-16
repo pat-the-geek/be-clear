@@ -1,0 +1,20 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Dépendances système nécessaires aux libs Python (psycopg/matplotlib, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dépendances Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Code source minimal nécessaire au serveur MCP
+COPY app ./app
+COPY mcp_server.py ./mcp_server.py
+
+CMD ["python", "mcp_server.py"]

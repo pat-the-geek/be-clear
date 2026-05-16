@@ -12,6 +12,11 @@ RUN npm run build
 FROM nginx:1.30.0-alpine AS production
 
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/public/* /usr/share/nginx/html/
+
+# Assurer les permissions correctes sur les fichiers statiques
+RUN chmod -R 755 /usr/share/nginx/html && chmod -R 644 /usr/share/nginx/html/*
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000
