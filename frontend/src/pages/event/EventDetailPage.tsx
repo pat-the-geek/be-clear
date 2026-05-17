@@ -33,11 +33,11 @@ function PropValueRow({ label, value }: PropValueRowProps) {
     display = formatDateTime(value.valeur_date)
   } else if (type === 'BOOLEEN') {
     display = value.valeur_bool === true ? 'Oui' : value.valeur_bool === false ? 'Non' : '—'
-  } else if (type === 'MONTANT' && value.valeur_nombre !== undefined) {
+  } else if (type === 'MONTANT' && value.valeur_nombre != null) {
     display = new Intl.NumberFormat('fr-CH', { style: 'currency', currency: 'CHF' }).format(value.valeur_nombre)
-  } else if (type === 'POURCENTAGE' && value.valeur_nombre !== undefined) {
+  } else if (type === 'POURCENTAGE' && value.valeur_nombre != null) {
     display = `${value.valeur_nombre} %`
-  } else if (value.valeur_nombre !== undefined) {
+  } else if (value.valeur_nombre != null) {
     display = String(value.valeur_nombre)
   } else if (type === 'MARKDOWN' && value.valeur_texte) {
     display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
