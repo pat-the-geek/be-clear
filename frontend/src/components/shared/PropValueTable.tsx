@@ -1,5 +1,6 @@
 import type { Value } from '@/types'
 import { formatDate, formatDateTime } from '@/lib/utils'
+import ImageUrlValueDisplay from '@/components/shared/ImageUrlValueDisplay'
 
 interface Props {
   values: Value[]
@@ -60,6 +61,8 @@ export default function PropValueTable({ values }: Props) {
                 >
                   {v.valeur_texte}
                 </a>
+              ) : v.prop.type === 'IMAGEURL' && v.valeur_texte ? (
+                <ImageUrlValueDisplay url={v.valeur_texte} />
               ) : v.prop.type === 'EMAIL' && v.valeur_texte ? (
                 <a href={`mailto:${v.valeur_texte}`} className="text-blue-600 hover:underline">
                   {v.valeur_texte}

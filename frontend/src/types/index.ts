@@ -47,7 +47,7 @@ export type PropType =
   | 'TEXTE' | 'MARKDOWN'
   | 'ENTIER' | 'DECIMAL' | 'MONTANT' | 'POURCENTAGE'
   | 'BOOLEEN' | 'LISTE'
-  | 'URL' | 'EMAIL' | 'TELEPHONE'
+  | 'URL' | 'EMAIL' | 'TELEPHONE' | 'IMAGEURL'
   | 'REFERENCE' | 'COORDONNEES'
 
 export interface Prop {

@@ -216,6 +216,33 @@ export default function ValueField({ propNom, propType, valeursList, draft, onCh
     )
   }
 
+  // ── URL image ────────────────────────────────────────────
+  if (propType === 'IMAGEURL') {
+    return (
+      <div>
+        {label}
+        <input
+          type="url"
+          placeholder="https://…/image.jpg"
+          className={inputClass}
+          value={draft.valeur_texte ?? ''}
+          onChange={(e) => set({ valeur_texte: e.target.value || null })}
+          disabled={disabled}
+        />
+        {draft.valeur_texte && (
+          <img
+            src={draft.valeur_texte}
+            alt=""
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            onLoad={(e) => { (e.target as HTMLImageElement).style.display = '' }}
+            className="mt-2 max-h-32 max-w-full w-auto object-contain rounded-lg border border-gray-200 bg-gray-50"
+          />
+        )}
+      </div>
+    )
+  }
+
   // ── Email ────────────────────────────────────────────────
   if (propType === 'EMAIL') {
     return (

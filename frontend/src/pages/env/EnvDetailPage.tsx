@@ -3,13 +3,15 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
-import { envApi, engApi, rptApi, graphApi } from '@/services/api'
+import { ArrowLeft, Edit, CalendarDays, RefreshCw, Hash, Trash2, FileOutput, FileJson, ChevronDown, X, Plus, Pencil, CheckCircle2, Loader2, CalendarClock, List } from 'lucide-react'
+import { envApi, engApi, rptApi, graphApi, exportApi } from '@/services/api'
+import { downloadBlobResponse } from '@/lib/download'
 import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
+import ImageUrlValueDisplay from '@/components/shared/ImageUrlValueDisplay'
 import EngTable from '@/components/shared/EngTable'
 import CreateEngModal from '@/components/shared/CreateEngModal'
 import LogTimeline from '@/components/shared/LogTimeline'
@@ -52,6 +54,8 @@ function PropValueCard({ prop, value, onApplyDescription }: {
       display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
     } else if (type === 'URL' && value.valeur_texte) {
       display = <UrlValueDisplay url={value.valeur_texte} onApplyDescription={onApplyDescription} />
+    } else if (type === 'IMAGEURL' && value.valeur_texte) {
+      display = <ImageUrlValueDisplay url={value.valeur_texte} />
     } else if (type === 'EMAIL' && value.valeur_texte) {
       display = <a href={`mailto:${value.valeur_texte}`} className="text-blue-600 hover:underline">{value.valeur_texte}</a>
     } else if (value.valeur_texte) {
@@ -60,7 +64,7 @@ function PropValueCard({ prop, value, onApplyDescription }: {
   }
 
   // Les types longs occupent les 2 colonnes
-  const isWide = type === 'MARKDOWN' || type === 'TEXTE'
+  const isWide = type === 'MARKDOWN' || type === 'TEXTE' || type === 'IMAGEURL'
 
   return (
     <div className={`flex flex-col gap-1 ${isWide ? 'sm:col-span-2' : ''}`}>
@@ -308,6 +312,15 @@ export default function EnvDetailPage() {
     onError: () => toast.error('Erreur lors de la génération du rapport'),
   })
 
+  const { mutate: exportJson, isPending: isExporting } = useMutation({
+    mutationFn: async () => {
+      const res = await exportApi.env(envId)
+      downloadBlobResponse(res, `export_env_${envId}.json`)
+    },
+    onSuccess: () => toast.success('Export JSON téléchargé'),
+    onError: () => toast.error("Erreur lors de l'export JSON"),
+  })
+
   const { mutateAsync: deleteEnv, isPending: isDeleting } = useMutation({
     mutationFn: () => envApi.delete(envId),
     onSuccess: () => {
@@ -329,7 +342,7 @@ export default function EnvDetailPage() {
   const inheritedValues = env.obj.values.filter((v) => !claPropsIds.has(v.prop.id))
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
 
       {/* ─── Bouton retour ────────────────────────────────── */}
       <div className="mb-4">
@@ -343,98 +356,110 @@ export default function EnvDetailPage() {
       </div>
 
       {/* ─── En-tête ──────────────────────────────────────── */}
-      <div className="flex items-start gap-5 mb-8">
-        <EntityAvatar type="env" nom={env.obj.nom} image={imagePrincipale} size="lg" />
+      <div className="flex items-stretch gap-5 mb-8">
+        <EntityAvatar type="env" nom={env.obj.nom} image={imagePrincipale} size="xl" />
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight">{env.obj.nom}</h1>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                  {env.tenv.nom}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Bouton RPT */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowRptMenu((v) => !v)}
-                  disabled={isGeneratingRpt}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                  title="Générer un rapport"
-                >
-                  <FileOutput size={14} />
-                  Rapport
-                  <ChevronDown size={12} />
-                </button>
-                {showRptMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                    <button
-                      onClick={() => generateRpt('download')}
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Dossier local
-                    </button>
-                    <button
-                      onClick={() => generateRpt('obsidian')}
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
-                    >
-                      Vault Obsidian
-                    </button>
-                  </div>
-                )}
-              </div>
+        <div className="flex-1 min-w-0 flex flex-col min-h-[6rem]">
+          {/* Boutons d'action — alignés en haut de l'image */}
+          <div className="flex items-start justify-end gap-2 flex-wrap">
+            {/* Export JSON */}
+            <button
+              onClick={() => exportJson()}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              title="Exporter en JSON (ENG, EVENT et propriétés) pour traitement IA"
+            >
+              {isExporting ? <Loader2 size={14} className="animate-spin" /> : <FileJson size={14} />}
+              Export JSON
+            </button>
 
+            {/* Bouton RPT */}
+            <div className="relative">
               <button
-                onClick={() => setShowTimeline(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 transition-colors"
-                title="Voir la timeline des engagements"
+                onClick={() => setShowRptMenu((v) => !v)}
+                disabled={isGeneratingRpt}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                title="Générer un rapport"
               >
-                <CalendarDays size={14} />
-                Timeline
+                <FileOutput size={14} />
+                Rapport
+                <ChevronDown size={12} />
               </button>
-
-              {isEditeur() && (
-                <>
-                  {showDeleteConfirm ? (
-                    <>
-                      <span className="text-sm text-red-600 font-medium">Supprimer définitivement ?</span>
-                      <button
-                        onClick={() => deleteEnv()}
-                        disabled={isDeleting}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isDeleting ? 'Suppression…' : 'Confirmer'}
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(false)}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Annuler
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => navigate(`/env/${envId}/edit`)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <Edit size={14} />
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                        Supprimer
-                      </button>
-                    </>
-                  )}
-                </>
+              {showRptMenu && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                  <button
+                    onClick={() => generateRpt('download')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Dossier local
+                  </button>
+                  <button
+                    onClick={() => generateRpt('obsidian')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                  >
+                    Vault Obsidian
+                  </button>
+                </div>
               )}
+            </div>
+
+            <button
+              onClick={() => setShowTimeline(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-50 transition-colors"
+              title="Voir la timeline des engagements"
+            >
+              <CalendarDays size={14} />
+              Timeline
+            </button>
+
+            {isEditeur() && (
+              <>
+                {showDeleteConfirm ? (
+                  <>
+                    <span className="text-sm text-red-600 font-medium self-center">Supprimer définitivement ?</span>
+                    <button
+                      onClick={() => deleteEnv()}
+                      disabled={isDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isDeleting ? 'Suppression…' : 'Confirmer'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => navigate(`/env/${envId}/edit`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <Edit size={14} />
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Supprimer
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Titre — pleine largeur, multi-lignes, aligné en bas de l'image */}
+          <div className="mt-auto pt-3">
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight break-words">{env.obj.nom}</h1>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                {env.tenv.nom}
+              </span>
             </div>
           </div>
         </div>

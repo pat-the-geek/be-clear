@@ -7,6 +7,7 @@ import { eventApi } from '@/services/api'
 import { toast } from '@/lib/toast'
 import MarkdownContent from '@/components/shared/MarkdownContent'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
+import ImageUrlValueDisplay from '@/components/shared/ImageUrlValueDisplay'
 import ConfirmModal from '@/components/shared/ConfirmModal'
 import { useAuthStore } from '@/stores/authStore'
 import { formatDateTime } from '@/lib/utils'
@@ -43,13 +44,15 @@ function PropValueRow({ label, value }: PropValueRowProps) {
     display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
   } else if (type === 'URL' && value.valeur_texte) {
     display = <UrlValueDisplay url={value.valeur_texte} />
+  } else if (type === 'IMAGEURL' && value.valeur_texte) {
+    display = <ImageUrlValueDisplay url={value.valeur_texte} />
   } else if (type === 'EMAIL' && value.valeur_texte) {
     display = <a href={`mailto:${value.valeur_texte}`} className="text-blue-600 hover:underline">{value.valeur_texte}</a>
   } else if (value.valeur_texte) {
     display = value.valeur_texte
   }
 
-  const isWide = type === 'MARKDOWN' || type === 'TEXTE' || type === 'URL'
+  const isWide = type === 'MARKDOWN' || type === 'TEXTE' || type === 'URL' || type === 'IMAGEURL'
 
   return (
     <tr className="border-t border-gray-100">
@@ -145,7 +148,7 @@ export default function EventDetailPage() {
 
   return (
     <>
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* Retour */}
       <button
         onClick={() => navigate(-1)}
@@ -156,17 +159,50 @@ export default function EventDetailPage() {
       </button>
 
       {/* ─── En-tête ──────────────────────────── */}
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="flex items-start gap-4 flex-1 min-w-0">
-          <EntityAvatar
-            type="event"
-            nom={event.obj.nom}
-            image={event.obj.images.find(i => i.est_principale)}
-            size="md"
-          />
-          <div className="flex-1 min-w-0">
+      <div className="flex items-stretch gap-4 mb-6">
+        <EntityAvatar
+          type="event"
+          nom={event.obj.nom}
+          image={event.obj.images.find(i => i.est_principale)}
+          size="xl"
+        />
+        <div className="flex-1 min-w-0 flex flex-col min-h-[6rem]">
+          {/* Actions — alignées en haut de l'image */}
+          <div className="flex items-start justify-end gap-2 flex-wrap">
+            {isEditeur() && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Supprimer"
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
+            {isEditeur() && (
+              <button
+                onClick={() => navigate(`/event/${eventId}/edit`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Edit size={14} />
+                Modifier
+              </button>
+            )}
+            {isEditeur() && !accompli && (
+              <button
+                onClick={() => marquerAccompli()}
+                disabled={isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                <CheckCircle2 size={16} />
+                {isPending ? 'Enregistrement…' : 'Marquer accompli'}
+              </button>
+            )}
+          </div>
+
+          {/* Titre — pleine largeur, multi-lignes, aligné en bas de l'image */}
+          <div className="mt-auto pt-3">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight break-words">
                 {event.obj.nom}
               </h1>
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-700">
@@ -189,38 +225,6 @@ export default function EventDetailPage() {
               {event.eng_nom ? `↑ ${event.eng_nom}` : "Voir l'engagement parent"}
             </Link>
           </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          {isEditeur() && (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Supprimer"
-            >
-              <Trash2 size={15} />
-            </button>
-          )}
-          {isEditeur() && (
-            <button
-              onClick={() => navigate(`/event/${eventId}/edit`)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Edit size={14} />
-              Modifier
-            </button>
-          )}
-          {isEditeur() && !accompli && (
-            <button
-              onClick={() => marquerAccompli()}
-              disabled={isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              <CheckCircle2 size={16} />
-              {isPending ? 'Enregistrement…' : 'Marquer accompli'}
-            </button>
-          )}
         </div>
       </div>
 

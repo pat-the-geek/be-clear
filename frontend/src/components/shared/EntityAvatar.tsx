@@ -25,6 +25,7 @@ const SIZES = {
   sm: { box: 'w-10 h-10 rounded-xl', icon: 16 },
   md: { box: 'w-14 h-14 rounded-xl', icon: 22 },
   lg: { box: 'w-20 h-20 rounded-xl', icon: 30 },
+  xl: { box: 'w-24 h-24 rounded-2xl', icon: 38 },
 }
 
 // ─── Composant ───────────────────────────────────────────────

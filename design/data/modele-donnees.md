@@ -346,7 +346,7 @@ Structure identique à `org_torg_history`.
 | `updated_by` | INT | FK → user(id) | |
 
 **Types de PROP (`type`) :**
-`DATE`, `HEURE`, `DATETIME`, `DUREE`, `TEXTE`, `MARKDOWN`, `ENTIER`, `DECIMAL`, `MONTANT`, `POURCENTAGE`, `BOOLEEN`, `LISTE`, `URL`, `EMAIL`, `TELEPHONE`, `REFERENCE`, `COORDONNEES`
+`DATE`, `HEURE`, `DATETIME`, `DUREE`, `TEXTE`, `MARKDOWN`, `ENTIER`, `DECIMAL`, `MONTANT`, `POURCENTAGE`, `BOOLEEN`, `LISTE`, `URL`, `EMAIL`, `TELEPHONE`, `IMAGEURL`, `REFERENCE`, `COORDONNEES`
 
 ---
 
@@ -378,7 +378,7 @@ Stratégie **colonnes typées hybrides** : seule la colonne correspondant au typ
 | `id` | SERIAL | PK | |
 | `obj_id` | INT | FK → obj(id), NOT NULL | |
 | `prop_id` | INT | FK → prop(id), NOT NULL | |
-| `valeur_texte` | TEXT | | `TEXTE`, `MARKDOWN`, `URL`, `EMAIL`, `TELEPHONE`, `LISTE` |
+| `valeur_texte` | TEXT | | `TEXTE`, `MARKDOWN`, `URL`, `EMAIL`, `TELEPHONE`, `IMAGEURL`, `LISTE` |
 | `valeur_date` | TIMESTAMPTZ | | `DATE`, `HEURE`, `DATETIME` |
 | `valeur_nombre` | DECIMAL(20,6) | | `ENTIER`, `DECIMAL`, `POURCENTAGE`, `MONTANT` (en CHF) |
 | `valeur_bool` | BOOLEAN | | `BOOLEEN` |
@@ -410,6 +410,7 @@ Stratégie **colonnes typées hybrides** : seule la colonne correspondant au typ
 | `URL` | `valeur_texte` | `"https://acme.com"` |
 | `EMAIL` | `valeur_texte` | `"contact@acme.com"` |
 | `TELEPHONE` | `valeur_texte` | `"+33612345678"` |
+| `IMAGEURL` | `valeur_texte` | `"https://acme.com/logo.png"` (affiché en image) |
 | `REFERENCE` | `valeur_ref_obj_id` | `42` (id OBJ cible) |
 
 ---

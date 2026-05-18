@@ -3,14 +3,16 @@ import { useAutoResize } from '@/hooks/useAutoResize'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, List, CalendarDays, GanttChartSquare, AlertTriangle, Copy, Square, CheckSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, Edit, Trash2, Plus, Loader2, Pencil, X, Download, FileText, FileJson, List, CalendarDays, GanttChartSquare, AlertTriangle, Copy, Square, CheckSquare } from 'lucide-react'
 import MarkdownContent from '@/components/shared/MarkdownContent'
-import { engApi, eventApi, teventApi, claApi } from '@/services/api'
+import { engApi, eventApi, teventApi, claApi, exportApi } from '@/services/api'
+import { downloadBlobResponse } from '@/lib/download'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import EntityAvatar from '@/components/shared/EntityAvatar'
 import { Modal } from '@/components/shared/Modal'
 import SmartImage from '@/components/shared/SmartImage'
 import UrlValueDisplay from '@/components/shared/UrlValueDisplay'
+import ImageUrlValueDisplay from '@/components/shared/ImageUrlValueDisplay'
 import { imgUrl } from '@/components/shared/ImageManager'
 import { useAuthStore } from '@/stores/authStore'
 import type { Eng, EngEventBrief, Tevent, Event as AppEvent, Prop, Value } from '@/types'
@@ -932,6 +934,8 @@ function PropValueCard({ prop, value }: { prop: Prop; value?: Value }) {
       display = <MarkdownContent>{value.valeur_texte}</MarkdownContent>
     } else if (type === 'URL' && value.valeur_texte) {
       display = <UrlValueDisplay url={value.valeur_texte} />
+    } else if (type === 'IMAGEURL' && value.valeur_texte) {
+      display = <ImageUrlValueDisplay url={value.valeur_texte} />
     } else if (type === 'EMAIL' && value.valeur_texte) {
       display = <a href={`mailto:${value.valeur_texte}`} className="text-blue-600 hover:underline">{value.valeur_texte}</a>
     } else if (value.valeur_texte) {
@@ -939,7 +943,7 @@ function PropValueCard({ prop, value }: { prop: Prop; value?: Value }) {
     }
   }
 
-  const isWide = type === 'MARKDOWN' || type === 'TEXTE'
+  const isWide = type === 'MARKDOWN' || type === 'TEXTE' || type === 'IMAGEURL'
   return (
     <div className={`flex flex-col gap-1 ${isWide ? 'sm:col-span-2' : ''}`}>
       <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{prop.nom}</span>
@@ -1097,6 +1101,7 @@ export default function EngDetailPage() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
   const [showTimeline, setShowTimeline] = useState(false)
   const [showGantt, setShowGantt] = useState(false)
+  const [confirmAllDone, setConfirmAllDone] = useState(false)
 
   const { data: eng, isLoading, isError } = useQuery({
     queryKey: ['eng', engId],
@@ -1160,6 +1165,28 @@ export default function EngDetailPage() {
     onError: () => toast.error('Erreur lors de la mise à jour'),
   })
 
+  const { mutate: accomplirTous, isPending: isAccomplishingAll } = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map((id) => eventApi.update(id, { date_heure_reelle: new Date().toISOString() })))
+      return ids.length
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['eng', engId] })
+      setSelectedEventIds(new Set())
+      toast.success(`${count} événement(s) marqués accomplis`)
+    },
+    onError: () => toast.error('Erreur lors de la mise à jour'),
+  })
+
+  const { mutate: exportJson, isPending: isExporting } = useMutation({
+    mutationFn: async () => {
+      const res = await exportApi.eng(engId)
+      downloadBlobResponse(res, `export_eng_${engId}.json`)
+    },
+    onSuccess: () => toast.success('Export JSON téléchargé'),
+    onError: () => toast.error("Erreur lors de l'export JSON"),
+  })
+
   const { mutateAsync: saveDesc, isPending: isSavingDesc } = useMutation({
     mutationFn: (description: string) => engApi.update(engId, { description }),
   })
@@ -1177,7 +1204,7 @@ export default function EngDetailPage() {
   )
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       {/* Retour */}
       <button
         onClick={() => navigate(-1)}
@@ -1198,98 +1225,106 @@ export default function EngDetailPage() {
       )}
 
       {/* ─── En-tête ──────────────────────────── */}
-      <div className="mb-4">
-        <div className="flex items-start gap-4">
-          <EntityAvatar
-            type="eng"
-            nom={eng.obj.nom}
-            image={eng.obj.images.find((i) => i.est_principale)}
-            size="md"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start gap-2 flex-wrap">
-                  <h1 className="text-2xl font-bold text-gray-900 leading-tight">{eng.obj.nom}</h1>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 shrink-0 mt-1">
-                    {eng.teng.nom}
-                  </span>
-                </div>
-              </div>
+      <div className="flex items-stretch gap-4 mb-4">
+        <EntityAvatar
+          type="eng"
+          nom={eng.obj.nom}
+          image={eng.obj.images.find((i) => i.est_principale)}
+          size="xl"
+        />
+        <div className="flex-1 min-w-0 flex flex-col min-h-[6rem]">
+          {/* Boutons d'action — alignés en haut de l'image */}
+          <div className="flex items-start justify-end gap-2 flex-wrap">
+            {/* Export JSON */}
+            <button
+              onClick={() => exportJson()}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              title="Exporter en JSON (EVENT et propriétés) pour traitement IA"
+            >
+              {isExporting ? <Loader2 size={14} className="animate-spin" /> : <FileJson size={14} />}
+              Export JSON
+            </button>
 
-              {/* Boutons d'action */}
-              <div className="flex items-center gap-2 shrink-0">
-                {(eng.gantt_mermaid || sortedEvents.length > 0) && (
-                  <div className="flex items-center border border-sky-200 rounded-lg overflow-hidden">
-                    {eng.gantt_mermaid && (
-                      <button
-                        onClick={() => setShowTimeline(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 transition-colors"
-                      >
-                        <CalendarDays size={14} />
-                        Timeline
-                      </button>
-                    )}
-                    {sortedEvents.length > 0 && (
-                      <button
-                        onClick={() => setShowGantt(true)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 transition-colors${eng.gantt_mermaid ? ' border-l border-sky-200' : ''}`}
-                      >
-                        <GanttChartSquare size={14} />
-                        Gantt
-                      </button>
-                    )}
-                  </div>
+            {(eng.gantt_mermaid || sortedEvents.length > 0) && (
+              <div className="flex items-center border border-sky-200 rounded-lg overflow-hidden">
+                {eng.gantt_mermaid && (
+                  <button
+                    onClick={() => setShowTimeline(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+                  >
+                    <CalendarDays size={14} />
+                    Timeline
+                  </button>
                 )}
-                {isEditeur() && (
+                {sortedEvents.length > 0 && (
+                  <button
+                    onClick={() => setShowGantt(true)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50 transition-colors${eng.gantt_mermaid ? ' border-l border-sky-200' : ''}`}
+                  >
+                    <GanttChartSquare size={14} />
+                    Gantt
+                  </button>
+                )}
+              </div>
+            )}
+            {isEditeur() && (
+              <>
+                {showDeleteConfirm ? (
                   <>
-                    {showDeleteConfirm ? (
-                      <>
-                        <span className="text-sm text-red-600 font-medium">Supprimer ?</span>
-                        <button
-                          onClick={() => deleteEng()}
-                          disabled={isDeleting}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                        >
-                          {isDeleting ? 'Suppression…' : 'Confirmer'}
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(false)}
-                          className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          Annuler
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => duplicate()}
-                          disabled={isDuplicating}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                          title="Dupliquer cet engagement"
-                        >
-                          {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-                          Dupliquer
-                        </button>
-                        <button
-                          onClick={() => navigate(`/eng/${engId}/edit`)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          <Edit size={14} />
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(true)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                          Supprimer
-                        </button>
-                      </>
-                    )}
+                    <span className="text-sm text-red-600 font-medium self-center">Supprimer ?</span>
+                    <button
+                      onClick={() => deleteEng()}
+                      disabled={isDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isDeleting ? 'Suppression…' : 'Confirmer'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => duplicate()}
+                      disabled={isDuplicating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      title="Dupliquer cet engagement"
+                    >
+                      {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                      Dupliquer
+                    </button>
+                    <button
+                      onClick={() => navigate(`/eng/${engId}/edit`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <Edit size={14} />
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Supprimer
+                    </button>
                   </>
                 )}
-              </div>
+              </>
+            )}
+          </div>
+
+          {/* Titre — pleine largeur, multi-lignes, aligné en bas de l'image */}
+          <div className="mt-auto pt-3">
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight break-words">{eng.obj.nom}</h1>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                {eng.teng.nom}
+              </span>
             </div>
           </div>
         </div>
@@ -1634,6 +1669,45 @@ export default function EngDetailPage() {
                   <X size={14} />
                   Annuler
                 </button>
+              </div>
+            )}
+
+            {/* Marquer tous les EVENTs accomplis — bas de liste */}
+            {isEditeur() && sortedEvents.some((e) => !e.est_accompli) && (
+              <div className="mt-3 flex justify-end">
+                {confirmAllDone ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">
+                      Marquer {sortedEvents.filter((e) => !e.est_accompli).length} évènement(s) comme accomplis ?
+                    </span>
+                    <button
+                      onClick={() => {
+                        accomplirTous(sortedEvents.filter((e) => !e.est_accompli).map((e) => e.id))
+                        setConfirmAllDone(false)
+                      }}
+                      disabled={isAccomplishingAll}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isAccomplishingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      Confirmer
+                    </button>
+                    <button
+                      onClick={() => setConfirmAllDone(false)}
+                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmAllDone(true)}
+                    disabled={isAccomplishingAll}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-green-700 border border-green-300 rounded-lg hover:bg-green-50 disabled:opacity-50 transition-colors"
+                  >
+                    <CheckCircle2 size={15} />
+                    Tout marquer accompli
+                  </button>
+                )}
               </div>
             )}
           </>

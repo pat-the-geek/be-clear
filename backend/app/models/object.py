@@ -58,7 +58,7 @@ class Prop(Base, AuditMixin):
         "TEXTE", "MARKDOWN",
         "ENTIER", "DECIMAL", "MONTANT", "POURCENTAGE",
         "BOOLEEN", "LISTE",
-        "URL", "EMAIL", "TELEPHONE",
+        "URL", "EMAIL", "TELEPHONE", "IMAGEURL",
         "REFERENCE", "COORDONNEES",
     )
 
@@ -114,7 +114,7 @@ class Value(Base, AuditMixin):
     prop_id: Mapped[int] = mapped_column(Integer, ForeignKey("prop.id", ondelete="CASCADE"), nullable=False)
 
     # Colonnes typées — une seule renseignée selon le type de PROP
-    valeur_texte: Mapped[Optional[str]] = mapped_column(Text)           # TEXTE, MARKDOWN, URL, EMAIL, TELEPHONE, LISTE
+    valeur_texte: Mapped[Optional[str]] = mapped_column(Text)           # TEXTE, MARKDOWN, URL, EMAIL, TELEPHONE, IMAGEURL, LISTE
     valeur_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # DATE, HEURE, DATETIME
     valeur_nombre: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6))          # ENTIER, DECIMAL, POURCENTAGE
     valeur_bool: Mapped[Optional[bool]] = mapped_column(Boolean)                      # BOOLEEN

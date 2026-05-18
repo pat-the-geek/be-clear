@@ -211,6 +211,7 @@ const PROP_TYPES: { value: PropType; label: string; color: string }[] = [
   { value: 'URL',         label: 'URL',          color: 'bg-cyan-100 text-cyan-700' },
   { value: 'EMAIL',       label: 'Email',        color: 'bg-cyan-100 text-cyan-700' },
   { value: 'TELEPHONE',   label: 'Téléphone',    color: 'bg-cyan-100 text-cyan-700' },
+  { value: 'IMAGEURL',    label: 'URL image',    color: 'bg-cyan-100 text-cyan-700' },
   { value: 'REFERENCE',   label: 'Référence',    color: 'bg-rose-100 text-rose-700' },
   { value: 'COORDONNEES', label: 'Coordonnées',  color: 'bg-rose-100 text-rose-700' },
 ]

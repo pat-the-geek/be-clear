@@ -200,6 +200,13 @@ export const rptApi = {
     api.get(`/rpt/env/${id}/download`, { responseType: 'blob' }),
 }
 
+// ─── EXPORT JSON ─────────────────────────────────────────
+export const exportApi = {
+  org: (id: number) => api.get(`/export/org/${id}`, { responseType: 'blob' }),
+  env: (id: number) => api.get(`/export/env/${id}`, { responseType: 'blob' }),
+  eng: (id: number) => api.get(`/export/eng/${id}`, { responseType: 'blob' }),
+}
+
 // ─── LOG ─────────────────────────────────────────────────
 export const logApi = {
   list: (params?: { table_name?: string; entite_id?: number; user_id?: number; operation?: string; date_from?: string; date_to?: string; page?: number; per_page?: number }) =>
